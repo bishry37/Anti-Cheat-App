@@ -6,6 +6,25 @@ import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Calendar, Clock } from 'luc
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 
+const formatIndonesianDate = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const year = parts[0];
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+  
+  if (monthIdx >= 0 && monthIdx < 12) {
+    return `${day} ${months[monthIdx]} ${year}`;
+  }
+  return dateStr;
+};
+
 export default function Exams() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -398,7 +417,7 @@ export default function Exams() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-[11px] text-slate-600 font-medium">
-                      <div className="flex items-center mb-0.5"><Calendar className="w-3 h-3 mr-1.5 text-slate-400" /> {exam.date}</div>
+                      <div className="flex items-center mb-0.5"><Calendar className="w-3 h-3 mr-1.5 text-slate-400" /> {formatIndonesianDate(exam.date || '')}</div>
                       <div className="flex items-center"><Clock className="w-3 h-3 mr-1.5 text-slate-400" /> {exam.startTime} - {exam.endTime} ({exam.duration}m)</div>
                     </td>
                     <td className="px-4 py-3">
