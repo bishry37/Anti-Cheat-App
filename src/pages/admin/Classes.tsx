@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, where, writeBatch } from 'firebase/firestore';
 import { Class } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function Classes() {
+  const { user } = useAuth();
   const [classesList, setClassesList] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -19,15 +21,18 @@ export default function Classes() {
   } | null>(null);
 
   useEffect(() => {
-    fetchClasses();
-  }, []);
+    if (user) fetchClasses();
+  }, [user]);
 
   const fetchClasses = async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      const q = query(collection(db, 'classes'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'classes'), where('adminId', '==', user.uid));
       const snap = await getDocs(q);
-      setClassesList(snap.docs.map(d => ({ id: d.id, ...d.data() } as Class)));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Class));
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setClassesList(list);
     } catch (err) {
       console.error(err);
     }
@@ -35,15 +40,27 @@ export default function Classes() {
   };
 
   const handleSave = async () => {
-    if (!nameInput.trim()) return;
+    if (!nameInput.trim() || !user) return;
     setProcessing(true);
     try {
+      const newName = nameInput.trim();
       if (editingId) {
-        await updateDoc(doc(db, 'classes', editingId), { name: nameInput.trim() });
+        const oldClass = classesList.find(c => c.id === editingId);
+        await updateDoc(doc(db, 'classes', editingId), { name: newName, adminId: user.uid });
+        if (oldClass && oldClass.name !== newName) {
+           const examsQ = query(collection(db, 'exams'), where('targetClass', '==', oldClass.name), where('adminId', '==', user.uid));
+           const snap = await getDocs(examsQ);
+           if (!snap.empty) {
+             const batch = writeBatch(db);
+             snap.forEach(d => batch.update(d.ref, { targetClass: newName }));
+             await batch.commit();
+           }
+        }
       } else {
         await addDoc(collection(db, 'classes'), {
-          name: nameInput.trim(),
-          createdAt: Date.now()
+          name: newName,
+          createdAt: Date.now(),
+          adminId: user.uid
         });
       }
       setIsAdding(false);
@@ -68,7 +85,17 @@ export default function Classes() {
     if (!modalConfig || !modalConfig.idToDelete) return;
     setProcessing(true);
     try {
+      const oldClass = classesList.find(c => c.id === modalConfig.idToDelete);
       await deleteDoc(doc(db, 'classes', modalConfig.idToDelete));
+      if (oldClass && user) {
+         const examsQ = query(collection(db, 'exams'), where('targetClass', '==', oldClass.name), where('adminId', '==', user.uid));
+         const snap = await getDocs(examsQ);
+         if (!snap.empty) {
+           const batch = writeBatch(db);
+           snap.forEach(d => batch.update(d.ref, { targetClass: '' }));
+           await batch.commit();
+         }
+      }
       setModalConfig(null);
       await fetchClasses();
     } catch (err) {

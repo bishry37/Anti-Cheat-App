@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc, deleteDoc, getDoc, where } from 'firebase/firestore';
 import { StudentSession, Violation, Exam, Subject } from '../../types';
 import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ExamMonitor() {
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<StudentSession[]>([]);
   const [exams, setExams] = useState<Record<string, Exam>>({});
   const [subjects, setSubjects] = useState<Record<string, Subject>>({});
@@ -40,11 +42,12 @@ export default function ExamMonitor() {
   useEffect(() => {
     // Fetch static references first
     const fetchRefs = async () => {
+      if (!user) return;
       try {
         const [exSnap, subSnap, setSnap] = await Promise.all([
-          getDocs(collection(db, 'exams')),
-          getDocs(collection(db, 'subjects')),
-          getDoc(doc(db, 'settings', 'school'))
+          getDocs(query(collection(db, 'exams'), where('adminId', '==', user.uid))),
+          getDocs(query(collection(db, 'subjects'), where('adminId', '==', user.uid))),
+          getDoc(doc(db, 'settings', user.uid))
         ]);
         
         const exMap: Record<string, Exam> = {};
@@ -67,8 +70,9 @@ export default function ExamMonitor() {
     };
     
     fetchRefs().then(() => {
+      if (!user) return;
       // Subscribe to active sessions
-      const q = query(collection(db, 'student_sessions'));
+      const q = query(collection(db, 'student_sessions'), where('adminId', '==', user.uid));
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
         // Sort active first, then newest
@@ -88,9 +92,9 @@ export default function ExamMonitor() {
       }, (error) => {
         handleFirestoreError(error, OperationType.LIST, 'student_sessions');
       });
-      return () => unsubscribe();
+      return () => { if (unsubscribe) unsubscribe(); };
     });
-  }, []);
+  }, [user]);
 
   const openMonitor = async (session: StudentSession) => {
     setSelectedSession(session);

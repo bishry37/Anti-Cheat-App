@@ -4,8 +4,10 @@ import { collection, query, getDocs, deleteDoc, doc, orderBy, where, writeBatch,
 import { Question, Subject } from '../../types';
 import { Edit2, Trash2, Loader2, X, Upload, Download, FileSpreadsheet, Search, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function QuestionBank() {
+  const { user } = useAuth();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('');
@@ -83,14 +85,16 @@ export default function QuestionBank() {
   };
 
   useEffect(() => {
-    fetchSubjects();
-  }, []);
+    if (user) fetchSubjects();
+  }, [user]);
 
   const fetchSubjects = async () => {
+    if (!user) return;
     try {
-      const q = query(collection(db, 'subjects'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'subjects'), where('adminId', '==', user.uid));
       const snap = await getDocs(q);
       const subs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
+      subs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       setSubjects(subs);
     } catch (err) {
       console.error(err);
@@ -124,13 +128,15 @@ export default function QuestionBank() {
   };
 
   const fetchQuestions = async () => {
+    if (!user) return;
     setLoading(true);
     try {
       let q;
       if (selectedTemplateFilter === 'all') {
-        q = query(collection(db, 'questions'), where('subjectId', '==', selectedSubject));
+        q = query(collection(db, 'questions'), where('adminId', '==', user.uid), where('subjectId', '==', selectedSubject));
       } else {
         q = query(collection(db, 'questions'), 
+          where('adminId', '==', user.uid),
           where('subjectId', '==', selectedSubject), 
           where('packetName', '==', selectedTemplateFilter)
         );
@@ -198,7 +204,8 @@ export default function QuestionBank() {
             correctAnswer: String(row.JawabanBenar).toUpperCase().trim(),
             type: 'pilihan_ganda',
             weight: Number(row.BobotNilai || 10),
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            adminId: user.uid
           } as Question);
           count++;
 
@@ -338,7 +345,7 @@ export default function QuestionBank() {
   };
 
   const handleUpdateQuestion = async () => {
-    if (!editingQuestionId || !editingData) return;
+    if (!editingQuestionId || !editingData || !user) return;
     setProcessing(true);
     try {
       await updateDoc(doc(db, 'questions', editingQuestionId), {
@@ -351,7 +358,8 @@ export default function QuestionBank() {
         optionE: String(editingData.optionE || ''),
         correctAnswer: String(editingData.correctAnswer?.toUpperCase() || 'A'),
         type: 'pilihan_ganda',
-        weight: Number(editingData.weight || 10)
+        weight: Number(editingData.weight || 10),
+        adminId: user.uid
       } as any);
       
       setEditingQuestionId(null);

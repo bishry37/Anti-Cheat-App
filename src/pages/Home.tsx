@@ -1,35 +1,46 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { collection, query, where, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Setting, Subject, Exam, StudentSession } from '../types';
-import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2 } from 'lucide-react';
+import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import brandLogo from '../assets/images/anti_cheating_logo_1780567204620.png';
 
 export default function Home() {
   const navigate = useNavigate();
-  const { user, isAdmin, loginAsStudent } = useAuth();
-  const [activeTab, setActiveTab] = useState<'student' | 'admin'>('student');
+  const [searchParams] = useSearchParams();
+  const examIdFromUrl = searchParams.get('e');
+  const codeFromUrl = searchParams.get('c');
+  const hasStudentLink = !!(examIdFromUrl || codeFromUrl);
+
+  const { user, isAdmin, loginAsStudent, resetPassword, checkEmailExists } = useAuth();
+  const [activeTab, setActiveTab] = useState<'student' | 'admin' | 'forgot_password'>('student');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   // Data
   const [setting, setSetting] = useState<Setting | null>(null);
+  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [activeExams, setActiveExams] = useState<Exam[]>([]);
+  const [classesList, setClassesList] = useState<{id: string, name: string}[]>([]);
 
   // Form State
   const [studentName, setStudentName] = useState('');
-  const [className, setClassName] = useState(''); // Need class name for student session
-  const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [examToken, setExamToken] = useState('');
   
   // Admin Form State
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+
+  // Specific Exam info based on URL
+  const [linkedExam, setLinkedExam] = useState<Exam | null>(null);
+  const [linkedSubjectName, setLinkedSubjectName] = useState<string>('');
 
   useEffect(() => {
     if (user) {
@@ -42,28 +53,76 @@ export default function Home() {
   }, [user, isAdmin, navigate]);
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        // Fetch Settings
-        const settingsSnap = await getDocs(collection(db, 'settings'));
-        if (!settingsSnap.empty) {
-          setSetting(settingsSnap.docs[0].data() as Setting);
-        }
+    let unsubSettings: () => void;
+    let unsubExams: () => void;
+    let unsubClasses: () => void;
+    let unsubSubjects: () => void;
 
-        // Fetch Subjects
-        const subjectsSnap = await getDocs(collection(db, 'subjects'));
-        setSubjects(subjectsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Subject)));
+    // Fetch Settings
+    unsubSettings = onSnapshot(collection(db, 'settings'), (settingsSnap) => {
+      if (!settingsSnap.empty) {
+        setSetting(settingsSnap.docs[0].data() as Setting);
+      }
+    }, (err) => console.error(err));
 
-        // Fetch Active Exams
-        const examsQuery = query(collection(db, 'exams'), where('isActive', '==', true));
-        const examsSnap = await getDocs(examsQuery);
-        setActiveExams(examsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Exam)));
-      } catch (err) {
-        console.error(err);
+    // Fetch Active Exams
+    const examsQuery = query(collection(db, 'exams'), where('isActive', '==', true));
+    unsubExams = onSnapshot(examsQuery, (examsSnap) => {
+      const examsData = examsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Exam));
+      setActiveExams(examsData);
+    }, (err) => console.error(err));
+
+    // Fetch Classes
+    unsubClasses = onSnapshot(collection(db, 'classes'), (classesSnap) => {
+      const uniqueClasses = Array.from(new Map(classesSnap.docs.map(d => [d.data().name, { id: d.id, name: d.data().name }])).values());
+      const sortedClasses = uniqueClasses.sort((a, b) => a.name.localeCompare(b.name));
+      setClassesList(sortedClasses);
+    }, (err) => console.error(err));
+
+    // Fetch Subjects
+    unsubSubjects = onSnapshot(collection(db, 'subjects'), (subjectsSnap) => {
+      const rawSubjects = subjectsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
+      setAllSubjects(rawSubjects);
+      const uniqueSubjects = Array.from(new Map(rawSubjects.map(d => [d.name, d])).values());
+      const sortedSubjects = uniqueSubjects.sort((a: any, b: any) => a.name.localeCompare(b.name));
+      setSubjects(sortedSubjects as Subject[]);
+    }, (err) => console.error(err));
+
+    return () => {
+      if (unsubSettings) unsubSettings();
+      if (unsubExams) unsubExams();
+      if (unsubClasses) unsubClasses();
+      if (unsubSubjects) unsubSubjects();
+    };
+  }, []);
+
+  // Update linkedExam when data loaded
+  useEffect(() => {
+    const targetCode = codeFromUrl || examIdFromUrl;
+    if (targetCode && activeExams.length > 0) {
+      const ex = activeExams.find(e => 
+         e.id === targetCode || 
+         e.shortCode === targetCode || 
+         e.id?.substring(0, 6) === targetCode
+      );
+      if (ex) {
+        setLinkedExam(ex);
+        const subj = allSubjects.find(s => s.id === ex.subjectId);
+        if (subj) setLinkedSubjectName(subj.name);
+        
+        // Also fetch the specific admin's settings
+        const fetchAdminSetting = async () => {
+          try {
+             const settingSnap = await getDocs(query(collection(db, 'settings'), where('adminId', '==', ex.adminId)));
+             if (!settingSnap.empty) {
+               setSetting(settingSnap.docs[0].data() as Setting);
+             }
+          } catch(e) {}
+        };
+        fetchAdminSetting();
       }
     }
-    fetchData();
-  }, []);
+  }, [examIdFromUrl, codeFromUrl, activeExams, allSubjects]);
 
   // Background token auto-reset check
   useEffect(() => {
@@ -149,22 +208,76 @@ export default function Home() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail) {
+      setErrorMessage('Harap masukkan alamat email.');
+      return;
+    }
+    setLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+    try {
+      // Per the user request, if the email does not exist, throw an alert.
+      const exists = await checkEmailExists(resetEmail);
+      if (!exists) {
+        setErrorMessage('Email yang dimasukkan tidak terdaftar.');
+        setLoading(false);
+        return;
+      }
+      
+      await resetPassword(resetEmail);
+      setSuccessMessage('Tautan reset password telah dikirim ke email Anda.');
+      setResetEmail('');
+    } catch (error: any) {
+      console.error(error);
+      setErrorMessage('Gagal mengirim tautan reset password atau email tidak terdaftar.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Effect to load specific teacher settings when token matches
+  useEffect(() => {
+    if (examToken && examToken.length >= 4) {
+      const matchingExam = activeExams.find(ex => ex.activeToken.toUpperCase() === examToken.toUpperCase());
+      if (matchingExam && matchingExam.adminId) {
+        // Fetch setting specific to this teacher/admin
+        const fetchAdminSetting = async () => {
+          try {
+             const settingSnap = await getDocs(query(collection(db, 'settings'), where('adminId', '==', matchingExam.adminId)));
+             if (!settingSnap.empty) {
+               setSetting(settingSnap.docs[0].data() as Setting);
+             }
+          } catch(e) {}
+        };
+        fetchAdminSetting();
+      }
+    }
+  }, [examToken, activeExams]);
+
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentName || !className || !selectedSubjectId || !examToken) {
+    if (!studentName || !examToken) {
       setErrorMessage('Harap lengkapi semua data.');
       return;
     }
 
     // Validate credentials against active exams
-    const matchingExam = activeExams.find(
-      (ex) => ex.subjectId === selectedSubjectId && ex.activeToken === examToken
-    );
+    const matchingExamByToken = activeExams.find(ex => ex.activeToken === examToken);
 
-    if (!matchingExam) {
-      setErrorMessage('Token ujian salah atau ujian tidak tersedia untuk mapel ini.');
+    if (!matchingExamByToken) {
+      setErrorMessage('Token ujian salah atau ujian tidak tersedia. Pastikan token yang Anda masukkan benar.');
       return;
     }
+
+    // If they used a link to specific exam, verify the token matches that exam
+    if (linkedExam && matchingExamByToken.id !== linkedExam.id) {
+       setErrorMessage('Token ujian tidak cocok dengan link ujian ini.');
+       return;
+    }
+
+    const matchingExam = matchingExamByToken;
 
     try {
       setLoading(true);
@@ -173,14 +286,15 @@ export default function Home() {
 
       const sessionData: StudentSession = {
         studentName,
-        className,
+        className: matchingExam.targetClass || 'Tidak Diketahui',
         examId: matchingExam.id!,
-        subjectId: selectedSubjectId,
+        subjectId: matchingExam.subjectId,
         token: examToken,
         status: 'Aktif',
         violationsCount: 0,
         lastActivity: Date.now(),
-        startTime: Date.now()
+        startTime: Date.now(),
+        adminId: matchingExam.adminId
       };
 
       await setDoc(doc(db, 'student_sessions', uid), sessionData);
@@ -227,10 +341,17 @@ export default function Home() {
             <span className="font-medium">{errorMessage}</span>
           </div>
         )}
+        
+        {successMessage && (
+          <div className="mb-6 p-3.5 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl text-sm justify-center flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span className="font-medium">{successMessage}</span>
+          </div>
+        )}
 
         <div className="relative">
           <AnimatePresence mode="wait">
-            {activeTab === 'student' ? (
+            {activeTab === 'student' && (
               <motion.form 
                 key="student"
                 initial={{ opacity: 0, y: 10 }}
@@ -247,6 +368,19 @@ export default function Home() {
                   </h2>
                 </div>
 
+                {linkedExam ? (
+                  <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 mb-4 text-center">
+                     <p className="text-[11px] font-bold text-blue-500 uppercase tracking-wider mb-1">Anda diundang ke Ujian</p>
+                     <h3 className="text-base font-bold text-slate-800 leading-tight">{linkedExam.title}</h3>
+                     <p className="text-sm font-medium text-slate-600 mt-1">{linkedSubjectName} • {linkedExam.targetClass || 'Pendaftar Umum'}</p>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 text-center">
+                     <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Informasi</p>
+                     <p className="text-sm font-medium text-slate-600">Masukkan Token Ujian dari Guru Anda untuk mengakses ruangan.</p>
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Nama Lengkap</label>
@@ -254,32 +388,10 @@ export default function Home() {
                       type="text" 
                       value={studentName}
                       onChange={(e) => setStudentName(e.target.value)}
-                      placeholder="Contoh: Budi Santoso"
+                      placeholder="Tulis nama lengkap anda"
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all focus:bg-white text-sm"
+                      required
                     />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Kelas</label>
-                    <input 
-                      type="text" 
-                      value={className}
-                      onChange={(e) => setClassName(e.target.value)}
-                      placeholder="Contoh: XII IPA 1"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all focus:bg-white text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Mata Pelajaran</label>
-                    <select 
-                      value={selectedSubjectId}
-                      onChange={(e) => setSelectedSubjectId(e.target.value)}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer focus:bg-white text-sm font-medium"
-                    >
-                      <option value="" disabled className="text-slate-400">--- Pilih Mata Pelajaran ---</option>
-                      {subjects.map(s => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Token Ujian</label>
@@ -288,7 +400,7 @@ export default function Home() {
                       <input 
                         type="text" 
                         value={examToken}
-                        onChange={(e) => setExamToken(e.target.value)}
+                        onChange={(e) => setExamToken(e.target.value.toUpperCase())}
                         placeholder="Masukkan 6 digit token"
                         className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-mono uppercase tracking-widest font-bold text-slate-700 focus:bg-white text-sm"
                         maxLength={6}
@@ -310,20 +422,25 @@ export default function Home() {
                   )}
                 </button>
 
-                <div className="pt-5 border-t border-slate-100 flex justify-center mt-6">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('admin');
-                      setErrorMessage('');
-                    }}
-                    className="text-[11px] font-extrabold text-slate-400 hover:text-blue-600 hover:underline transition-all uppercase tracking-wider cursor-pointer"
-                  >
-                    Masuk Sebagai Admin / Proktor
-                  </button>
-                </div>
+                {!hasStudentLink && (
+                  <div className="pt-5 border-t border-slate-100 flex justify-center mt-6">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('admin');
+                        setErrorMessage('');
+                        setSuccessMessage('');
+                      }}
+                      className="text-[11px] font-extrabold text-slate-400 hover:text-blue-600 hover:underline transition-all uppercase tracking-wider cursor-pointer"
+                    >
+                      Masuk Sebagai Admin / Proktor
+                    </button>
+                  </div>
+                )}
               </motion.form>
-            ) : (
+            )}
+            
+            {activeTab === 'admin' && (
               <motion.form 
                 key="admin"
                 initial={{ opacity: 0, y: 10 }}
@@ -351,7 +468,21 @@ export default function Home() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Password</label>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Password</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                         setActiveTab('forgot_password');
+                         setErrorMessage('');
+                         setSuccessMessage('');
+                         setResetEmail(adminEmail);
+                      }}
+                      className="text-[10px] text-blue-600 font-bold hover:underline"
+                    >
+                      Lupa password?
+                    </button>
+                  </div>
                   <input 
                     type="password" 
                     value={adminPassword}
@@ -375,10 +506,66 @@ export default function Home() {
                     onClick={() => {
                       setActiveTab('student');
                       setErrorMessage('');
+                      setSuccessMessage('');
                     }}
                     className="text-[11px] font-extrabold text-slate-400 hover:text-slate-600 hover:underline transition-all uppercase tracking-wider cursor-pointer"
                   >
                     ← Kembali ke Login Siswa
+                  </button>
+                </div>
+              </motion.form>
+            )}
+
+            {activeTab === 'forgot_password' && (
+              <motion.form 
+                key="forgot"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                onSubmit={handleForgotPassword}
+                className="space-y-5"
+              >
+                <div className="mb-2 text-center flex flex-col items-center">
+                  <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mb-3">
+                     <KeyRound className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest">
+                    Reset Password
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">Masukkan email terdaftar Anda</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Email Akun</label>
+                  <input 
+                    type="email" 
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="email@sekolah.com"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all focus:bg-white text-sm"
+                  />
+                </div>
+                
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold tracking-wide py-3.5 rounded-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50 shadow hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Kirim Tautan Reset</span>}
+                </button>
+
+                <div className="pt-5 border-t border-slate-100 flex justify-center mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('admin');
+                      setErrorMessage('');
+                      setSuccessMessage('');
+                    }}
+                    className="text-[11px] font-extrabold text-slate-400 hover:text-slate-600 hover:underline transition-all uppercase tracking-wider cursor-pointer"
+                  >
+                    ← Kembali ke halaman Login
                   </button>
                 </div>
               </motion.form>
@@ -388,11 +575,13 @@ export default function Home() {
       </div>
 
       {/* Footer Motivation */}
-      <div className="mt-12 max-w-lg w-full text-center space-y-4 text-slate-500 z-10 flex flex-col items-center">
-        <p className="text-sm leading-relaxed font-serif italic px-6">
-          "{setting?.motivationText || 'Kejujuran adalah prestasi yang paling berharga. Kerjakan ujian dengan kemampuan dan integritas terbaikmu.'}"
-        </p>
-      </div>
+      {(setting?.motivationText !== undefined ? setting?.motivationText : 'Kejujuran adalah prestasi yang paling berharga. Kerjakan ujian dengan kemampuan dan integritas terbaikmu.') && (
+        <div className="mt-12 max-w-lg w-full text-center space-y-4 text-slate-500 z-10 flex flex-col items-center">
+          <p className="text-sm leading-relaxed font-serif italic px-6">
+            "{setting?.motivationText !== undefined ? setting?.motivationText : 'Kejujuran adalah prestasi yang paling berharga. Kerjakan ujian dengan kemampuan dan integritas terbaikmu.'}"
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
+import { User, onAuthStateChanged, signOut, signInAnonymously, sendPasswordResetEmail, updatePassword, fetchSignInMethodsForEmail } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -9,6 +9,9 @@ interface AuthContextType {
   loading: boolean;
   loginAsStudent: () => Promise<string>;
   logout: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  changePassword: (newPassword: string) => Promise<void>;
+  checkEmailExists: (email: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -84,6 +87,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const resetPassword = async (email: string) => {
+    return sendPasswordResetEmail(auth, email);
+  };
+
+  const changePassword = async (newPassword: string) => {
+    if (auth.currentUser) {
+      return updatePassword(auth.currentUser, newPassword);
+    }
+    throw new Error('No user logged in');
+  };
+
+  const checkEmailExists = async (email: string) => {
+    try {
+      const methods = await fetchSignInMethodsForEmail(auth, email);
+      return methods.length > 0;
+    } catch (err) {
+      console.warn("Check email exists fallback", err);
+      return false; // Safely return false if disabled/fails
+    }
+  };
+
   const logout = async () => {
     localStorage.removeItem('cbt_student_user');
     await signOut(auth);
@@ -92,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading, loginAsStudent, logout }}>
+    <AuthContext.Provider value={{ user, isAdmin, loading, loginAsStudent, logout, resetPassword, changePassword, checkEmailExists }}>
       {!loading && children}
     </AuthContext.Provider>
   );

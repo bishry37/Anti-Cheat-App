@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where } from 'firebase/firestore';
 import { Subject } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function Subjects() {
+  const { user } = useAuth();
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -19,15 +21,18 @@ export default function Subjects() {
   } | null>(null);
 
   useEffect(() => {
-    fetchSubjects();
-  }, []);
+    if (user) fetchSubjects();
+  }, [user]);
 
   const fetchSubjects = async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      const q = query(collection(db, 'subjects'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'subjects'), where('adminId', '==', user.uid));
       const snap = await getDocs(q);
-      setSubjects(snap.docs.map(d => ({ id: d.id, ...d.data() } as Subject)));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setSubjects(list);
     } catch (err) {
       console.error(err);
     }
@@ -35,15 +40,16 @@ export default function Subjects() {
   };
 
   const handleSave = async () => {
-    if (!nameInput.trim()) return;
+    if (!nameInput.trim() || !user) return;
     setProcessing(true);
     try {
       if (editingId) {
-        await updateDoc(doc(db, 'subjects', editingId), { name: nameInput.trim() });
+        await updateDoc(doc(db, 'subjects', editingId), { name: nameInput.trim(), adminId: user.uid });
       } else {
         await addDoc(collection(db, 'subjects'), {
           name: nameInput.trim(),
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          adminId: user.uid
         });
       }
       setIsAdding(false);

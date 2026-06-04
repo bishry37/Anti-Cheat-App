@@ -5,8 +5,6 @@ service cloud.firestore {
 
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
-      // All authenticated users who are not anonymous are admins
-      // This allows the owner to add new admin users directly via Firebase Auth
       return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
@@ -27,53 +25,55 @@ service cloud.firestore {
     }
 
     function isValidClass(data) {
-      return data.keys().hasAll(['name', 'createdAt']) && data.keys().size() == 2 &&
+      return data.keys().hasAll(['name', 'createdAt', 'adminId']) &&
              data.name is string && data.name.size() <= 256 &&
-             data.createdAt is number;
+             data.createdAt is number && 
+             data.adminId is string;
     }
 
     match /classes/{classId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidId(classId) && isValidClass(incoming());
-      allow update: if isAdmin() && isValidId(classId) && incoming().diff(existing()).affectedKeys().hasOnly(['name']) &&
-                    incoming().name is string && incoming().name.size() <= 256;
-      allow delete: if isAdmin() && isValidId(classId);
+      allow create: if isAdmin() && isValidId(classId) && isValidClass(incoming()) && incoming().adminId == request.auth.uid;
+      allow update: if isAdmin() && isValidId(classId) && existing().adminId == request.auth.uid && incoming().adminId == request.auth.uid;
+      allow delete: if isAdmin() && isValidId(classId) && existing().adminId == request.auth.uid;
     }
 
     function isValidSetting(data) {
-      return data.keys().hasAll(['schoolName', 'updatedAt']) && 
+      return data.keys().hasAll(['schoolName', 'updatedAt', 'adminId']) && 
              data.schoolName is string && data.schoolName.size() <= 256 &&
              data.updatedAt is number &&
+             data.adminId is string &&
              (!('schoolLogo' in data) || (data.schoolLogo is string && data.schoolLogo.size() <= 2048)) &&
              (!('schoolAddress' in data) || (data.schoolAddress is string && data.schoolAddress.size() <= 1024)) &&
              (!('schoolSlogan' in data) || (data.schoolSlogan is string && data.schoolSlogan.size() <= 1024)) &&
              (!('motivationText' in data) || (data.motivationText is string && data.motivationText.size() <= 2048)) &&
              (!('teacherPhoto' in data) || (data.teacherPhoto is string && data.teacherPhoto.size() <= 2048)) &&
+             (!('teacherName' in data) || (data.teacherName is string && data.teacherName.size() <= 256)) &&
+             (!('teacherRole' in data) || (data.teacherRole is string && data.teacherRole.size() <= 256)) &&
              (!('maxViolations' in data) || data.maxViolations is number);
     }
 
     match /settings/{settingId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidId(settingId) && isValidSetting(incoming());
-      allow update: if isAdmin() && isValidId(settingId) && isValidSetting(incoming());
+      allow create: if isAdmin() && isValidId(settingId) && isValidSetting(incoming()) && incoming().adminId == request.auth.uid;
+      allow update: if isAdmin() && isValidId(settingId) && existing().adminId == request.auth.uid && incoming().adminId == request.auth.uid;
     }
 
     function isValidSubject(data) {
-      return data.keys().hasAll(['name', 'createdAt']) && data.keys().size() == 2 &&
+      return data.keys().hasAll(['name', 'createdAt', 'adminId']) &&
              data.name is string && data.name.size() <= 256 &&
-             data.createdAt is number;
+             data.createdAt is number && data.adminId is string;
     }
 
     match /subjects/{subjectId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidId(subjectId) && isValidSubject(incoming());
-      allow update: if isAdmin() && isValidId(subjectId) && incoming().diff(existing()).affectedKeys().hasOnly(['name']) &&
-                    incoming().name is string && incoming().name.size() <= 256;
-      allow delete: if isAdmin() && isValidId(subjectId);
+      allow create: if isAdmin() && isValidId(subjectId) && isValidSubject(incoming()) && incoming().adminId == request.auth.uid;
+      allow update: if isAdmin() && isValidId(subjectId) && existing().adminId == request.auth.uid && incoming().adminId == request.auth.uid;
+      allow delete: if isAdmin() && isValidId(subjectId) && existing().adminId == request.auth.uid;
     }
 
     function isValidQuestion(data) {
-      return data.keys().hasAll(['subjectId', 'number', 'question', 'optionA', 'optionB', 'optionC', 'optionD', 'optionE', 'correctAnswer', 'weight', 'createdAt']) && 
+      return data.keys().hasAll(['subjectId', 'number', 'question', 'optionA', 'optionB', 'optionC', 'optionD', 'optionE', 'correctAnswer', 'weight', 'createdAt', 'adminId']) && 
              data.subjectId is string && data.subjectId.size() <= 128 &&
              data.number is number &&
              data.question is string && data.question.size() <= 10000 &&
@@ -85,19 +85,19 @@ service cloud.firestore {
              data.correctAnswer is string && data.correctAnswer.matches('^[A-E]$') &&
              data.weight is number &&
              data.createdAt is number &&
+             data.adminId is string &&
              (!('packetName' in data) || (data.packetName is string && data.packetName.size() <= 256));
     }
 
     match /questions/{questionId} {
-      // Allow anyone to read questions to support students if anonymous login is disabled in Firebase console
       allow read: if true;
-      allow create: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming());
-      allow update: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming());
-      allow delete: if isAdmin();
+      allow create: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming()) && incoming().adminId == request.auth.uid;
+      allow update: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming()) && existing().adminId == request.auth.uid && incoming().adminId == request.auth.uid;
+      allow delete: if isAdmin() && existing().adminId == request.auth.uid;
     }
 
     function isValidExam(data) {
-      return data.keys().hasAll(['title', 'subjectId', 'duration', 'date', 'startTime', 'endTime', 'isActive', 'activeToken', 'autoResetInterval', 'tokenUpdatedAt', 'createdAt']) && 
+      return data.keys().hasAll(['title', 'subjectId', 'duration', 'date', 'startTime', 'endTime', 'isActive', 'activeToken', 'autoResetInterval', 'tokenUpdatedAt', 'createdAt', 'adminId']) && 
              data.title is string && data.title.size() <= 256 &&
              data.subjectId is string && data.subjectId.size() <= 128 &&
              data.duration is number &&
@@ -109,20 +109,21 @@ service cloud.firestore {
              data.autoResetInterval is string && data.autoResetInterval.size() <= 16 &&
              data.tokenUpdatedAt is number &&
              data.createdAt is number &&
+             data.adminId is string &&
              (!('questionCount' in data) || data.questionCount is number) &&
+             (!('targetClass' in data) || (data.targetClass is string && data.targetClass.size() <= 128)) &&
              (!('packetName' in data) || (data.packetName is string && data.packetName.size() <= 256));
     }
 
     match /exams/{examId} {
-      // Everyone needs to read exams to check tokens when logging in
       allow read: if true;
-      allow create: if isAdmin() && isValidId(examId) && isValidExam(incoming());
-      allow update: if isAdmin() && isValidId(examId) && isValidExam(incoming());
-      allow delete: if isAdmin();
+      allow create: if isAdmin() && isValidId(examId) && isValidExam(incoming()) && incoming().adminId == request.auth.uid;
+      allow update: if isAdmin() && isValidId(examId) && isValidExam(incoming()) && existing().adminId == request.auth.uid && incoming().adminId == request.auth.uid;
+      allow delete: if isAdmin() && existing().adminId == request.auth.uid;
     }
 
     function isValidStudentSession(data) {
-      return data.keys().hasAll(['studentName', 'className', 'examId', 'subjectId', 'token', 'status', 'violationsCount', 'lastActivity', 'startTime']) &&
+      return data.keys().hasAll(['studentName', 'className', 'examId', 'subjectId', 'token', 'status', 'violationsCount', 'lastActivity', 'startTime', 'adminId']) &&
              data.studentName is string && data.studentName.size() <= 256 &&
              data.className is string && data.className.size() <= 128 &&
              data.examId is string && data.examId.size() <= 128 &&
@@ -132,41 +133,41 @@ service cloud.firestore {
              data.violationsCount is number &&
              data.lastActivity is number &&
              data.startTime is number &&
+             data.adminId is string &&
              (!('endTime' in data) || data.endTime is number) &&
              (!('score' in data) || data.score is number) &&
              (!('packetName' in data) || (data.packetName is string && data.packetName.size() <= 256)) &&
              (!('correctCount' in data) || data.correctCount is number) &&
              (!('wrongCount' in data) || data.wrongCount is number) &&
-             // Optional answers map: not putting a strict schema on answers map to save cycles, assuming students only write keys of question IDs mapping to 'A'-'E'
              (!('answers' in data) || data.answers is map);
     }
 
     match /student_sessions/{sessionId} {
-      // Allow access with or without Firebase Auth to support disabled anonymous login fallback
       allow get: if true;
-      allow list: if isAdmin();
+      allow list: if isAdmin(); // Should be restricted by where('adminId', '==') in JS side
       allow create: if isValidId(sessionId) && isValidStudentSession(incoming());
       allow update: if isValidId(sessionId) && isValidStudentSession(incoming());
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() && existing().adminId == request.auth.uid;
     }
 
     function isValidViolation(data) {
-      return data.keys().hasAll(['sessionId', 'studentName', 'subjectId', 'type', 'timestamp', 'status']) &&
-             data.keys().size() == 6 &&
+      return data.keys().hasAll(['sessionId', 'studentName', 'subjectId', 'type', 'timestamp', 'status', 'adminId']) &&
              data.sessionId is string && data.sessionId.size() <= 128 &&
              data.studentName is string && data.studentName.size() <= 256 &&
              data.subjectId is string && data.subjectId.size() <= 128 &&
              data.type is string && data.type.size() <= 256 &&
              data.timestamp is number &&
-             data.status is string && data.status.size() <= 64;
+             data.status is string && data.status.size() <= 64 &&
+             data.adminId is string;
     }
 
     match /violations/{violationId} {
-      allow get: if isAdmin() || true;
-      allow list: if isAdmin() || true;
+      allow get: if true;
+      allow list: if isAdmin();
       allow create: if isValidId(violationId) && isValidViolation(incoming());
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
   }
 }
+

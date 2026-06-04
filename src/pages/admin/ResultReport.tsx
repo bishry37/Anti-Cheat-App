@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, orderBy, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { StudentSession, Exam, Question } from '../../types';
+import { StudentSession, Exam, Question, Class } from '../../types';
 import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ResultReport() {
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<StudentSession[]>([]);
   const [exams, setExams] = useState<Record<string, Exam>>({});
-  const [classesData, setClassesData] = useState<any[]>([]);
+  const [classesData, setClassesData] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterClass, setFilterClass] = useState<string>('');
   const [filterExam, setFilterExam] = useState<string>('');
@@ -115,28 +117,36 @@ export default function ResultReport() {
   };
 
   useEffect(() => {
-    fetchExams();
-    fetchClasses();
-  }, []);
+    if (user) {
+      fetchExams();
+      fetchClasses();
+    }
+  }, [user]);
 
   useEffect(() => {
-    fetchResults();
-  }, [filterExam, filterClass]);
+    if (user) fetchResults();
+  }, [filterExam, filterClass, user]);
 
   const fetchClasses = async () => {
+    if (!user) return;
     try {
-      const snap = await getDocs(query(collection(db, 'classes'), orderBy('createdAt', 'desc')));
-      setClassesData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const snap = await getDocs(query(collection(db, 'classes'), where('adminId', '==', user.uid)));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Class));
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setClassesData(list);
     } catch (e) {
       console.error(e);
     }
   };
 
   const fetchExams = async () => {
+    if (!user) return;
     try {
-      const snap = await getDocs(query(collection(db, 'exams'), orderBy('createdAt', 'desc')));
+      const snap = await getDocs(query(collection(db, 'exams'), where('adminId', '==', user.uid)));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Exam));
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       const map: Record<string, Exam> = {};
-      snap.forEach(d => map[d.id] = d.data() as Exam);
+      list.forEach(d => map[d.id!] = d);
       setExams(map);
     } catch (e) {
       console.error(e);
@@ -144,10 +154,12 @@ export default function ResultReport() {
   };
 
   const fetchResults = async () => {
+    if (!user) return;
     setLoading(true);
     try {
       let q = query(
         collection(db, 'student_sessions'), 
+        where('adminId', '==', user.uid),
         where('status', 'in', ['Selesai', 'Didiskualifikasi'])
       );
       if (filterClass) {

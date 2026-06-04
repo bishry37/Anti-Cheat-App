@@ -1,29 +1,35 @@
 export interface Setting {
   id?: string;
+  adminId?: string;
   schoolName: string;
   schoolLogo?: string;
   schoolAddress?: string;
   schoolSlogan?: string;
   motivationText?: string;
   teacherPhoto?: string;
+  teacherName?: string;
+  teacherRole?: string;
   maxViolations?: number;
   updatedAt: number;
 }
 
 export interface Subject {
   id?: string;
+  adminId?: string;
   name: string;
   createdAt: number;
 }
 
 export interface Class {
   id?: string;
+  adminId?: string;
   name: string;
   createdAt: number;
 }
 
 export interface Question {
   id?: string;
+  adminId?: string;
   subjectId: string;
   number: number;
   question: string;
@@ -41,6 +47,7 @@ export interface Question {
 
 export interface Exam {
   id?: string;
+  adminId?: string;
   title: string;
   subjectId: string;
   duration: number; // in minutes
@@ -55,10 +62,12 @@ export interface Exam {
   tokenUpdatedAt: number;
   createdAt: number;
   targetClass?: string;
+  shortCode?: string;
 }
 
 export interface StudentSession {
   id?: string; // uid
+  adminId?: string;
   studentName: string;
   className: string;
   examId: string;
@@ -77,10 +86,12 @@ export interface StudentSession {
   essayScores?: Record<string, number>; // questionId -> custom grade
   adminWarningMessage?: string;
   adminWarningTime?: number;
+  lastQuestionIndex?: number;
 }
 
 export interface Violation {
   id?: string;
+  adminId?: string;
   sessionId: string;
   studentName: string;
   subjectId: string;
@@ -88,3 +99,4 @@ export interface Violation {
   timestamp: number;
   status: string;
 }
+

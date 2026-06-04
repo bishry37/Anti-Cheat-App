@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot } from 'firebase/firestore';
 import { Exam, Subject, Class } from '../../types';
-import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Calendar, Clock } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Calendar, Clock, Copy, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
+import { useAuth } from '../../contexts/AuthContext';
 
 const formatIndonesianDate = (dateStr: string): string => {
   if (!dateStr) return '';
@@ -26,6 +27,7 @@ const formatIndonesianDate = (dateStr: string): string => {
 };
 
 export default function Exams() {
+  const { user } = useAuth();
   const [exams, setExams] = useState<Exam[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classesData, setClassesData] = useState<Class[]>([]);
@@ -34,6 +36,7 @@ export default function Exams() {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [modalConfig, setModalConfig] = useState<{
     title: string;
     description: string;
@@ -56,18 +59,21 @@ export default function Exams() {
   });
 
   useEffect(() => {
+    if (!user) return;
     fetchData();
 
     // Subscribe to exams in real-time
-    const q = query(collection(db, 'exams'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'exams'), where('adminId', '==', user.uid));
     const unsub = onSnapshot(q, (snapshot) => {
-      setExams(snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Exam)));
+      const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Exam));
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setExams(list);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'exams');
     });
 
     return unsub;
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (formData.subjectId) {
@@ -144,8 +150,9 @@ export default function Exams() {
   }, [exams]);
 
   const fetchPackets = async (subId: string) => {
+    if (!user) return;
     try {
-      const q = query(collection(db, 'questions'), where('subjectId', '==', subId));
+      const q = query(collection(db, 'questions'), where('adminId', '==', user.uid), where('subjectId', '==', subId));
       const snap = await getDocs(q);
       const packets = new Set<string>();
       snap.docs.forEach(doc => {
@@ -157,15 +164,20 @@ export default function Exams() {
   };
 
   const fetchData = async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      const subQ = query(collection(db, 'subjects'), orderBy('createdAt', 'desc'));
+      const subQ = query(collection(db, 'subjects'), where('adminId', '==', user.uid));
       const subSnap = await getDocs(subQ);
-      setSubjects(subSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Subject)));
+      const subList = subSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Subject));
+      subList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setSubjects(subList);
 
-      const classQ = query(collection(db, 'classes'), orderBy('createdAt', 'desc'));
+      const classQ = query(collection(db, 'classes'), where('adminId', '==', user.uid));
       const classSnap = await getDocs(classQ);
-      setClassesData(classSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Class)));
+      const classList = classSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Class));
+      classList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setClassesData(classList);
     } catch (err) {
       console.error(err);
     }
@@ -204,7 +216,7 @@ export default function Exams() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.subjectId || !formData.activeToken) {
+    if (!formData.title || !formData.subjectId || !formData.activeToken || !user) {
       setErrorMsg("Lengkapi data exam, termasuk token aktif.");
       return;
     }
@@ -214,7 +226,8 @@ export default function Exams() {
       const payload = {
         ...formData,
         duration: Number(formData.duration),
-        tokenUpdatedAt: Date.now()
+        tokenUpdatedAt: Date.now(),
+        adminId: user.uid
       };
 
       if (editingId) {
@@ -266,7 +279,7 @@ export default function Exams() {
     setErrorMsg(null);
     setFormData({
       title: '',
-      subjectId: subjects.length > 0 ? subjects[0].id : '',
+      subjectId: '',
       packetName: '',
       duration: 90,
       date: format(new Date(), 'yyyy-MM-dd'),
@@ -280,6 +293,17 @@ export default function Exams() {
   };
 
   const getSubjectName = (subId: string) => subjects.find(s => s.id === subId)?.name || 'Unknown';
+
+  const handleCopyLink = (examId: string) => {
+    const shortCode = examId.substring(0, 6);
+    const link = `${window.location.origin}/?c=${shortCode}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedLink(examId);
+      setTimeout(() => setCopiedLink(null), 2000);
+    }).catch(err => {
+      console.error('Failed to copy link', err);
+    });
+  };
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -343,7 +367,7 @@ export default function Exams() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Pilih Template Soal *</label>
+                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Pilih File Soal *</label>
                     <select
                       required
                       value={formData.packetName}
@@ -351,7 +375,7 @@ export default function Exams() {
                       disabled={!formData.subjectId}
                       className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none disabled:opacity-50"
                     >
-                      <option value="">-- {formData.subjectId ? (availablePackets.length > 0 ? 'Pilih Template' : 'Belum ada template soal') : 'Pilih Mapel Terlebih Dahulu'} --</option>
+                      <option value="">-- {formData.subjectId ? (availablePackets.length > 0 ? 'Pilih File' : 'Belum ada file soal') : 'Pilih Mapel Terlebih Dahulu'} --</option>
                       {availablePackets.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                     {formData.subjectId && availablePackets.length === 0 && (
@@ -485,7 +509,7 @@ export default function Exams() {
                 <th className="px-4 py-3">Ujian</th>
                 <th className="px-4 py-3">Kelas</th>
                 <th className="px-4 py-3">Mata Pelajaran</th>
-                <th className="px-4 py-3">Templat Soal</th>
+                <th className="px-4 py-3">File Soal</th>
                 <th className="px-4 py-3">Jadwal</th>
                 <th className="px-4 py-3">Token</th>
                 <th className="px-4 py-3 text-center">Status</th>

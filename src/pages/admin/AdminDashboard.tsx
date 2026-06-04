@@ -3,8 +3,10 @@ import { db } from '../../lib/firebase';
 import { collection, query, getDocs, where } from 'firebase/firestore';
 import { Users, FileText, CheckCircle, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     activeStudents: 0,
     totalExams: 0,
@@ -14,12 +16,13 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const fetchStats = async () => {
+      if (!user) return;
       try {
         const [activeSnap, examSnap, completedSnap, volSnap] = await Promise.all([
-          getDocs(query(collection(db, 'student_sessions'), where('status', '==', 'Aktif'))),
-          getDocs(collection(db, 'exams')),
-          getDocs(query(collection(db, 'student_sessions'), where('status', 'in', ['Selesai', 'Didiskualifikasi']))),
-          getDocs(collection(db, 'violations'))
+          getDocs(query(collection(db, 'student_sessions'), where('adminId', '==', user.uid), where('status', '==', 'Aktif'))),
+          getDocs(query(collection(db, 'exams'), where('adminId', '==', user.uid))),
+          getDocs(query(collection(db, 'student_sessions'), where('adminId', '==', user.uid), where('status', 'in', ['Selesai', 'Didiskualifikasi']))),
+          getDocs(query(collection(db, 'violations'), where('adminId', '==', user.uid)))
         ]);
 
         setStats({
@@ -33,7 +36,7 @@ export default function AdminDashboard() {
       }
     };
     fetchStats();
-  }, []);
+  }, [user]);
 
   return (
     <div className="w-full space-y-5">

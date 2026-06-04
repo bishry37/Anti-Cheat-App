@@ -16,6 +16,7 @@ export default function StudentExam() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [settings, setSettings] = useState<Setting | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [subjectName, setSubjectName] = useState('');
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -54,11 +55,26 @@ export default function StudentExam() {
         const sessData = { id: sessSnap.id, ...sessSnap.data() } as StudentSession;
         setSession(sessData);
         setAnswers(sessData.answers || {});
+        if (sessData.lastQuestionIndex !== undefined) {
+          setCurrentQuestionIndex(sessData.lastQuestionIndex);
+        }
 
         const exSnap = await getDoc(doc(db, 'exams', sessData.examId));
         if (exSnap.exists()) {
           const exData = exSnap.data() as Exam;
           setExam(exData);
+
+          try {
+            const subSnap = await getDoc(doc(db, 'subjects', exData.subjectId));
+            if (subSnap.exists()) {
+              setSubjectName(subSnap.data().name);
+            } else {
+              setSubjectName('Mata Pelajaran Tidak Diketahui');
+            }
+          } catch (e) {
+            console.error("Gagal load subject name", e);
+            setSubjectName('Mata Pelajaran Tidak Diketahui');
+          }
           
           // Calculate initial time left
           const elapsed = Math.floor((Date.now() - sessData.startTime) / 1000);
@@ -114,9 +130,40 @@ export default function StudentExam() {
     return () => unsub();
   }, [user]);
 
+  // Listen to exam duration changes
+  useEffect(() => {
+    if (!session?.examId || !session?.startTime) return;
+    const unsub = onSnapshot(doc(db, 'exams', session.examId), (docSnap) => {
+      if (docSnap.exists()) {
+        const exData = docSnap.data() as Exam;
+        setExam(exData);
+        // Recalculate time left automatically based on the new duration
+        const elapsed = Math.floor((Date.now() - session.startTime!) / 1000);
+        const totalSecs = exData.duration * 60;
+        setTimeLeft(Math.max(0, totalSecs - elapsed));
+      }
+    });
+    return () => unsub();
+  }, [session?.examId, session?.startTime]);
+
   // Anti-Cheat: Listeners
+  const isUnloading = useRef(false);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      isUnloading.current = true;
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('unload', handleBeforeUnload); // Fallback
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('unload', handleBeforeUnload);
+    };
+  }, []);
+
   const recordViolation = async (type: string, message: string) => {
-    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi') return;
+    if (isUnloading.current) return;
+    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
     setWarningMessage(message);
     
     setTimeout(() => setWarningMessage(''), 5000);
@@ -228,7 +275,7 @@ export default function StudentExam() {
       document.removeEventListener('paste', handleCopyPaste);
       document.removeEventListener('contextmenu', (e) => e.preventDefault());
     };
-  }, [session, settings]);
+  }, [session, settings, isSubmittingOrFinished]);
 
   // Request Fullscreen
   const requestFullscreen = () => {
@@ -261,7 +308,22 @@ export default function StudentExam() {
     }, 10000); // every 10s
 
     return () => { clearInterval(timer); clearInterval(heartbeat); };
-  }, [session?.status, isFullscreen]);
+  }, [session?.status, isFullscreen, isSubmittingOrFinished]);
+
+  // Handle question change and persistence
+  const changeQuestion = async (newIndex: number) => {
+    setCurrentQuestionIndex(newIndex);
+    if (user) {
+      try {
+        await updateDoc(doc(db, 'student_sessions', user.uid), {
+          lastQuestionIndex: newIndex,
+          lastActivity: Date.now()
+        });
+      } catch (e) {
+        console.error("Gagal simpan progress soal", e);
+      }
+    }
+  };
 
   const handleAnswer = async (qId: string, ans: string) => {
     const newAnswers = { ...answers, [qId]: ans };
@@ -456,11 +518,14 @@ export default function StudentExam() {
             </div>
             
             <h3 className="text-lg font-extrabold text-slate-800 uppercase tracking-wider mb-2 font-sans">
-              Selesaikan Ujian?
+              {Object.keys(answers).length < questions.length ? 'Peringatan: Soal Belum Selesai' : 'Selesaikan Ujian?'}
             </h3>
             
             <p className="text-xs text-slate-500 mb-6 text-center leading-relaxed font-medium">
-              Apakah Anda yakin ingin mengakhiri sesi ujian ini? Semua jawaban Anda telah tersimpan secara otomatis di server sistem. Anda tidak dapet mengubah jawaban setelah menyelesaikan ujian.
+              {Object.keys(answers).length < questions.length 
+                ? `Terdapat ${questions.length - Object.keys(answers).length} soal yang belum Anda jawab. Apakah Anda yakin ingin mengakhiri sesi ujian ini sekarang?`
+                : 'Apakah Anda yakin ingin mengakhiri sesi ujian ini? Semua jawaban Anda telah tersimpan secara otomatis di server sistem.'}
+              {" "}Anda tidak dapat mengubah jawaban setelah menyelesaikan ujian.
             </p>
 
             {/* Stats Summary */}
@@ -502,7 +567,9 @@ export default function StudentExam() {
       <header className="bg-white border-b border-slate-200 px-4 py-2 shrink-0 flex items-center justify-between sticky top-0 z-40">
         <div className="flex flex-col justify-center">
           <h1 className="font-bold text-slate-800 text-sm">{exam.title}</h1>
-          <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">{session.studentName} • Kelas {session.className}</p>
+          <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">
+            {session.studentName} • Kelas: {session.className} • Mapel: {subjectName}
+          </p>
         </div>
         <div className="flex items-center space-x-3 text-slate-700">
           <div className="flex items-center px-3 py-1.5 rounded-lg border bg-slate-950 border-slate-900 text-cyan-400 shadow-[inset_0_2px_4px_rgba(0,0,0,0.8)] font-mono text-xs tracking-wider select-none relative overflow-hidden">
@@ -595,14 +662,14 @@ export default function StudentExam() {
             <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
                <button 
                  disabled={currentQuestionIndex === 0}
-                 onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
+                 onClick={() => changeQuestion(currentQuestionIndex - 1)}
                  className="px-4 py-2 rounded border border-slate-300 text-slate-600 text-[11px] font-bold uppercase tracking-wider hover:bg-slate-50 disabled:opacity-50 transition-colors"
                >
                  Soal Sebelumnya
                </button>
                {currentQuestionIndex < questions.length - 1 ? (
                  <button 
-                  onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
+                  onClick={() => changeQuestion(currentQuestionIndex + 1)}
                   className="px-4 py-2 rounded border border-blue-600 bg-blue-600 text-white text-[11px] font-bold uppercase tracking-wider hover:bg-blue-700 transition-colors"
                  >
                    Soal Selanjutnya
@@ -636,7 +703,7 @@ export default function StudentExam() {
                return (
                  <button
                    key={q.id}
-                   onClick={() => setCurrentQuestionIndex(idx)}
+                   onClick={() => changeQuestion(idx)}
                    className={`h-8 rounded flex items-center justify-center font-bold text-[11px] transition-colors ${
                      isCurrent 
                        ? 'ring-1 ring-offset-1 ring-blue-500 bg-blue-600 text-white shadow-sm' 

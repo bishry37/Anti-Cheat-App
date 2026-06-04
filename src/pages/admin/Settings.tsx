@@ -3,7 +3,8 @@ import { db, handleFirestoreError, OperationType, storage } from '../../lib/fire
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Setting } from '../../types';
-import { Save, Loader2, AlertCircle, Shield, Upload, X, CheckCircle2, Info, Trash2 } from 'lucide-react';
+import { Save, Loader2, AlertCircle, Shield, Upload, X, CheckCircle2, Info, Trash2, UserCircle } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Help compress and resize image to fit in Firestore 1MB limits safely if Storage fails
 const compressAndResizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
@@ -58,6 +59,7 @@ interface ToastMessage {
 }
 
 export default function Settings() {
+  const { user, changePassword } = useAuth();
   const [setting, setSetting] = useState<Setting>({
     schoolName: '',
     schoolLogo: '',
@@ -65,16 +67,23 @@ export default function Settings() {
     schoolSlogan: '',
     motivationText: '',
     teacherPhoto: '',
+    teacherName: '',
+    teacherRole: '',
     maxViolations: 3,
     updatedAt: Date.now()
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingTeacherPhoto, setUploadingTeacherPhoto] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const teacherPhotoInputRef = useRef<HTMLInputElement>(null);
 
-  const DEFAULT_DOC_ID = 'school';
+  const SETTINGS_DOC_ID = user?.uid || 'school';
 
   const triggerToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ text, type });
@@ -91,8 +100,9 @@ export default function Settings() {
 
   useEffect(() => {
     async function fetchSettings() {
+      if (!user) return;
       try {
-        const docRef = doc(db, 'settings', DEFAULT_DOC_ID);
+        const docRef = doc(db, 'settings', SETTINGS_DOC_ID);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setSetting(docSnap.data() as Setting);
@@ -103,7 +113,7 @@ export default function Settings() {
       setLoading(false);
     }
     fetchSettings();
-  }, []);
+  }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -113,7 +123,49 @@ export default function Settings() {
     }));
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const processAndUploadImage = async (file: File, type: 'logo' | 'teacher'): Promise<string> => {
+    // 1. Optimize and compress image
+    let compressedDataUrl = '';
+    try {
+      compressedDataUrl = await compressAndResizeImage(file, 400, 400);
+    } catch (compressErr) {
+      console.error('Failed to compress image:', compressErr);
+    }
+
+    let uploadBlob: Blob | File = file;
+    if (compressedDataUrl) {
+      try {
+        const response = await fetch(compressedDataUrl);
+        uploadBlob = await response.blob();
+      } catch (fetchErr) {
+        console.error('Failed to convert base64 to blob:', fetchErr);
+      }
+    }
+
+    const storageRef = ref(storage, `settings/${type}_${Date.now()}_${file.name}`);
+    
+    // 2. Attempt to upload to Storage
+    const uploadPromise = uploadBytes(storageRef, uploadBlob);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Firebase Storage timeout')), 4000)
+    );
+
+    try {
+      await Promise.race([uploadPromise, timeoutPromise]);
+      const downloadURL = await getDownloadURL(storageRef);
+      return downloadURL;
+    } catch (storageErr) {
+      console.warn(`Storage upload failed for ${type}, using compressed Base64:`, storageErr);
+      // 3. Fallback to base64
+      if (compressedDataUrl) {
+        return compressedDataUrl;
+      } else {
+        throw new Error('Gagal memproses gambar untuk diunggah.');
+      }
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'teacher') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -123,67 +175,23 @@ export default function Settings() {
     }
 
     try {
-      setUploadingLogo(true);
-      triggerToast('Mengupload Logo...', 'info');
+      if (type === 'logo') setUploadingLogo(true);
+      else setUploadingTeacherPhoto(true);
+
+      triggerToast(`Mengupload ${type === 'logo' ? 'Logo' : 'Foto Guru'}...`, 'info');
       
-      console.log('Starting upload for logo:', file.name);
-
-      // 1. Optimize and compress image to a highly lightweight JPEG Data URL (Base64)
-      let compressedDataUrl = '';
-      try {
-        compressedDataUrl = await compressAndResizeImage(file, 400, 400);
-      } catch (compressErr) {
-        console.error('Failed to compress image:', compressErr);
-      }
-
-      // Convert compressed Base64 back to a blob to upload to Firebase Storage if possible
-      let uploadBlob: Blob | File = file;
-      if (compressedDataUrl) {
-        try {
-          const response = await fetch(compressedDataUrl);
-          uploadBlob = await response.blob();
-        } catch (fetchErr) {
-          console.error('Failed to convert base64 to blob:', fetchErr);
-        }
-      }
-
-      const storageRef = ref(storage, `settings/logo_${Date.now()}_${file.name}`);
+      const url = await processAndUploadImage(file, type);
       
-      // 2. Attempt to upload bytes to Firebase Storage with a short (4 seconds) fallback timeout
-      const uploadPromise = uploadBytes(storageRef, uploadBlob);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Firebase Storage timeout')), 4000)
-      );
-
-      try {
-        await Promise.race([uploadPromise, timeoutPromise]);
-        console.log('Upload to Firebase Storage successful for logo');
-        
-        const downloadURL = await getDownloadURL(storageRef);
-        console.log('Download URL obtained for logo:', downloadURL);
-        
-        setSetting(prev => ({
-          ...prev,
-          schoolLogo: downloadURL
-        }));
-        triggerToast('Berhasil mengunggah Logo Sekolah!', 'success');
-      } catch (storageErr: any) {
-        console.warn('Firebase Storage upload failed or timed out for logo, using compressed Base64 database storage:', storageErr);
-        
-        // 3. Fallback: Store the optimized, ultra-lightweight Base64 Data URL directly inside Firestore Settings
-        if (compressedDataUrl) {
-          setSetting(prev => ({
-            ...prev,
-            schoolLogo: compressedDataUrl
-          }));
-          triggerToast('Berhasil menyimpan Logo Sekolah!', 'success');
-        } else {
-          throw new Error('Gagal memproses gambar untuk diunggah.');
-        }
+      if (type === 'logo') {
+        setSetting(prev => ({ ...prev, schoolLogo: url }));
+        triggerToast('Berhasil mengunggah Logo!', 'success');
+      } else {
+        setSetting(prev => ({ ...prev, teacherPhoto: url }));
+        triggerToast('Berhasil mengunggah Foto Guru!', 'success');
       }
     } catch (error: any) {
-      console.error('Error uploading logo:', error);
-      let errorMsg = 'Gagal mengupload Logo';
+      console.error(`Error uploading ${type}:`, error);
+      let errorMsg = `Gagal mengupload ${type === 'logo' ? 'Logo' : 'Foto Guru'}`;
       if (error.code === 'storage/unauthorized') {
         errorMsg += ': Akses ditolak. Periksa rules Storage.';
       } else if (error.message) {
@@ -191,8 +199,9 @@ export default function Settings() {
       }
       triggerToast(errorMsg, 'error');
     } finally {
-      setUploadingLogo(false);
-      if (e.target) e.target.value = ''; // Reset input
+      if (type === 'logo') setUploadingLogo(false);
+      else setUploadingTeacherPhoto(false);
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -202,10 +211,11 @@ export default function Settings() {
       triggerToast('Nama sekolah wajib diisi.', 'error');
       return;
     }
+    if (!user) return;
     setSaving(true);
     try {
-      const dataToSave = { ...setting, updatedAt: Date.now() };
-      await setDoc(doc(db, 'settings', DEFAULT_DOC_ID), dataToSave);
+      const dataToSave = { ...setting, updatedAt: Date.now(), adminId: user.uid };
+      await setDoc(doc(db, 'settings', SETTINGS_DOC_ID), dataToSave);
       triggerToast('Pengaturan berhasil disimpan.', 'success');
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, 'settings');
@@ -216,7 +226,12 @@ export default function Settings() {
 
   const removeLogo = () => {
     setSetting(prev => ({ ...prev, schoolLogo: '' }));
-    triggerToast('Logo berhasil dihapus dari preview (Tekan Simpan Pengaturan untuk menyimpan perubahan).', 'info');
+    triggerToast('Logo sekolah berhasil dihapus dari preview.', 'info');
+  };
+
+  const removeTeacherPhoto = () => {
+    setSetting(prev => ({ ...prev, teacherPhoto: '' }));
+    triggerToast('Foto guru berhasil dihapus dari preview.', 'info');
   };
 
   if (loading) {
@@ -224,13 +239,12 @@ export default function Settings() {
   }
 
   return (
-    <div className="max-w-4xl relative">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Pengaturan Sekolah</h1>
-        <p className="text-slate-500 mt-1">Konfigurasi tampilan dan aturan dasar sistem CBT.</p>
+    <div className="max-w-6xl relative space-y-6">
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold text-slate-800">Pengaturan Ruang Kerja & Identitas</h1>
+        <p className="text-slate-500 mt-1">Konfigurasi tampilan sekolah dan profil guru untuk sesi ujian ini.</p>
       </div>
 
-      {/* Floating Modern Toast Notification */}
       {toast && (
         <div className="fixed top-6 right-6 z-50 animate-slide-in pointer-events-auto">
           <div className={`p-4 rounded-xl shadow-xl border flex items-center space-x-3 max-w-sm backdrop-blur-md ${
@@ -244,147 +258,244 @@ export default function Settings() {
             {toast.type === 'error' && <AlertCircle className="w-5 h-5 shrink-0" />}
             {toast.type === 'info' && <Info className="w-5 h-5 shrink-0" />}
             <span className="text-xs font-semibold leading-relaxed flex-1">{toast.text}</span>
-            <button 
-              type="button" 
-              onClick={() => setToast(null)} 
-              className="text-white/80 hover:text-white transition duration-150 shrink-0 cursor-pointer"
-            >
+            <button type="button" onClick={() => setToast(null)} className="text-white/80 hover:text-white transition duration-150 shrink-0 cursor-pointer">
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
       )}
 
-      <form onSubmit={handleSave} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-fade-in">
-        <div className="p-6 md:p-8 space-y-8">
-          {/* Identitas Sekolah */}
-          <div>
-            <h3 className="text-lg font-semibold text-slate-800 mb-4 pb-2 border-b border-slate-100">Identitas Sekolah</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4 flex flex-col justify-center">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Nama Sekolah *</label>
-                  <input
-                    type="text"
-                    name="schoolName"
-                    value={setting.schoolName}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm font-medium placeholder-slate-400"
-                    placeholder="Contoh: SMA Negeri 1 Jakarta"
-                    required
-                  />
-                </div>
-                
-                <div className="pt-2">
-                  <span className="block text-xs text-slate-500 leading-relaxed">
-                    * Sekolah yang didaftarkan di sini akan muncul pada kop kartu pendaftaran, lembar soal ujian, dan tampilan halaman login CBT.
-                  </span>
-                </div>
+      <form onSubmit={handleSave} className="space-y-6">
+        
+        {/* ROW 1: School Identity & Teacher Profile */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          {/* Identity School */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
+               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Identitas Sekolah</h3>
+            </div>
+            <div className="p-6 space-y-6 flex-1">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Nama Sekolah *</label>
+                <input
+                  type="text"
+                  name="schoolName"
+                  value={setting.schoolName}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm font-medium placeholder-slate-400"
+                  placeholder="Contoh: SMA Negeri 1 Jakarta"
+                  required
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Logo Resmi Sekolah</label>
-                <div className="flex flex-col space-y-4">
-                  {/* Big clear logo preview box */}
-                  <div className="border border-dashed border-slate-300 bg-slate-50 rounded-xl p-4 flex flex-col items-center justify-center min-h-[220px] transition-all relative overflow-hidden group">
-                    {setting.schoolLogo ? (
-                      <div className="flex flex-col items-center space-y-3 w-full">
-                        <div className="relative p-2 bg-white rounded-lg shadow-sm border border-slate-100 flex items-center justify-center w-40 h-40">
-                          <img 
-                            src={setting.schoolLogo} 
-                            alt="Logo Sekolah" 
-                            className="max-w-full max-h-full object-contain rounded"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={removeLogo}
-                          className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded text-xs font-semibold flex items-center space-x-1 cursor-pointer transition shadow-xs"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Hapus Logo</span>
-                        </button>
+                <div className="border border-dashed border-slate-300 bg-slate-50/50 rounded-xl p-4 flex flex-col items-center justify-center min-h-[160px] transition-all relative overflow-hidden group">
+                  {setting.schoolLogo ? (
+                    <div className="flex flex-col items-center space-y-3 w-full">
+                      <div className="relative p-2 bg-white rounded-lg shadow-sm border border-slate-100 flex items-center justify-center w-24 h-24">
+                        <img src={setting.schoolLogo} alt="Logo" className="max-w-full max-h-full object-contain rounded" />
                       </div>
-                    ) : (
-                      <div className="flex flex-col items-center text-center space-y-2.5 p-4">
-                        <div className="p-3 bg-slate-100 rounded-full text-slate-400 group-hover:scale-105 transition-transform duration-150">
-                          <Upload className="w-6 h-6" />
-                        </div>
-                        <div className="text-xs font-medium text-slate-600">Belum ada logo</div>
-                        <p className="text-[10px] text-slate-400 max-w-[200px]">Format JPEG/PNG. Direkomendasikan bentuk persegi atau rasio seimbang.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => logoInputRef.current?.click()}
-                      disabled={uploadingLogo}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50 text-xs font-bold uppercase tracking-wider cursor-pointer shadow-xs"
-                    >
-                      {uploadingLogo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                      <span>Unggah Gambar Baru</span>
-                    </button>
-                    <input
-                      type="file"
-                      ref={logoInputRef}
-                      onChange={handleFileUpload}
-                      accept="image/*"
-                      className="hidden"
-                    />
-                  </div>
+                      <button type="button" onClick={removeLogo} className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded text-xs font-semibold flex items-center space-x-1 cursor-pointer transition shadow-xs">
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Hapus Logo</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center text-center space-y-2 p-2">
+                       <Upload className="w-5 h-5 text-slate-400" />
+                      <div className="text-xs font-medium text-slate-600">Belum ada logo</div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-center mt-3">
+                  <button type="button" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo} className="bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 px-4 py-1.5 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50 text-[10px] font-bold uppercase tracking-widest cursor-pointer shadow-3xs">
+                    {uploadingLogo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    <span>Unggah Logo</span>
+                  </button>
+                  <input type="file" ref={logoInputRef} onChange={e => handleFileUpload(e, 'logo')} accept="image/*" className="hidden" />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Pengaturan Login & Motivasi */}
-          <div>
-            <h3 className="text-lg font-semibold text-slate-800 mb-4 pb-2 border-b border-slate-100">Personalisasi & Aturan</h3>
-            <div className="grid grid-cols-1 gap-6">
+          {/* Teacher Profile */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
+               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Profil Informasi Guru</h3>
+            </div>
+            <div className="p-6 space-y-4 flex-1">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Pesan Integritas & Motivasi (Halaman Login)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Nama Guru</label>
+                <input
+                  type="text"
+                  name="teacherName"
+                  value={setting.teacherName || ''}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm placeholder-slate-400"
+                  placeholder="Bapak/Ibu Guru..."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Jabatan / Keterangan</label>
+                <input
+                  type="text"
+                  name="teacherRole"
+                  value={setting.teacherRole || ''}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm placeholder-slate-400"
+                  placeholder="Guru Mata Pelajaran Matematika"
+                />
+              </div>
+
+               <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Foto Profil Guru</label>
+                <div className="border border-dashed border-slate-300 bg-slate-50/50 rounded-xl p-4 flex flex-col items-center justify-center min-h-[140px] transition-all relative overflow-hidden group">
+                  {setting.teacherPhoto ? (
+                    <div className="flex flex-col items-center space-y-3 w-full">
+                      <div className="relative w-20 h-20 rounded-full border border-slate-200 shadow-sm overflow-hidden bg-white">
+                        <img src={setting.teacherPhoto} alt="Guru" className="w-full h-full object-cover" />
+                      </div>
+                      <button type="button" onClick={removeTeacherPhoto} className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded text-xs font-semibold flex items-center space-x-1 cursor-pointer transition shadow-xs">
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Hapus Foto</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center text-center space-y-2 p-2">
+                       <UserCircle className="w-5 h-5 text-slate-400" />
+                      <div className="text-xs font-medium text-slate-600">Belum ada foto</div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-center mt-3">
+                  <button type="button" onClick={() => teacherPhotoInputRef.current?.click()} disabled={uploadingTeacherPhoto} className="bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 px-4 py-1.5 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50 text-[10px] font-bold uppercase tracking-widest cursor-pointer shadow-3xs">
+                    {uploadingTeacherPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    <span>Unggah Foto</span>
+                  </button>
+                  <input type="file" ref={teacherPhotoInputRef} onChange={e => handleFileUpload(e, 'teacher')} accept="image/*" className="hidden" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ROW 2: Options */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+           <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
+               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Pengaturan Tambahan</h3>
+            </div>
+           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Pesan Integritas & Motivasi (Opsional)</label>
                 <textarea
                   name="motivationText"
                   value={setting.motivationText || ''}
                   onChange={handleChange}
                   rows={2}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm placeholder-slate-400"
-                  placeholder="Kejujuran adalah prestasi yang paling berharga..."
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm placeholder-slate-400"
+                  placeholder="Misal: Kejujuran adalah prestasi yang paling berharga..."
                 />
+                 <p className="text-[10px] text-slate-500 mt-1">Kosongkan jika tidak ingin ditampilkan di halaman depan.</p>
               </div>
 
-              <div className="max-w-md">
-                 <label className="block text-sm font-medium text-slate-700 mb-1">Batas Maksimal Pelanggaran Auto-Diskualifikasi</label>
-                 <div className="flex items-center space-x-3">
+               <div className="flex flex-col justify-center">
+                 <label className="block text-sm font-medium text-slate-700 mb-1">Batas Maksimal Pelanggaran</label>
+                 <div className="flex items-center space-x-3 mt-1">
                    <input
                       type="number"
                       name="maxViolations"
-                      value={setting.maxViolations || 3}
+                      value={setting.maxViolations || 0}
                       onChange={handleChange}
                       min={0}
-                      className="w-24 px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-center"
+                      className="w-24 px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-center text-sm"
                     />
-                    <span className="text-sm text-slate-600">pelanggaran (0 = jangan otomatis diskualifikasi)</span>
+                    <span className="text-sm text-slate-600">Terhitung Diskualifikasi Otomatis</span>
                   </div>
+                   <p className="text-[10px] text-slate-500 mt-1">Gunakan angka 0 jika tidak ingin ujian diakhiri otomatis.</p>
               </div>
-            </div>
-          </div>
-
+           </div>
         </div>
-        
-        <div className="bg-slate-50 p-6 border-t border-slate-200 flex justify-end">
-          <button
-            type="submit"
-            disabled={saving}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg flex items-center space-x-2 transition-colors font-semibold shadow-sm disabled:opacity-50 text-sm"
-          >
+
+        <div className="bg-slate-50 p-6 border border-slate-200 rounded-xl flex justify-end shadow-sm">
+          <button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg flex items-center space-x-2 transition-colors font-semibold shadow-sm disabled:opacity-50 text-sm">
             {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
             <span>Simpan Pengaturan</span>
           </button>
         </div>
       </form>
+
+      {/* ROW 3: Account Security */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
+           <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Keamanan Akun</h3>
+        </div>
+        <div className="p-6">
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            if (newPassword !== confirmPassword) {
+              triggerToast('Password baru dan konfirmasi password tidak cocok', 'error');
+              return;
+            }
+            if (newPassword.length < 6) {
+              triggerToast('Password harus minimal 6 karakter', 'error');
+              return;
+            }
+            setChangingPassword(true);
+            try {
+              await changePassword(newPassword);
+              triggerToast('Password berhasil diperbarui', 'success');
+              setNewPassword('');
+              setConfirmPassword('');
+            } catch (err: any) {
+              console.error(err);
+              let errorMsg = 'Gagal memperbarui password.';
+              if (err.code === 'auth/requires-recent-login') {
+                errorMsg = 'Untuk keamanan, Anda harus login ulang sebelum merubah password.';
+              }
+              triggerToast(errorMsg, 'error');
+            } finally {
+              setChangingPassword(false);
+            }
+          }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Password Baru</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm"
+                  placeholder="Minimal 6 karakter"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Konfirmasi Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm"
+                  placeholder="Ulangi password baru"
+                />
+              </div>
+            </div>
+            
+            <div className="mt-4">
+              <button 
+                type="submit" 
+                disabled={changingPassword || !newPassword || !confirmPassword} 
+                className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-lg flex items-center space-x-2 transition-colors font-semibold shadow-sm disabled:opacity-50 text-sm"
+              >
+                {changingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+                <span>Ganti Password</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

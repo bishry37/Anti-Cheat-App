@@ -1,12 +1,30 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Database, BookOpen, Users, MonitorPlay, AlertTriangle, FileBarChart, Settings, LogOut, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, FileText, Database, BookOpen, Users, MonitorPlay, AlertTriangle, FileBarChart, Settings, LogOut, ShieldCheck, UserCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { db } from '../../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { Setting } from '../../types';
 import brandLogo from '../../assets/images/anti_cheating_logo_1780567204620.png';
 
 export default function AdminLayout() {
   const { logout, user } = useAuth();
   const location = useLocation();
+  const [setting, setSetting] = useState<Setting | null>(null);
+
+  useEffect(() => {
+    async function fetchAdminSetting() {
+      if (!user) return;
+      try {
+        const docRef = doc(db, 'settings', user.uid);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          setSetting(snap.data() as Setting);
+        }
+      } catch (err) {}
+    }
+    fetchAdminSetting();
+  }, [user]);
 
   const handleLogout = async () => {
     await logout();
@@ -20,7 +38,7 @@ export default function AdminLayout() {
     { name: 'Kelas', path: '/admin/classes', icon: Users },
     { name: 'Monitoring Peserta', path: '/admin/monitor', icon: MonitorPlay },
     { name: 'Hasil Ujian', path: '/admin/results', icon: FileBarChart },
-    { name: 'Pengaturan Sekolah', path: '/admin/settings', icon: Settings },
+    { name: 'Pengaturan', path: '/admin/settings', icon: Settings },
   ];
 
   return (
@@ -56,14 +74,20 @@ export default function AdminLayout() {
           })}
         </nav>
 
-        <div className="mt-auto p-4 border-t border-slate-800 shrink-0">
+        <div className="mt-auto p-4 border-t border-slate-800 shrink-0 bg-slate-800/30">
           <div className="flex items-center gap-3 mb-4 px-2">
-            <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white shrink-0">
-              {user?.email?.charAt(0).toUpperCase() || 'A'}
-            </div>
-            <div className="truncate text-sm">
-              <div className="font-medium text-white truncate">{user?.displayName || 'Admin'}</div>
-              <div className="text-xs text-slate-500 truncate">{user?.email}</div>
+            {setting?.teacherPhoto ? (
+              <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-slate-600">
+                <img src={setting.teacherPhoto} alt="Profil" className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                {setting?.teacherName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'A'}
+              </div>
+            )}
+            <div className="text-sm overflow-hidden flex-1">
+              <div className="font-medium text-white break-words line-clamp-2 leading-tight">{setting?.teacherName || user?.displayName || 'Admin'}</div>
+              <div className="text-xs text-slate-400 truncate mt-0.5">{setting?.teacherRole || user?.email}</div>
             </div>
           </div>
           <button 
