@@ -1,0 +1,146 @@
+{
+  "entities": {
+    "Admin": {
+      "title": "Admin",
+      "description": "Registered admins",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "createdAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "School settings",
+      "type": "object",
+      "properties": {
+        "schoolName": { "type": "string" },
+        "schoolLogo": { "type": "string" },
+        "schoolAddress": { "type": "string" },
+        "schoolSlogan": { "type": "string" },
+        "motivationText": { "type": "string" },
+        "teacherPhoto": { "type": "string" },
+        "maxViolations": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["schoolName", "updatedAt"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "School subjects",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["name", "createdAt"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "Bank of questions",
+      "type": "object",
+      "properties": {
+        "subjectId": { "type": "string" },
+        "packetName": { "type": "string" },
+        "number": { "type": "number" },
+        "question": { "type": "string" },
+        "optionA": { "type": "string" },
+        "optionB": { "type": "string" },
+        "optionC": { "type": "string" },
+        "optionD": { "type": "string" },
+        "optionE": { "type": "string" },
+        "correctAnswer": { "type": "string", "enum": ["A", "B", "C", "D", "E"] },
+        "weight": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["subjectId", "number", "question", "optionA", "optionB", "optionC", "optionD", "optionE", "correctAnswer", "weight", "createdAt"]
+    },
+    "Exam": {
+      "title": "Exam",
+      "description": "Scheduled exams",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "packetName": { "type": "string" },
+        "duration": { "type": "number" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "activeToken": { "type": "string" },
+        "autoResetInterval": { "type": "string" },
+        "tokenUpdatedAt": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["title", "subjectId", "duration", "date", "startTime", "endTime", "isActive", "activeToken", "autoResetInterval", "tokenUpdatedAt", "createdAt"]
+    },
+    "StudentSession": {
+      "title": "Student Session",
+      "description": "Active and past exam sessions for students",
+      "type": "object",
+      "properties": {
+        "studentName": { "type": "string" },
+        "className": { "type": "string" },
+        "examId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "packetName": { "type": "string" },
+        "token": { "type": "string" },
+        "status": { "type": "string", "enum": ["Aktif", "Tidak Fokus", "Melanggar", "Selesai", "Didiskualifikasi"] },
+        "violationsCount": { "type": "number" },
+        "lastActivity": { "type": "number" },
+        "startTime": { "type": "number" },
+        "endTime": { "type": "number" },
+        "score": { "type": "number" },
+        "correctCount": { "type": "number" },
+        "wrongCount": { "type": "number" }
+      },
+      "required": ["studentName", "className", "examId", "subjectId", "token", "status", "violationsCount", "lastActivity", "startTime"]
+    },
+    "Violation": {
+      "title": "Violation",
+      "description": "Logs of student violations during exam",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "type": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["sessionId", "studentName", "subjectId", "type", "timestamp", "status"]
+    }
+  },
+  "firestore": {
+    "admins/{adminId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Administrator accounts"
+    },
+    "settings/{settingId}": {
+      "schema": { "$ref": "#/entities/Setting" },
+      "description": "School and system settings"
+    },
+    "subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "List of subjects"
+    },
+    "questions/{questionId}": {
+      "schema": { "$ref": "#/entities/Question" },
+      "description": "Bank of questions"
+    },
+    "exams/{examId}": {
+      "schema": { "$ref": "#/entities/Exam" },
+      "description": "Configured exams"
+    },
+    "student_sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/StudentSession" },
+      "description": "Student exam sessions"
+    },
+    "violations/{violationId}": {
+      "schema": { "$ref": "#/entities/Violation" },
+      "description": "Violation logs"
+    }
+  }
+}

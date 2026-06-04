@@ -1,0 +1,10 @@
+{
+  "projectId": "anti-cheating-app",
+  "appId": "1:660441863207:web:ce966164227a74eeabea02",
+  "apiKey": "AIzaSyDVEE0nKCH1PDM8hkERWHPP6-PxTMIKIKs",
+  "authDomain": "anti-cheating-app.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "anti-cheating-app.firebasestorage.app",
+  "messagingSenderId": "660441863207",
+  "measurementId": ""
+}

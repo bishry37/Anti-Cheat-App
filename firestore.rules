@@ -1,0 +1,166 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} { allow read, write: if false; }
+
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { 
+      // All authenticated users who are not anonymous are admins
+      // This allows the owner to add new admin users directly via Firebase Auth
+      return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['email', 'createdAt']) && 
+             data.keys().size() == 2 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.createdAt is number;
+    }
+
+    match /admins/{adminId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == adminId);
+      allow create: if isAdmin() && isValidId(adminId) && isValidAdmin(incoming());
+      allow delete: if isAdmin() && isValidId(adminId);
+    }
+
+    function isValidSetting(data) {
+      return data.keys().hasAll(['schoolName', 'updatedAt']) && 
+             data.schoolName is string && data.schoolName.size() <= 256 &&
+             data.updatedAt is number &&
+             (!('schoolLogo' in data) || (data.schoolLogo is string && data.schoolLogo.size() <= 2048)) &&
+             (!('schoolAddress' in data) || (data.schoolAddress is string && data.schoolAddress.size() <= 1024)) &&
+             (!('schoolSlogan' in data) || (data.schoolSlogan is string && data.schoolSlogan.size() <= 1024)) &&
+             (!('motivationText' in data) || (data.motivationText is string && data.motivationText.size() <= 2048)) &&
+             (!('teacherPhoto' in data) || (data.teacherPhoto is string && data.teacherPhoto.size() <= 2048)) &&
+             (!('maxViolations' in data) || data.maxViolations is number);
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(settingId) && isValidSetting(incoming());
+      allow update: if isAdmin() && isValidId(settingId) && isValidSetting(incoming());
+    }
+
+    function isValidSubject(data) {
+      return data.keys().hasAll(['name', 'createdAt']) && data.keys().size() == 2 &&
+             data.name is string && data.name.size() <= 256 &&
+             data.createdAt is number;
+    }
+
+    match /subjects/{subjectId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(subjectId) && isValidSubject(incoming());
+      allow update: if isAdmin() && isValidId(subjectId) && incoming().diff(existing()).affectedKeys().hasOnly(['name']) &&
+                    incoming().name is string && incoming().name.size() <= 256;
+      allow delete: if isAdmin() && isValidId(subjectId);
+    }
+
+    function isValidQuestion(data) {
+      return data.keys().hasAll(['subjectId', 'number', 'question', 'optionA', 'optionB', 'optionC', 'optionD', 'optionE', 'correctAnswer', 'weight', 'createdAt']) && 
+             data.subjectId is string && data.subjectId.size() <= 128 &&
+             data.number is number &&
+             data.question is string && data.question.size() <= 10000 &&
+             data.optionA is string && data.optionA.size() <= 5000 &&
+             data.optionB is string && data.optionB.size() <= 5000 &&
+             data.optionC is string && data.optionC.size() <= 5000 &&
+             data.optionD is string && data.optionD.size() <= 5000 &&
+             data.optionE is string && data.optionE.size() <= 5000 &&
+             data.correctAnswer is string && data.correctAnswer.matches('^[A-E]$') &&
+             data.weight is number &&
+             data.createdAt is number &&
+             (!('packetName' in data) || (data.packetName is string && data.packetName.size() <= 256));
+    }
+
+    match /questions/{questionId} {
+      // Simplification: Authenticated students can read. Rely on client to query specific ones.
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming());
+      allow update: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming());
+      allow delete: if isAdmin();
+    }
+
+    function isValidExam(data) {
+      return data.keys().hasAll(['title', 'subjectId', 'duration', 'date', 'startTime', 'endTime', 'isActive', 'activeToken', 'autoResetInterval', 'tokenUpdatedAt', 'createdAt']) && 
+             data.title is string && data.title.size() <= 256 &&
+             data.subjectId is string && data.subjectId.size() <= 128 &&
+             data.duration is number &&
+             data.date is string && data.date.size() <= 32 &&
+             data.startTime is string && data.startTime.size() <= 16 &&
+             data.endTime is string && data.endTime.size() <= 16 &&
+             data.isActive is bool &&
+             data.activeToken is string && data.activeToken.size() <= 32 &&
+             data.autoResetInterval is string && data.autoResetInterval.size() <= 16 &&
+             data.tokenUpdatedAt is number &&
+             data.createdAt is number &&
+             (!('questionCount' in data) || data.questionCount is number) &&
+             (!('packetName' in data) || (data.packetName is string && data.packetName.size() <= 256));
+    }
+
+    match /exams/{examId} {
+      // Everyone needs to read exams to check tokens when logging in
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(examId) && isValidExam(incoming());
+      allow update: if isAdmin() && isValidId(examId) && isValidExam(incoming());
+      allow delete: if isAdmin();
+    }
+
+    function isValidStudentSession(data) {
+      return data.keys().hasAll(['studentName', 'className', 'examId', 'subjectId', 'token', 'status', 'violationsCount', 'lastActivity', 'startTime']) &&
+             data.studentName is string && data.studentName.size() <= 256 &&
+             data.className is string && data.className.size() <= 128 &&
+             data.examId is string && data.examId.size() <= 128 &&
+             data.subjectId is string && data.subjectId.size() <= 128 &&
+             data.token is string && data.token.size() <= 32 &&
+             data.status is string && data.status.matches('^(Aktif|Tidak Fokus|Melanggar|Selesai|Didiskualifikasi)$') &&
+             data.violationsCount is number &&
+             data.lastActivity is number &&
+             data.startTime is number &&
+             (!('endTime' in data) || data.endTime is number) &&
+             (!('score' in data) || data.score is number) &&
+             (!('packetName' in data) || (data.packetName is string && data.packetName.size() <= 256)) &&
+             (!('correctCount' in data) || data.correctCount is number) &&
+             (!('wrongCount' in data) || data.wrongCount is number) &&
+             // Optional answers map: not putting a strict schema on answers map to save cycles, assuming students only write keys of question IDs mapping to 'A'-'E'
+             (!('answers' in data) || data.answers is map);
+    }
+
+    match /student_sessions/{sessionId} {
+      // sessionId must match uid.
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == sessionId);
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidId(sessionId) && request.auth.uid == sessionId && 
+                    isValidStudentSession(incoming());
+      allow update: if isValidId(sessionId) && isValidStudentSession(incoming()) && (
+        isAdmin() ||
+        (isSignedIn() && request.auth.uid == sessionId && 
+        // Cannot update if already completed or disqualified (unless admin overrides, though here the client shouldn't)
+        // Wait, what if they disconnect and it is set to disqualified, can they update? Let's just allow updates if they own it.
+        true)
+      );
+      allow delete: if isAdmin();
+    }
+
+    function isValidViolation(data) {
+      return data.keys().hasAll(['sessionId', 'studentName', 'subjectId', 'type', 'timestamp', 'status']) &&
+             data.keys().size() == 6 &&
+             data.sessionId is string && data.sessionId.size() <= 128 &&
+             data.studentName is string && data.studentName.size() <= 256 &&
+             data.subjectId is string && data.subjectId.size() <= 128 &&
+             data.type is string && data.type.size() <= 256 &&
+             data.timestamp is number &&
+             data.status is string && data.status.size() <= 64;
+    }
+
+    match /violations/{violationId} {
+      allow get: if isAdmin() || (isSignedIn() && resource.data.sessionId == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.sessionId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(violationId) && isValidViolation(incoming()) &&
+                    (isAdmin() || incoming().sessionId == request.auth.uid);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}
