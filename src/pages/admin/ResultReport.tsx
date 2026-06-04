@@ -106,7 +106,7 @@ export default function ResultReport() {
         lastGradedAt: Date.now()
       });
 
-      showToast('Koreksi essay berhasil disimpan!');
+      showToast('Koreksi jawaban berhasil disimpan!');
       setSelectedSession(null);
       fetchResults();
     } catch (err) {
@@ -384,14 +384,14 @@ export default function ResultReport() {
         </div>
       )}
 
-      {/* Detail Koreksi Essay & Jawaban Siswa Modal */}
+      {/* Detail Koreksi & Jawaban Siswa Modal */}
       {selectedSession && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div>
                 <span className="text-[9px] bg-blue-100 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 font-bold uppercase tracking-wider">
-                  Koreksi & Review Ujian
+                  Koreksi & Detail Jawaban
                 </span>
                 <h3 className="text-sm font-bold text-slate-800 mt-1 uppercase tracking-wide">
                   {selectedSession.studentName} <span className="text-slate-400 font-normal">({selectedSession.className})</span>
@@ -508,7 +508,7 @@ export default function ResultReport() {
 
                             {/* Scoring Box */}
                             <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                              <label className="text-[10px] font-bold text-slate-600 uppercase">Input Nilai Koreksi Essay (Maks {weight}):</label>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase">Input Nilai Koreksi Manual (Maks {weight}):</label>
                               <div className="flex items-center gap-2">
                                 <input 
                                   type="number"
