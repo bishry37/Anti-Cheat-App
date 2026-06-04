@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc } from 'firebase/firestore';
+import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc, deleteDoc } from 'firebase/firestore';
 import { StudentSession, Violation, Exam, Subject } from '../../types';
-import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X } from 'lucide-react';
+import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2 } from 'lucide-react';
 
 export default function ExamMonitor() {
   const [sessions, setSessions] = useState<StudentSession[]>([]);
@@ -13,6 +13,28 @@ export default function ExamMonitor() {
   // Detail Modal
   const [selectedSession, setSelectedSession] = useState<StudentSession | null>(null);
   const [sessionViolations, setSessionViolations] = useState<Violation[]>([]);
+
+  // Toast Notification state
+  const [toast, setToast] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  };
+
+  // Custom Confirmation Dialog Modal state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    type: 'warning' | 'end_exam' | 'delete';
+    candidateId?: string;
+    candidateName: string;
+    session?: StudentSession;
+  }>({
+    isOpen: false,
+    type: 'warning',
+    candidateName: ''
+  });
 
   useEffect(() => {
     // Fetch static references first
@@ -74,35 +96,71 @@ export default function ExamMonitor() {
     } catch (e) { console.error(e); }
   };
 
-  const sendWarning = async (session: StudentSession) => {
-    const msg = "Perhatian! Sistem mendeteksi aktivitas yang tidak sesuai aturan ujian. Mohon tetap fokus dan mengerjakan ujian dengan jujur. Pelanggaran berikutnya dapat menyebabkan ujian dihentikan.";
-    if (!confirm('Kirim peringatan ke siswa ini?')) return;
-    try {
-      await addDoc(collection(db, 'violations'), {
-        sessionId: session.id,
-        studentName: session.studentName,
-        subjectId: session.subjectId,
-        type: 'Peringatan Admin',
-        status: msg,
-        timestamp: Date.now()
-      });
-      alert('Peringatan terkirim');
-      if (selectedSession?.id === session.id) openMonitor(session);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'violations');
-    }
+  const triggerWarning = (session: StudentSession) => {
+    setConfirmDialog({
+      isOpen: true,
+      type: 'warning',
+      candidateName: session.studentName,
+      session
+    });
   };
 
-  const endExam = async (session: StudentSession) => {
-    if (!confirm(`Akhiri paksa ujian untuk ${session.studentName}? Mereka akan didiskualifikasi.`)) return;
-    try {
-      await updateDoc(doc(db, 'student_sessions', session.id!), {
-        status: 'Didiskualifikasi',
-        endTime: Date.now()
-      });
-      setSelectedSession(null);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
+  const triggerEndExam = (session: StudentSession) => {
+    setConfirmDialog({
+      isOpen: true,
+      type: 'end_exam',
+      candidateName: session.studentName,
+      session
+    });
+  };
+
+  const triggerDelete = (id: string, name: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      type: 'delete',
+      candidateId: id,
+      candidateName: name
+    });
+  };
+
+  const executeConfirmedAction = async () => {
+    const { type, session, candidateId } = confirmDialog;
+    setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+
+    if (type === 'warning' && session) {
+      const msg = "Perhatian! Sistem mendeteksi aktivitas yang tidak sesuai aturan ujian. Mohon tetap fokus dan mengerjakan ujian dengan jujur. Pelanggaran berikutnya dapat menyebabkan ujian dihentikan.";
+      try {
+        await addDoc(collection(db, 'violations'), {
+          sessionId: session.id,
+          studentName: session.studentName,
+          subjectId: session.subjectId,
+          type: 'Peringatan Admin',
+          status: msg,
+          timestamp: Date.now()
+        });
+        showToast('Peringatan terkirim');
+        if (selectedSession?.id === session.id) openMonitor(session);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, 'violations');
+      }
+    } else if (type === 'end_exam' && session) {
+      try {
+        await updateDoc(doc(db, 'student_sessions', session.id!), {
+          status: 'Didiskualifikasi',
+          endTime: Date.now()
+        });
+        setSelectedSession(null);
+        showToast('Ujian telah dihentikan paksa');
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
+      }
+    } else if (type === 'delete' && candidateId) {
+      try {
+        await deleteDoc(doc(db, 'student_sessions', candidateId));
+        showToast('Sesi ujian berhasil dihapus');
+      } catch (err) {
+        handleFirestoreError(err, OperationType.DELETE, 'student_sessions');
+      }
     }
   };
 
@@ -184,13 +242,18 @@ export default function ExamMonitor() {
                       <td className="px-4 py-3">
                         {getStatusBadge(s.status)}
                       </td>
-                      <td className="px-4 py-3 text-right space-x-1">
+                      <td className="px-4 py-3 text-right space-x-1 flex items-center justify-end">
                           <button onClick={() => openMonitor(s)} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-white text-slate-800 border border-slate-200' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
                             Monitor
                           </button>
-                          {s.status !== 'Selesai' && s.status !== 'Didiskualifikasi' && (
-                            <button onClick={() => sendWarning(s)} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white border border-red-700' : 'bg-slate-50 text-slate-400 border border-slate-200 hover:text-slate-600'}`}>
+                          {s.status !== 'Selesai' && s.status !== 'Didiskualifikasi' ? (
+                            <button onClick={() => triggerWarning(s)} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white border border-red-700' : 'bg-slate-50 text-slate-400 border border-slate-200 hover:text-slate-600'}`}>
                               Tegur
+                            </button>
+                          ) : (
+                            <button onClick={() => triggerDelete(s.id!, s.studentName)} className="px-2 py-1 rounded text-[10px] font-bold transition-colors bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 flex items-center gap-1" title="Hapus Sesi Selesai">
+                              <Trash2 className="w-3 h-3" />
+                              <span>Hapus</span>
                             </button>
                           )}
                       </td>
@@ -271,14 +334,68 @@ export default function ExamMonitor() {
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end space-x-3">
               {selectedSession.status !== 'Selesai' && selectedSession.status !== 'Didiskualifikasi' && (
                 <>
-                  <button onClick={() => sendWarning(selectedSession)} className="px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 font-medium rounded-lg transition-colors text-sm">
+                  <button onClick={() => triggerWarning(selectedSession)} className="px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 font-medium rounded-lg transition-colors text-sm">
                     Kirim Peringatan
                   </button>
-                  <button onClick={() => endExam(selectedSession)} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors text-sm shadow-sm flex items-center">
+                  <button onClick={() => triggerEndExam(selectedSession)} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors text-sm shadow-sm flex items-center">
                     <MonitorOff className="w-4 h-4 mr-2" /> Akhiri Ujian (Diskualifikasi)
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification Banner */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-[60] bg-slate-900 border border-slate-800 text-white font-medium text-xs px-3.5 py-2.5 rounded-lg shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+          <span>{toast}</span>
+        </div>
+      )}
+
+      {/* Custom Confirmation Modal */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full border border-slate-100 p-5 flex flex-col items-center text-center animate-in scale-in duration-200">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
+              confirmDialog.type === 'delete' ? 'bg-red-50 text-red-600' :
+              confirmDialog.type === 'end_exam' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'
+            }`}>
+              {confirmDialog.type === 'delete' || confirmDialog.type === 'end_exam' ? (
+                <ShieldAlert className="w-6 h-6" />
+              ) : (
+                <AlertTriangle className="w-6 h-6" />
+              )}
+            </div>
+            <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-1">
+              {confirmDialog.type === 'delete' ? 'Hapus Sesi Ujian' :
+               confirmDialog.type === 'end_exam' ? 'Akhiri Paksa Ujian' : 'Kirim Teguran'}
+            </h4>
+            <p className="text-xs text-slate-500 leading-relaxed mb-5">
+              {confirmDialog.type === 'delete' && `Apakah Anda yakin ingin menghapus data sesi ujian untuk ${confirmDialog.candidateName}? Tindakan ini tidak dapat dibatalkan.`}
+              {confirmDialog.type === 'end_exam' && `Apakah Anda yakin ingin mengakhiri paksa ujian untuk ${confirmDialog.candidateName}? Mereka akan didiskualifikasi.`}
+              {confirmDialog.type === 'warning' && `Kirim peringatan/teguran kedisiplinan ke siswa ${confirmDialog.candidateName}?`}
+            </p>
+            <div className="flex gap-2 w-full">
+              <button 
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} 
+                className="flex-1 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={executeConfirmedAction} 
+                className={`flex-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-colors ${
+                  confirmDialog.type === 'delete' || confirmDialog.type === 'end_exam' 
+                    ? 'bg-red-600 hover:bg-red-700' 
+                    : 'bg-amber-500 hover:bg-amber-600'
+                }`}
+              >
+                {confirmDialog.type === 'delete' ? 'Hapus' :
+                 confirmDialog.type === 'end_exam' ? 'Akhiri' : 'Kirim'}
+              </button>
             </div>
           </div>
         </div>

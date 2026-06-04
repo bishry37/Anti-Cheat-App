@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Setting, Subject, Exam, StudentSession } from '../types';
 import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import brandLogo from '../assets/images/anti_cheating_logo_1780567204620.png';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -64,6 +65,72 @@ export default function Home() {
     fetchData();
   }, []);
 
+  // Background token auto-reset check
+  useEffect(() => {
+    if (activeExams.length === 0) return;
+
+    const generateNewToken = () => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let t = '';
+      let isUnique = false;
+      let attempts = 0;
+      while (!isUnique && attempts < 100) {
+        t = '';
+        for (let i = 0; i < 6; i++) {
+          t += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        isUnique = !activeExams.some(e => e.isActive && e.activeToken === t);
+        attempts++;
+      }
+      return t;
+    };
+
+    const checkAndResetTokens = async () => {
+      let changed = false;
+      const newList = [...activeExams];
+
+      for (let i = 0; i < newList.length; i++) {
+        const exam = newList[i];
+        if (exam.isActive && exam.autoResetInterval && exam.autoResetInterval !== 'manual') {
+          const intervalMinutes = parseInt(exam.autoResetInterval, 10);
+          if (!isNaN(intervalMinutes)) {
+            const lastUpdated = exam.tokenUpdatedAt || 0;
+            const elapsedMs = Date.now() - lastUpdated;
+            const limitMs = intervalMinutes * 60 * 1000;
+
+            if (elapsedMs >= limitMs) {
+              const newToken = generateNewToken();
+              const now = Date.now();
+              try {
+                await updateDoc(doc(db, 'exams', exam.id!), {
+                  activeToken: newToken,
+                  tokenUpdatedAt: now
+                });
+                newList[i] = {
+                  ...exam,
+                  activeToken: newToken,
+                  tokenUpdatedAt: now
+                };
+                changed = true;
+              } catch (err) {
+                console.error("Gagal melakukan reset otomatis token:", err);
+              }
+            }
+          }
+        }
+      }
+
+      if (changed) {
+        setActiveExams(newList);
+      }
+    };
+
+    checkAndResetTokens();
+    const interval = setInterval(checkAndResetTokens, 10000); // Check every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [activeExams]);
+
   const handleAdminEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminEmail || !adminPassword) {
@@ -102,18 +169,7 @@ export default function Home() {
     try {
       setLoading(true);
       setErrorMessage('');
-      await loginAsStudent();
-      
-      // Wait a bit to ensure auth is ready ? No, auth context will pick it up and we have a listener.
-      // But we need to create the student_session document. We can't do it before we have uid.
-      // Wait, let's create the session doc after login success. But we are redirecting...
-      // The redirect happens in useEffect. So we should create the session right after `loginAsStudent`.
-      // Let's actually wait for auth state... wait, loginAsStudent triggers signInAnonymously, returning a credential.
-      // We can grab it.
-      const { signInAnonymously, getAuth } = await import('firebase/auth');
-      const auth = getAuth();
-      const userCred = await signInAnonymously(auth);
-      const uid = userCred.user.uid;
+      const uid = await loginAsStudent();
 
       const sessionData: StudentSession = {
         studentName,
@@ -145,15 +201,20 @@ export default function Home() {
         
         {/* Top Branding Section */}
         <div className="flex flex-col items-center text-center mb-8">
-          {setting?.schoolLogo ? (
-            <img src={setting.schoolLogo} alt="Logo" className="w-20 h-20 object-contain mb-5" />
-          ) : (
-            <div className="w-20 h-20 bg-slate-50 text-slate-800 rounded-2xl flex items-center justify-center mb-5 border border-slate-200 shadow-sm">
-              <GraduationCap className="w-10 h-10" />
-            </div>
-          )}
+          <div className="w-24 h-24 bg-white border border-slate-200 shadow-md rounded-[1.25rem] p-3 flex items-center justify-center mb-5 overflow-hidden">
+            {setting?.schoolLogo ? (
+              <img src={setting.schoolLogo} alt="Logo" className="w-full h-full object-contain" />
+            ) : (
+              <img 
+                src={brandLogo} 
+                alt="Anti Cheating App Logo" 
+                className="w-full h-full object-contain" 
+                referrerPolicy="no-referrer"
+              />
+            )}
+          </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-            {setting?.schoolName || 'ExamGuard CBT'}
+            {setting?.schoolName || 'Anti Cheating App'}
           </h1>
           <p className="text-slate-500 mt-2 text-sm px-4">
             {setting?.schoolSlogan || 'Sistem Ujian Online yang memonitor aktivitas secara real-time dan menjamin integritas.'}
@@ -306,16 +367,11 @@ export default function Home() {
       </div>
 
       {/* Footer Motivation */}
-      {(setting?.motivationText || setting?.teacherPhoto) && (
-        <div className="mt-12 max-w-lg w-full text-center space-y-4 text-slate-500 z-10 flex flex-col items-center">
-          {setting.teacherPhoto && (
-            <img src={setting.teacherPhoto} alt="Guru" className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm shrink-0" />
-          )}
-          <p className="text-sm leading-relaxed font-serif italic px-6">
-            "{setting?.motivationText || 'Kejujuran adalah prestasi yang paling berharga. Kerjakan ujian dengan kemampuan dan integritas terbaikmu.'}"
-          </p>
-        </div>
-      )}
+      <div className="mt-12 max-w-lg w-full text-center space-y-4 text-slate-500 z-10 flex flex-col items-center">
+        <p className="text-sm leading-relaxed font-serif italic px-6">
+          "{setting?.motivationText || 'Kejujuran adalah prestasi yang paling berharga. Kerjakan ujian dengan kemampuan dan integritas terbaikmu.'}"
+        </p>
+      </div>
     </div>
   );
 }

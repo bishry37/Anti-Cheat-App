@@ -23,8 +23,17 @@ export default function StudentExam() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
+  const [currentTime, setCurrentTime] = useState(new Date());
   
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Real-time Clock Timer
+  useEffect(() => {
+    const clockTimer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(clockTimer);
+  }, []);
 
   // Load Initial Data
   useEffect(() => {
@@ -39,7 +48,7 @@ export default function StudentExam() {
           setLoadError("Sesi ujian tidak valid atau Anda bukan siswa yang terdaftar. Mohon logout lalu login sebagai Admin.");
           return;
         }
-        const sessData = sessSnap.data() as StudentSession;
+        const sessData = { id: sessSnap.id, ...sessSnap.data() } as StudentSession;
         setSession(sessData);
         setAnswers(sessData.answers || {});
 
@@ -82,7 +91,7 @@ export default function StudentExam() {
     if (!user) return;
     const unsub = onSnapshot(doc(db, 'student_sessions', user.uid), (docSnap) => {
       if (docSnap.exists()) {
-        const dat = docSnap.data() as StudentSession;
+        const dat = { id: docSnap.id, ...docSnap.data() } as StudentSession;
         setSession(dat);
         if (dat.status === 'Didiskualifikasi') {
           alert('Ujian Anda dihentikan paksa oleh Admin karena pelanggaran.');
@@ -105,9 +114,9 @@ export default function StudentExam() {
 
     try {
       await addDoc(collection(db, 'violations'), {
-        sessionId: session.id,
-        studentName: session.studentName,
-        subjectId: session.subjectId,
+        sessionId: session.id || user!.uid,
+        studentName: session.studentName || 'Siswa',
+        subjectId: session.subjectId || '',
         type,
         status: willDisqualify ? 'Diskualifikasi otomatis' : 'Tercatat',
         timestamp: Date.now()
@@ -159,19 +168,25 @@ export default function StudentExam() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Prevent common shortcuts: Ctrl+C, Ctrl+V, F12 (DevTools), PrintScreen, Atl+Tab handled by blur usually but just in case
       if (
+        e.key === 'Alt' ||
+        e.key === 'Tab' ||
+        e.key === 'Meta' ||
+        e.key === 'Escape' ||
         e.key === 'F12' || 
         (e.ctrlKey && e.shiftKey && e.key === 'I') || 
         (e.ctrlKey && e.shiftKey && e.key === 'J') ||
         (e.ctrlKey && e.key === 'U') ||
         (e.ctrlKey && e.key === 'c') ||
         (e.ctrlKey && e.key === 'v') ||
-        e.key === 'PrintScreen' ||
-        e.metaKey // Windows key
+        e.key === 'PrintScreen'
       ) {
         e.preventDefault();
         let type = 'Tombol Shortcut Terlarang';
+        if (e.key === 'Alt') type = 'Menekan Tombol Alt';
+        if (e.key === 'Tab') type = 'Menekan Tombol Tab';
+        if (e.key === 'Meta') type = 'Membuka Start Menu / Windows';
+        if (e.key === 'Escape') type = 'Keluar dari Layar Penuh';
         if (e.key === 'PrintScreen') type = 'Screenshot Layar';
-        if (e.metaKey) type = 'Membuka Start Menu / Windows';
         if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) type = 'Membuka Developer Tools';
 
         recordViolation(type, `Aksi terlarang terdeteksi: ${type}`);
@@ -338,7 +353,7 @@ export default function StudentExam() {
         <Maximize className="w-16 h-16 text-blue-400 mb-6" />
         <h1 className="text-3xl font-bold mb-4">Mulai Ujian</h1>
         <p className="max-w-md text-slate-300 mb-8 leading-relaxed">
-          Ujian ini menggunakan sistem keamanan anti-contek ExamGuard. Layar akan diubah menjadi fullscreen. 
+          Ujian ini menggunakan sistem keamanan anti-contek Anti Cheating App. Layar akan diubah menjadi fullscreen. 
           Anda dilarang berpindah tab, membuka aplikasi lain, keluar layar penuh, atau melakukan kombinasi tombol terlarang.
         </p>
         <button 
@@ -378,6 +393,12 @@ export default function StudentExam() {
           <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">{session.studentName} • Kelas {session.className}</p>
         </div>
         <div className="flex items-center space-x-3">
+          <div className="flex items-center px-2.5 py-1 rounded border bg-slate-50 border-slate-200 text-slate-700 shadow-xs">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mr-2">Jam:</span>
+            <span className="font-mono stroke-2 font-bold text-xs tracking-wider">
+              {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          </div>
           <div className="flex items-center text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border border-red-100">
             <ShieldAlert className="w-3.5 h-3.5 mr-1" />
             <span>Pelanggaran: {session.violationsCount}</span>

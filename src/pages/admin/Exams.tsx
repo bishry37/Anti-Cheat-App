@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot } from 'firebase/firestore';
 import { Exam, Subject } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Calendar, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -56,6 +56,16 @@ export default function Exams() {
 
   useEffect(() => {
     fetchData();
+
+    // Subscribe to exams in real-time
+    const q = query(collection(db, 'exams'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setExams(snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Exam)));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'exams');
+    });
+
+    return unsub;
   }, []);
 
   useEffect(() => {
@@ -65,6 +75,72 @@ export default function Exams() {
       setAvailablePackets([]);
     }
   }, [formData.subjectId]);
+
+  // Background token auto-reset check
+  useEffect(() => {
+    if (exams.length === 0) return;
+
+    const generateNewToken = () => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let t = '';
+      let isUnique = false;
+      let attempts = 0;
+      while (!isUnique && attempts < 100) {
+        t = '';
+        for (let i = 0; i < 6; i++) {
+          t += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        isUnique = !exams.some(e => e.isActive && e.activeToken === t);
+        attempts++;
+      }
+      return t;
+    };
+
+    const checkAndResetTokens = async () => {
+      let changed = false;
+      const newList = [...exams];
+
+      for (let i = 0; i < newList.length; i++) {
+        const exam = newList[i];
+        if (exam.isActive && exam.autoResetInterval && exam.autoResetInterval !== 'manual') {
+          const intervalMinutes = parseInt(exam.autoResetInterval, 10);
+          if (!isNaN(intervalMinutes)) {
+            const lastUpdated = exam.tokenUpdatedAt || 0;
+            const elapsedMs = Date.now() - lastUpdated;
+            const limitMs = intervalMinutes * 60 * 1000;
+
+            if (elapsedMs >= limitMs) {
+              const newToken = generateNewToken();
+              const now = Date.now();
+              try {
+                await updateDoc(doc(db, 'exams', exam.id!), {
+                  activeToken: newToken,
+                  tokenUpdatedAt: now
+                });
+                newList[i] = {
+                  ...exam,
+                  activeToken: newToken,
+                  tokenUpdatedAt: now
+                };
+                changed = true;
+              } catch (err) {
+                console.error("Gagal melakukan reset otomatis token:", err);
+              }
+            }
+          }
+        }
+      }
+
+      if (changed) {
+        setExams(newList);
+      }
+    };
+
+    checkAndResetTokens();
+    const interval = setInterval(checkAndResetTokens, 10000); // Check every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [exams]);
 
   const fetchPackets = async (subId: string) => {
     try {
@@ -85,10 +161,6 @@ export default function Exams() {
       const subQ = query(collection(db, 'subjects'), orderBy('createdAt', 'desc'));
       const subSnap = await getDocs(subQ);
       setSubjects(subSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Subject)));
-
-      const exQ = query(collection(db, 'exams'), orderBy('createdAt', 'desc'));
-      const exSnap = await getDocs(exQ);
-      setExams(exSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Exam)));
     } catch (err) {
       console.error(err);
     }
@@ -98,8 +170,15 @@ export default function Exams() {
   const generateToken = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let token = '';
-    for (let i = 0; i < 6; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
+    let isUnique = false;
+    let attempts = 0;
+    while (!isUnique && attempts < 100) {
+      token = '';
+      for (let i = 0; i < 6; i++) {
+        token += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      isUnique = !exams.some(e => e.isActive && e.activeToken === token);
+      attempts++;
     }
     return token;
   };
@@ -190,7 +269,8 @@ export default function Exams() {
       endTime: '10:00',
       isActive: false,
       activeToken: generateToken(),
-      autoResetInterval: 'manual'
+      autoResetInterval: 'manual',
+      targetClass: ''
     });
   };
 
@@ -231,6 +311,17 @@ export default function Exams() {
                       onChange={e => setFormData({...formData, title: e.target.value})}
                       className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
                       placeholder="Contoh: Ujian Akhir Semester"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Keterangan Kelas *</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={formData.targetClass || ''}
+                      onChange={e => setFormData({...formData, targetClass: e.target.value})}
+                      className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
+                      placeholder="Contoh: XII IPA 1 (ditulis manual)"
                     />
                   </div>
                   <div>
@@ -410,7 +501,9 @@ export default function Exams() {
                 exams.map((exam) => (
                   <tr key={exam.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-800">{exam.title}</div>
+                      <div className="font-semibold text-slate-800">
+                        {exam.title} {exam.targetClass && <span className="text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded ml-1 uppercase">{exam.targetClass}</span>}
+                      </div>
                       <div className="text-[10px] text-slate-500">
                         {getSubjectName(exam.subjectId)}
                         {exam.packetName && <span className="ml-1 text-blue-600 font-bold">• {exam.packetName}</span>}

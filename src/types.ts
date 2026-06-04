@@ -47,6 +47,7 @@ export interface Exam {
   autoResetInterval: '5' | '10' | '15' | '30' | '60' | 'manual';
   tokenUpdatedAt: number;
   createdAt: number;
+  targetClass?: string;
 }
 
 export interface StudentSession {

@@ -150,7 +150,7 @@ export default function QuestionBank() {
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'TemplateSoal');
-    XLSX.writeFile(wb, 'Template_Soal_ExamGuard.xlsx');
+    XLSX.writeFile(wb, 'Template_Soal_Anti_Cheating_App.xlsx');
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

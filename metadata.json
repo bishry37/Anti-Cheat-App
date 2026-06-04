@@ -1,5 +1,5 @@
 {
-  "name": "ExamGuard CBT",
+  "name": "Anti Cheating App",
   "description": "Sistem Ujian Online Anti-Contek yang memonitor aktivitas secara real-time dan menjamin integritas.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

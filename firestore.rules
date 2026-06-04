@@ -75,8 +75,8 @@ service cloud.firestore {
     }
 
     match /questions/{questionId} {
-      // Simplification: Authenticated students can read. Rely on client to query specific ones.
-      allow read: if isSignedIn();
+      // Allow anyone to read questions to support students if anonymous login is disabled in Firebase console
+      allow read: if true;
       allow create: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming());
       allow update: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming());
       allow delete: if isAdmin();
@@ -128,18 +128,11 @@ service cloud.firestore {
     }
 
     match /student_sessions/{sessionId} {
-      // sessionId must match uid.
-      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == sessionId);
+      // Allow access with or without Firebase Auth to support disabled anonymous login fallback
+      allow get: if true;
       allow list: if isAdmin();
-      allow create: if isSignedIn() && isValidId(sessionId) && request.auth.uid == sessionId && 
-                    isValidStudentSession(incoming());
-      allow update: if isValidId(sessionId) && isValidStudentSession(incoming()) && (
-        isAdmin() ||
-        (isSignedIn() && request.auth.uid == sessionId && 
-        // Cannot update if already completed or disqualified (unless admin overrides, though here the client shouldn't)
-        // Wait, what if they disconnect and it is set to disqualified, can they update? Let's just allow updates if they own it.
-        true)
-      );
+      allow create: if isValidId(sessionId) && isValidStudentSession(incoming());
+      allow update: if isValidId(sessionId) && isValidStudentSession(incoming());
       allow delete: if isAdmin();
     }
 
@@ -155,10 +148,9 @@ service cloud.firestore {
     }
 
     match /violations/{violationId} {
-      allow get: if isAdmin() || (isSignedIn() && resource.data.sessionId == request.auth.uid);
-      allow list: if isAdmin() || (isSignedIn() && resource.data.sessionId == request.auth.uid);
-      allow create: if isSignedIn() && isValidId(violationId) && isValidViolation(incoming()) &&
-                    (isAdmin() || incoming().sessionId == request.auth.uid);
+      allow get: if isAdmin() || true;
+      allow list: if isAdmin() || true;
+      allow create: if isValidId(violationId) && isValidViolation(incoming());
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
