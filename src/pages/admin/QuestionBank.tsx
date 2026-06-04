@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, deleteDoc, doc, orderBy, where, writeBatch, updateDoc } from 'firebase/firestore';
+import { collection, query, getDocs, deleteDoc, doc, orderBy, where, writeBatch, updateDoc, addDoc } from 'firebase/firestore';
 import { Question, Subject } from '../../types';
-import { Edit2, Trash2, Loader2, X, Upload, Download, FileSpreadsheet, Search, Check } from 'lucide-react';
+import { Edit2, Trash2, Loader2, X, Upload, Download, FileSpreadsheet, Search, Check, Plus } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
+import { useBlocker } from 'react-router-dom';
 
 export default function QuestionBank() {
   const { user } = useAuth();
@@ -19,6 +20,20 @@ export default function QuestionBank() {
   const [processing, setProcessing] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [editingData, setEditingData] = useState<Question | null>(null);
+  const [isAddingQuestion, setIsAddingQuestion] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [addingData, setAddingData] = useState<Partial<Question>>({
+    number: 1,
+    question: '',
+    optionA: '',
+    optionB: '',
+    optionC: '',
+    optionD: '',
+    optionE: '',
+    correctAnswer: 'A',
+    weight: 10,
+    type: 'pilihan_ganda'
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // State for fully functional, custom sandboxed confirmation and alert dialogs
@@ -87,6 +102,41 @@ export default function QuestionBank() {
   useEffect(() => {
     if (user) fetchSubjects();
   }, [user]);
+
+  // Handle browser refresh/close
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  // Block internal navigation
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      isDirty && currentLocation.pathname !== nextLocation.pathname
+  );
+
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      showCustomConfirm(
+        'Perubahan Belum Disimpan',
+        'Anda memiliki perubahan yang belum disimpan. Silakan klik tombol "Simpan Perubahan" terlebih dahulu untuk memvalidasi bobot soal dan menyimpan progress Anda.',
+        () => blocker.proceed(),
+        false,
+        'Tetap Pindah'
+      );
+      // We need to set onCancel specifically for the blocker
+      setModalConfig(prev => prev ? {
+        ...prev,
+        onCancel: () => blocker.reset()
+      } : null);
+    }
+  }, [blocker]);
 
   const fetchSubjects = async () => {
     if (!user) return;
@@ -173,6 +223,21 @@ export default function QuestionBank() {
       return;
     }
 
+    // Duplicate file check
+    if (existingTemplates.includes(deducedTemplateName)) {
+      showCustomConfirm(
+        'File Sudah Ada',
+        `Template soal dengan nama "${deducedTemplateName}" sudah pernah diunggah sebelumnya. Apakah Anda yakin ingin mengunggahnya kembali? Hal ini dapat menyebabkan soal ganda jika data di dalamnya sama.`,
+        () => processFileUpload(file, deducedTemplateName),
+        true,
+        'Ya, Tetap Unggah'
+      );
+    } else {
+      processFileUpload(file, deducedTemplateName);
+    }
+  };
+
+  const processFileUpload = async (file: File, templateName: string) => {
     setProcessing(true);
     const reader = new FileReader();
     reader.onload = async (evt) => {
@@ -186,14 +251,18 @@ export default function QuestionBank() {
         const questionsRef = collection(db, 'questions');
         let count = 0;
         let batch = writeBatch(db);
+        let totalWeight = 0;
 
         for (let row of data as any[]) {
           if (!row.Nomor || !row.Pertanyaan || !row.JawabanBenar) continue;
           
+          const weight = Number(row.BobotNilai || 10);
+          totalWeight += weight;
+
           const newDoc = doc(questionsRef);
           batch.set(newDoc, {
             subjectId: selectedSubject,
-            packetName: deducedTemplateName.trim(),
+            packetName: templateName.trim(),
             number: Number(row.Nomor),
             question: row.Pertanyaan || '',
             optionA: String(row.PilihanA || ''),
@@ -203,9 +272,9 @@ export default function QuestionBank() {
             optionE: String(row.PilihanE || ''),
             correctAnswer: String(row.JawabanBenar).toUpperCase().trim(),
             type: 'pilihan_ganda',
-            weight: Number(row.BobotNilai || 10),
+            weight: weight,
             createdAt: Date.now(),
-            adminId: user.uid
+            adminId: user!.uid
           } as Question);
           count++;
 
@@ -219,10 +288,17 @@ export default function QuestionBank() {
           await batch.commit();
         }
 
-        showCustomAlert('Berhasil Impor', `Berhasil mengimpor ${count} soal pilihan ganda ke dalam template "${deducedTemplateName}".`, true);
-        setSelectedTemplateFilter(deducedTemplateName.trim());
+        let msg = `Berhasil mengimpor ${count} soal pilihan ganda ke dalam template "${templateName}".`;
+        if (totalWeight !== 100) {
+          msg += `\n\nPERINGATAN: Total bobot soal adalah ${totalWeight}, bukan 100. Silakan sesuaikan bobot soal agar totalnya mencapai 100 agar skor maksimal ujian benar.`;
+          showCustomAlert('Berhasil dengan Peringatan', msg, false);
+        } else {
+          showCustomAlert('Berhasil Impor', msg, true);
+        }
+        setSelectedTemplateFilter(templateName.trim());
         fetchQuestions();
         fetchExistingTemplates();
+        setIsDirty(true);
       } catch (err) {
         console.error(err);
         showCustomAlert('Gagal Impor', 'Gagal membaca file Excel. Pastikan format sesuai template.', false);
@@ -241,6 +317,7 @@ export default function QuestionBank() {
         try {
           await deleteDoc(doc(db, 'questions', id));
           fetchQuestions();
+          setIsDirty(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.DELETE, 'questions');
         }
@@ -279,6 +356,7 @@ export default function QuestionBank() {
           }
           fetchQuestions();
           fetchExistingTemplates();
+          setIsDirty(true);
         } catch (err) {
           console.error(err);
           showCustomAlert('Gagal Hapus', 'Gagal menghapus template soal.', false);
@@ -325,6 +403,7 @@ export default function QuestionBank() {
           }
           fetchQuestions();
           fetchExistingTemplates();
+          setIsDirty(true);
         } catch (err) {
           console.error(err);
           showCustomAlert('Gagal Rename', 'Gagal mengubah nama template.', false);
@@ -359,17 +438,93 @@ export default function QuestionBank() {
         correctAnswer: String(editingData.correctAnswer?.toUpperCase() || 'A'),
         type: 'pilihan_ganda',
         weight: Number(editingData.weight || 10),
-        adminId: user.uid
+        lastEditedAt: Date.now()
       } as any);
       
       setEditingQuestionId(null);
       setEditingData(null);
       fetchQuestions();
+      setIsDirty(true);
     } catch (err) {
       console.error(err);
       showCustomAlert('Gagal Menyimpan', 'Gagal menyimpan perubahan ke server.', false);
     }
     setProcessing(false);
+  };
+
+  const handleAddQuestion = async () => {
+    if (!user || !selectedSubject || selectedTemplateFilter === 'all') return;
+    setProcessing(true);
+    try {
+      const qRef = collection(db, 'questions');
+      const docData = {
+        ...addingData,
+        subjectId: selectedSubject,
+        packetName: selectedTemplateFilter,
+        adminId: user.uid,
+        createdAt: Date.now(),
+        type: 'pilihan_ganda'
+      };
+      
+      await addDoc(qRef, docData);
+      
+      setIsAddingQuestion(false);
+      setAddingData({
+        number: questions.length + 2, // Predictive for next add
+        question: '',
+        optionA: '',
+        optionB: '',
+        optionC: '',
+        optionD: '',
+        optionE: '',
+        correctAnswer: 'A',
+        weight: 10,
+        type: 'pilihan_ganda'
+      });
+      fetchQuestions();
+      setIsDirty(true);
+      showCustomAlert('Berhasil', 'Soal berhasil ditambahkan.', true);
+    } catch (err) {
+      console.error(err);
+      showCustomAlert('Gagal', 'Gagal menambahkan soal.', false);
+    }
+    setProcessing(false);
+  };
+
+  const handleExportQuestions = () => {
+    if (selectedTemplateFilter === 'all' || questions.length === 0) return;
+    
+    const exportData = questions.map(q => ({
+      'Nomor': q.number,
+      'Pertanyaan': q.question,
+      'PilihanA': q.optionA,
+      'PilihanB': q.optionB,
+      'PilihanC': q.optionC,
+      'PilihanD': q.optionD,
+      'PilihanE': q.optionE,
+      'JawabanBenar': q.correctAnswer,
+      'BobotNilai': q.weight
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'DataSoal');
+    XLSX.writeFile(wb, `Export_${selectedTemplateFilter}_${selectedSubject}.xlsx`);
+  };
+
+  const handleValidateWeights = () => {
+    if (selectedTemplateFilter === 'all') return;
+    const total = questions.reduce((acc, q) => acc + (q.weight || 0), 0);
+    if (total !== 100) {
+      showCustomAlert(
+        'Bobot Tidak Seimbang', 
+        `Total bobot soal saat ini adalah ${total}. Kami menyarankan total bobot adalah 100 agar nilai maksimal siswa adalah 100. Silakan periksa kembali bobot tiap soal.`,
+        false
+      );
+    } else {
+      showCustomAlert('Sempurna', 'Total bobot soal sudah bernilai 100. Data perubahan telah tersimpan di server.', true);
+      setIsDirty(false);
+    }
   };
 
   const filteredTemplates = existingTemplates.filter(t => 
@@ -549,21 +704,139 @@ export default function QuestionBank() {
                 </span>
               </div>
 
-              {/* Question text search */}
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400" />
-                <input 
-                  type="text"
-                  value={searchQuestionQuery}
-                  onChange={e => setSearchQuestionQuery(e.target.value)}
-                  placeholder="Cari kata kunci dalam isi soal..."
-                  className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 text-xs rounded outline-none focus:ring-1 focus:ring-blue-500 w-44 md:w-56"
-                />
+            <div className="flex items-center space-x-2">
+                {selectedTemplateFilter !== 'all' && (
+                  <>
+                    <button 
+                      onClick={handleValidateWeights}
+                      className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase flex items-center space-x-1.5 transition-all cursor-pointer shadow-sm relative ${
+                        isDirty 
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500 ring-offset-1 animate-pulse-subtle' 
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      }`}
+                      title="Simpan Perubahan & Cek Validasi Bobot"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{isDirty ? 'Simpan Perubahan *' : 'Simpan Perubahan'}</span>
+                    </button>
+                    <button 
+                      onClick={handleExportQuestions}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-[10px] font-bold uppercase flex items-center space-x-1.5 transition-colors cursor-pointer shadow-sm"
+                      title="Export soal yang ada saat ini ke Excel"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Export Soal</span>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setAddingData({...addingData, number: questions.length + 1});
+                        setIsAddingQuestion(true);
+                      }}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-bold uppercase flex items-center space-x-1.5 transition-colors cursor-pointer shadow-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Soal</span>
+                    </button>
+                  </>
+                )}
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400" />
+                  <input 
+                    type="text"
+                    value={searchQuestionQuery}
+                    onChange={e => setSearchQuestionQuery(e.target.value)}
+                    placeholder="Cari kata kunci..."
+                    className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 text-xs rounded outline-none focus:ring-1 focus:ring-blue-500 w-32 md:w-44"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Questions List */}
             <div className="overflow-auto flex-1 divide-y divide-slate-100">
+              {isAddingQuestion && (
+                <div className="p-4 bg-green-50/40 border-l-4 border-green-500 space-y-3 transition-all">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-green-800 uppercase tracking-wider">Tambah Soal Baru</span>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={handleAddQuestion}
+                        disabled={processing}
+                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-bold uppercase flex items-center space-x-1 shadow transition cursor-pointer"
+                      >
+                        {processing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                        <span>Tambah</span>
+                      </button>
+                      <button
+                        onClick={() => setIsAddingQuestion(false)}
+                        className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-bold uppercase flex items-center space-x-1 transition cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Batal</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">No. Soal</label>
+                      <input 
+                        type="number"
+                        value={addingData.number || ''}
+                        onChange={e => setAddingData({ ...addingData, number: parseInt(e.target.value) || 1 })}
+                        className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800"
+                      />
+                    </div>
+                    <div className="md:col-span-8">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Teks Pertanyaan</label>
+                      <textarea 
+                        rows={2}
+                        value={addingData.question || ''}
+                        onChange={e => setAddingData({ ...addingData, question: e.target.value })}
+                        className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none resize-y focus:ring-1 focus:ring-blue-500"
+                        placeholder="Ketik pertanyaan di sini..."
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Bobot Nilai</label>
+                      <input 
+                        type="number"
+                        value={addingData.weight || ''}
+                        onChange={e => setAddingData({ ...addingData, weight: parseInt(e.target.value) || 0 })}
+                        className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+                    {['A', 'B', 'C', 'D', 'E'].map(l => (
+                      <div key={l}>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Pilihan {l}</label>
+                        <input 
+                          type="text"
+                          value={(addingData as any)[`option${l}`] || ''}
+                          onChange={e => setAddingData({ ...addingData, [`option${l}`]: e.target.value })}
+                          className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Jawaban Benar</label>
+                    <select
+                      value={addingData.correctAnswer || 'A'}
+                      onChange={e => setAddingData({ ...addingData, correctAnswer: e.target.value })}
+                      className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none font-bold text-slate-700 focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                    >
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                      <option value="D">D</option>
+                      <option value="E">E</option>
+                    </select>
+                  </div>
+                </div>
+              )}
               {loading ? (
                 <div className="flex justify-center p-12">
                    <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />

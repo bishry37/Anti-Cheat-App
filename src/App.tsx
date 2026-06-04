@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Home from './pages/Home';
 import AdminLayout from './components/layout/AdminLayout';
@@ -35,28 +35,59 @@ function ProtectedStudentRoute({ children }: { children: React.ReactNode }) {
   return children;
 }
 
+const router = createHashRouter([
+  {
+    path: "/",
+    element: <Home />,
+  },
+  {
+    path: "/admin",
+    element: <ProtectedAdminRoute><AdminLayout /></ProtectedAdminRoute>,
+    children: [
+      {
+        index: true,
+        element: <AdminDashboard />,
+      },
+      {
+        path: "exams",
+        element: <Exams />,
+      },
+      {
+        path: "questions",
+        element: <QuestionBank />,
+      },
+      {
+        path: "subjects",
+        element: <Subjects />,
+      },
+      {
+        path: "classes",
+        element: <Classes />,
+      },
+      {
+        path: "monitor",
+        element: <ExamMonitor />,
+      },
+      {
+        path: "results",
+        element: <ResultReport />,
+      },
+      {
+        path: "settings",
+        element: <Settings />,
+      },
+    ],
+  },
+  {
+    path: "/exam",
+    element: <ProtectedStudentRoute><StudentExam /></ProtectedStudentRoute>,
+  },
+]);
+
 export default function App() {
   return (
     <AuthProvider>
-      <HashRouter>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          
-          {/* Admin Routes wrapped in a Layout */}
-          <Route path="/admin" element={<ProtectedAdminRoute><AdminLayout /></ProtectedAdminRoute>}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="exams" element={<Exams />} />
-            <Route path="questions" element={<QuestionBank />} />
-            <Route path="subjects" element={<Subjects />} />
-            <Route path="classes" element={<Classes />} />
-            <Route path="monitor" element={<ExamMonitor />} />
-            <Route path="results" element={<ResultReport />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
-
-          <Route path="/exam" element={<ProtectedStudentRoute><StudentExam /></ProtectedStudentRoute>} />
-        </Routes>
-      </HashRouter>
+      <RouterProvider router={router} />
     </AuthProvider>
   );
 }
