@@ -24,6 +24,9 @@ export default function StudentExam() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [acknowledgedWarningTime, setAcknowledgedWarningTime] = useState<number>(0);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isSubmittingOrFinished, setIsSubmittingOrFinished] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -89,10 +92,20 @@ export default function StudentExam() {
   // Listen to remote changes on session (for admin warnings/kicks)
   useEffect(() => {
     if (!user) return;
+    let initialized = false;
     const unsub = onSnapshot(doc(db, 'student_sessions', user.uid), (docSnap) => {
       if (docSnap.exists()) {
         const dat = { id: docSnap.id, ...docSnap.data() } as StudentSession;
         setSession(dat);
+        
+        // Match user's warning timestamp upon first mount to prevent showing legacy warnings
+        if (!initialized) {
+          if (dat.adminWarningTime) {
+            setAcknowledgedWarningTime(dat.adminWarningTime);
+          }
+          initialized = true;
+        }
+
         if (dat.status === 'Didiskualifikasi') {
           alert('Ujian Anda dihentikan paksa oleh Admin karena pelanggaran.');
         }
@@ -144,7 +157,7 @@ export default function StudentExam() {
   };
 
   useEffect(() => {
-    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi') return;
+    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -228,7 +241,7 @@ export default function StudentExam() {
 
   // Timer & Heartbeat
   useEffect(() => {
-    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || !isFullscreen) return;
+    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || !isFullscreen || isSubmittingOrFinished) return;
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
@@ -267,20 +280,36 @@ export default function StudentExam() {
       alert('Tidak ada soal dalam ujian ini. Silakan hubungi pengawas.');
       return;
     }
+
+    // Set submitting flag immediately so browser events are ignored
+    setIsSubmittingOrFinished(true);
     
-    // Auto calculate score
+    // Calculate weight-based score
+    let pointsEarned = 0;
+    let totalWeight = 0;
     let correct = 0;
     let wrong = 0;
     
     questions.forEach(q => {
+      const isEssay = q.type === 'essay';
+      const weight = q.weight || 10;
+      totalWeight += weight;
+      
       const studentAns = answers[q.id!];
-      if (studentAns) {
-        if (studentAns === q.correctAnswer) correct++;
-        else wrong++;
+      if (!isEssay) {
+        if (studentAns === q.correctAnswer) {
+          correct++;
+          pointsEarned += weight;
+        } else {
+          wrong++;
+        }
       }
     });
 
-    const score = (correct / totalQuestions) * 100;
+    const score = totalWeight > 0 ? (pointsEarned / totalWeight) * 100 : 0;
+
+    // Set status to complete locally first so UI transitions instantly
+    setSession(prev => prev ? { ...prev, status: 'Selesai' } : null);
 
     try {
       await updateDoc(doc(db, 'student_sessions', user!.uid), {
@@ -292,7 +321,9 @@ export default function StudentExam() {
         answers
       });
       // Exit fullscreen safely
-      if (document.fullscreenElement) document.exitFullscreen();
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
     } catch (e) {
       console.error(e);
       alert('Gagal mensubmit ujian. Tolong hubungi pengawas.');
@@ -347,13 +378,13 @@ export default function StudentExam() {
     );
   }
 
-  if (!isFullscreen) {
+  if (!isFullscreen && session.status !== 'Selesai' && session.status !== 'Didiskualifikasi') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
         <Maximize className="w-16 h-16 text-blue-400 mb-6" />
         <h1 className="text-3xl font-bold mb-4">Mulai Ujian</h1>
         <p className="max-w-md text-slate-300 mb-8 leading-relaxed">
-          Ujian ini menggunakan sistem keamanan anti-contek Anti Cheating App. Layar akan diubah menjadi fullscreen. 
+          Ujian ini menggunakan sistem keamanan Anti Cheating App. Layar akan diubah menjadi fullscreen. 
           Anda dilarang berpindah tab, membuka aplikasi lain, keluar layar penuh, atau melakukan kombinasi tombol terlarang.
         </p>
         <button 
@@ -370,6 +401,36 @@ export default function StudentExam() {
 
   return (
     <div ref={containerRef} className="min-h-screen bg-slate-50 flex flex-col select-none">
+
+      {/* Admin Warning Modal Overlay */}
+      {session && session.adminWarningTime && session.adminWarningTime > acknowledgedWarningTime && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] max-w-md w-full border border-red-100 p-6 flex flex-col items-center text-center animate-in scale-in duration-200">
+            <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-4 shadow-sm animate-bounce">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <h3 className="text-lg font-extrabold text-red-600 uppercase tracking-widest mb-1 font-sans">
+              Teguran Kedisiplinan
+            </h3>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-4">
+              Pesan Dari Pengawas Ujian
+            </p>
+            <div className="w-full bg-red-50/50 rounded-xl p-4 border border-red-100/50 mb-6 text-left">
+              <p className="text-xs text-red-700 leading-relaxed font-semibold">
+                {session.adminWarningMessage || "Mohon penuhi instruksi keselamatan ujian agar pengerjaan tetap aman!"}
+              </p>
+            </div>
+            <button 
+              onClick={() => {
+                setAcknowledgedWarningTime(session.adminWarningTime!);
+              }}
+              className="w-full py-3 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold text-sm tracking-wider uppercase rounded-xl transition-all shadow-md active:scale-95 cursor-pointer font-sans"
+            >
+              Oke, Saya Mengerti
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* Alert Overlay */}
       <AnimatePresence>
@@ -386,16 +447,68 @@ export default function StudentExam() {
         )}
       </AnimatePresence>
 
+      {/* Custom Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.4)] max-w-md w-full border border-slate-100 p-6 flex flex-col items-center animate-in scale-in duration-200">
+            <div className="w-16 h-16 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-4 shadow-sm">
+              <Save className="w-8 h-8 animate-pulse" />
+            </div>
+            
+            <h3 className="text-lg font-extrabold text-slate-800 uppercase tracking-wider mb-2 font-sans">
+              Selesaikan Ujian?
+            </h3>
+            
+            <p className="text-xs text-slate-500 mb-6 text-center leading-relaxed font-medium">
+              Apakah Anda yakin ingin mengakhiri sesi ujian ini? Semua jawaban Anda telah tersimpan secara otomatis di server sistem. Anda tidak dapet mengubah jawaban setelah menyelesaikan ujian.
+            </p>
+
+            {/* Stats Summary */}
+            <div className="w-full bg-slate-50 rounded-xl p-4 border border-slate-200/60 mb-6 font-sans">
+              <div className="grid grid-cols-2 gap-4 text-center">
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Total Soal</p>
+                  <p className="text-lg font-black text-slate-700">{questions.length}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Sudah Dijawab</p>
+                  <p className="text-lg font-black text-green-600">{Object.keys(answers).length}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <button 
+                onClick={() => setShowConfirmModal(false)}
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer font-sans"
+              >
+                Kembali
+              </button>
+              <button 
+                onClick={async () => {
+                  setShowConfirmModal(false);
+                  await submitExam();
+                }}
+                className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer font-sans"
+              >
+                Selesai & Kirim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-2 shrink-0 flex items-center justify-between sticky top-0 z-40">
         <div className="flex flex-col justify-center">
           <h1 className="font-bold text-slate-800 text-sm">{exam.title}</h1>
           <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">{session.studentName} • Kelas {session.className}</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center px-2.5 py-1 rounded border bg-slate-50 border-slate-200 text-slate-700 shadow-xs">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mr-2">Jam:</span>
-            <span className="font-mono stroke-2 font-bold text-xs tracking-wider">
+        <div className="flex items-center space-x-3 text-slate-700">
+          <div className="flex items-center px-3 py-1.5 rounded-lg border bg-slate-950 border-slate-900 text-cyan-400 shadow-[inset_0_2px_4px_rgba(0,0,0,0.8)] font-mono text-xs tracking-wider select-none relative overflow-hidden">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse mr-2" />
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mr-1.5">Jam:</span>
+            <span className="font-extrabold text-[#06b6d4] tracking-widest drop-shadow-[0_0_6px_rgba(6,182,212,0.6)]">
               {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </span>
           </div>
@@ -424,32 +537,54 @@ export default function StudentExam() {
                  
                  <div className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed" dangerouslySetInnerHTML={{ __html: currentQ.question }} />
 
-                 <div className="space-y-2 mt-auto">
-                   {['A', 'B', 'C', 'D', 'E'].map(opt => {
-                     const key = `option${opt}` as keyof Question;
-                     const val = currentQ[key];
-                     if (!val) return null;
-                     const isSelected = answers[currentQ.id!] === opt;
-                     
-                     return (
-                       <label 
-                         key={opt}
-                         className={`flex items-start p-3 rounded-lg border cursor-pointer transition-all ${isSelected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50'}`}
-                       >
-                         <input 
-                           type="radio" 
-                           className="sr-only" 
-                           checked={isSelected}
-                           onChange={() => handleAnswer(currentQ.id!, opt)}
-                         />
-                         <span className={`shrink-0 w-6 h-6 rounded-full border flex items-center justify-center font-bold text-[11px] mr-3 ${isSelected ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-300 text-slate-500'}`}>
-                           {opt}
-                         </span>
-                         <div className="flex-1 pt-0 text-sm text-slate-700">{val as string}</div>
+                 {currentQ.type === 'essay' ? (
+                   <div className="mt-4 flex flex-col flex-1">
+                     <div className="flex items-center justify-between mb-2">
+                       <label className="text-xs font-bold text-slate-500 uppercase flex items-center">
+                         <span className="w-1.5 h-1.5 bg-purple-500 rounded-full mr-1.5 animate-pulse"></span>
+                         Jawaban Uraian Anda:
                        </label>
-                     );
-                   })}
-                 </div>
+                       <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-100 rounded px-1.5 py-0.5 font-bold uppercase">
+                         Sistem Essay
+                       </span>
+                     </div>
+                     <textarea
+                       rows={8}
+                       value={answers[currentQ.id!] || ''}
+                       onChange={(e) => handleAnswer(currentQ.id!, e.target.value)}
+                       placeholder="Ketikkan jawaban lengkap Anda secara detail di sini..."
+                       className="w-full p-4 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 resize-y font-medium text-slate-800 leading-relaxed shadow-xs transition-all animate-in fade-in"
+                     />
+                     <p className="text-[10px] text-slate-400 mt-1.5 italic font-medium">Jawaban Anda disimpan secara otomatis saat Anda mengetik atau berpindah soal.</p>
+                   </div>
+                 ) : (
+                   <div className="space-y-2 mt-auto">
+                     {['A', 'B', 'C', 'D', 'E'].map(opt => {
+                       const key = `option${opt}` as keyof Question;
+                       const val = currentQ[key];
+                       if (!val) return null;
+                       const isSelected = answers[currentQ.id!] === opt;
+                       
+                       return (
+                         <label 
+                           key={opt}
+                           className={`flex items-start p-3 rounded-lg border cursor-pointer transition-all ${isSelected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50'}`}
+                         >
+                           <input 
+                             type="radio" 
+                             className="sr-only" 
+                             checked={isSelected}
+                             onChange={() => handleAnswer(currentQ.id!, opt)}
+                           />
+                           <span className={`shrink-0 w-6 h-6 rounded-full border flex items-center justify-center font-bold text-[11px] mr-3 ${isSelected ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-300 text-slate-500'}`}>
+                             {opt}
+                           </span>
+                           <div className="flex-1 pt-0 text-sm text-slate-700">{val as string}</div>
+                         </label>
+                       );
+                     })}
+                   </div>
+                 )}
                </div>
             ) : (
                <div className="flex-1 flex items-center justify-center text-slate-500 text-xs font-bold uppercase">
@@ -474,7 +609,7 @@ export default function StudentExam() {
                  </button>
                ) : (
                   <button 
-                  onClick={() => { if(confirm('Yakin ingin menyelesaikan ujian dan mengirim jawaban?')) submitExam(); }}
+                  onClick={() => { setShowConfirmModal(true) }}
                   className="px-4 py-2 rounded bg-green-600 text-white text-[11px] font-bold uppercase tracking-wider hover:bg-green-700 transition-colors shadow-sm"
                  >
                    Selesai Ujian

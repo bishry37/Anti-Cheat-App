@@ -21,14 +21,15 @@ export interface Question {
   subjectId: string;
   number: number;
   question: string;
-  optionA: string;
-  optionB: string;
-  optionC: string;
-  optionD: string;
-  optionE: string;
-  correctAnswer: 'A' | 'B' | 'C' | 'D' | 'E';
+  optionA?: string;
+  optionB?: string;
+  optionC?: string;
+  optionD?: string;
+  optionE?: string;
+  correctAnswer: string;
   weight: number;
   packetName?: string;
+  type?: 'pilihan_ganda' | 'essay';
   createdAt: number;
 }
 
@@ -66,7 +67,10 @@ export interface StudentSession {
   score?: number;
   correctCount?: number;
   wrongCount?: number;
-  answers?: Record<string, 'A' | 'B' | 'C' | 'D' | 'E'>; // questionId -> answer
+  answers?: Record<string, string>; // questionId -> answer
+  essayScores?: Record<string, number>; // questionId -> custom grade
+  adminWarningMessage?: string;
+  adminWarningTime?: number;
 }
 
 export interface Violation {

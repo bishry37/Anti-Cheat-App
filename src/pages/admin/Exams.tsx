@@ -475,70 +475,108 @@ export default function Exams() {
         <div className="overflow-auto flex-1">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100 sticky top-0 z-10">
-                <th className="px-4 py-2">Ujian</th>
-                <th className="px-4 py-2">Jadwal</th>
-                <th className="px-4 py-2">Token</th>
-                <th className="px-4 py-2 text-center">Status</th>
-                <th className="px-4 py-2 text-right">Aksi</th>
+              <tr className="bg-slate-50 text-slate-600 text-[11px] uppercase font-bold tracking-wider border-b border-slate-100 sticky top-0 z-10">
+                <th className="px-4 py-3">Ujian</th>
+                <th className="px-4 py-3">Kelas</th>
+                <th className="px-4 py-3">Mata Pelajaran</th>
+                <th className="px-4 py-3">Templat Soal</th>
+                <th className="px-4 py-3">Jadwal</th>
+                <th className="px-4 py-3">Token</th>
+                <th className="px-4 py-3 text-center">Status</th>
+                <th className="px-4 py-3 text-right">Aksi</th>
               </tr>
             </thead>
-            <tbody className="text-xs divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" />
                     Memuat data...
                   </td>
                 </tr>
               ) : exams.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-slate-500 font-bold">
+                  <td colSpan={8} className="px-4 py-12 text-center text-slate-500 font-bold">
                     Belum ada ujian yang dibuat.
                   </td>
                 </tr>
               ) : (
                 exams.map((exam) => (
-                  <tr key={exam.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-800">
-                        {exam.title} {exam.targetClass && <span className="text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded ml-1 uppercase">{exam.targetClass}</span>}
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        {getSubjectName(exam.subjectId)}
-                        {exam.packetName && <span className="ml-1 text-blue-600 font-bold">• {exam.packetName}</span>}
+                  <tr key={exam.id} className="hover:bg-slate-50/80 transition-colors group">
+                    <td className="px-4 py-4">
+                      <div className="text-sm font-semibold text-slate-800 leading-snug">
+                        {exam.title}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-[11px] text-slate-600 font-medium">
-                      <div className="flex items-center mb-0.5"><Calendar className="w-3 h-3 mr-1.5 text-slate-400" /> {formatIndonesianDate(exam.date || '')}</div>
-                      <div className="flex items-center"><Clock className="w-3 h-3 mr-1.5 text-slate-400" /> {exam.startTime} - {exam.endTime} ({exam.duration}m)</div>
+                    <td className="px-4 py-4">
+                      {exam.targetClass ? (
+                        <span className="inline-block text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-lg uppercase tracking-wide">
+                          {exam.targetClass}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400 font-medium">-</span>
+                      )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-4 text-xs font-semibold text-slate-700">
+                      {getSubjectName(exam.subjectId)}
+                    </td>
+                    <td className="px-4 py-4">
+                      {exam.packetName ? (
+                        <span className="inline-block text-xs font-bold text-blue-600 bg-blue-50/80 border border-blue-100/80 px-2.5 py-1 rounded-lg">
+                          {exam.packetName}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400 font-medium">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-xs text-slate-600 font-medium">
+                      <div className="flex items-center mb-1 text-slate-700 font-semibold">
+                        <Calendar className="w-3.5 h-3.5 mr-1.5 text-slate-400 shrink-0" />
+                        {formatIndonesianDate(exam.date || '')}
+                      </div>
+                      <div className="flex items-center text-slate-500 font-semibold">
+                        <Clock className="w-3.5 h-3.5 mr-1.5 text-slate-400 shrink-0" />
+                        {exam.startTime} - {exam.endTime} ({exam.duration}m)
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
                       <div className="flex items-center space-x-2">
-                        <span className="font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold tracking-widest border border-blue-100">
+                        <span className="font-mono bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-bold tracking-widest border border-blue-100 shadow-3xs">
                           {exam.activeToken}
                         </span>
-                        <button onClick={() => activeTokenNow(exam.id!)} className="p-1 hover:bg-slate-200 border border-transparent rounded hover:border-slate-300 text-slate-400 hover:text-slate-700 transition" title="Refresh Token">
-                           <Key className="w-3 h-3" />
+                        <button 
+                          onClick={() => activeTokenNow(exam.id!)} 
+                          className="p-1.5 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-500 hover:text-slate-800 transition-colors bg-white shadow-3xs" 
+                          title="Refresh Token"
+                        >
+                          <Key className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      <div className="text-[9px] text-slate-400 font-bold mt-1 uppercase">
+                      <div className="text-[10px] text-slate-400 font-bold mt-1.5 uppercase tracking-wider">
                         Reset: {exam.autoResetInterval === 'manual' ? 'Manual' : `${exam.autoResetInterval}m`}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${exam.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                    <td className="px-4 py-4 text-center">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold uppercase border transition-all ${exam.isActive ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
                         {exam.isActive ? 'Aktif' : 'Nonaktif'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end space-x-1">
-                         <button onClick={() => startEdit(exam)} className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded bg-white border border-slate-200 transition-colors" title="Edit">
-                           <Edit2 className="w-3.5 h-3.5" />
-                         </button>
-                         <button onClick={() => handleDelete(exam.id!)} className="p-1 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded bg-white border border-slate-200 transition-colors" title="Hapus">
-                           <Trash2 className="w-3.5 h-3.5" />
-                         </button>
+                    <td className="px-4 py-4 text-right">
+                      <div className="flex justify-end space-x-1.5">
+                        <button 
+                          onClick={() => startEdit(exam)} 
+                          className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg bg-white border border-slate-200 shadow-3xs transition-all" 
+                          title="Edit"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(exam.id!)} 
+                          className="p-1.5 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg bg-white border border-slate-200 shadow-3xs transition-all" 
+                          title="Hapus"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>

@@ -27,7 +27,7 @@ export default function AdminLayout() {
       {/* Sidebar */}
       <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col hidden md:flex shrink-0">
         <div className="p-6 flex items-center gap-3 border-b border-slate-800 shrink-0">
-          <div className="w-10 h-10 bg-white border border-slate-700/50 shadow-sm rounded-lg p-1.5 flex items-center justify-center shrink-0 overflow-hidden">
+          <div className="w-10 h-10 bg-white border border-slate-700/50 shadow-sm rounded-lg p-0.5 flex items-center justify-center shrink-0 overflow-hidden">
             <img src={brandLogo} alt="Anti Cheating App" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
           </div>
           <h1 className="text-xl font-bold text-white tracking-tight">Anti Cheating App</h1>
@@ -82,7 +82,7 @@ export default function AdminLayout() {
           <div className="flex items-center gap-4">
             <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider hidden md:block">Dashboard Admin</h2>
             <div className="md:hidden flex items-center">
-               <div className="w-8 h-8 bg-white border border-slate-200 shadow-xs rounded-md p-1 flex items-center justify-center mr-2 shrink-0">
+               <div className="w-8 h-8 bg-white border border-slate-200 shadow-xs rounded-md p-0.5 flex items-center justify-center mr-2 shrink-0">
                   <img src={brandLogo} alt="Anti Cheating App" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                </div>
                <span className="font-bold text-slate-800 tracking-tight">Anti Cheating App</span>

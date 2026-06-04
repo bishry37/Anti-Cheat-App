@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { StudentSession, Violation, Exam, Subject } from '../../types';
 import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2 } from 'lucide-react';
 
@@ -9,6 +9,7 @@ export default function ExamMonitor() {
   const [exams, setExams] = useState<Record<string, Exam>>({});
   const [subjects, setSubjects] = useState<Record<string, Subject>>({});
   const [loading, setLoading] = useState(true);
+  const [maxViolations, setMaxViolations] = useState<number>(3);
 
   // Detail Modal
   const [selectedSession, setSelectedSession] = useState<StudentSession | null>(null);
@@ -40,9 +41,10 @@ export default function ExamMonitor() {
     // Fetch static references first
     const fetchRefs = async () => {
       try {
-        const [exSnap, subSnap] = await Promise.all([
+        const [exSnap, subSnap, setSnap] = await Promise.all([
           getDocs(collection(db, 'exams')),
-          getDocs(collection(db, 'subjects'))
+          getDocs(collection(db, 'subjects')),
+          getDoc(doc(db, 'settings', 'school'))
         ]);
         
         const exMap: Record<string, Exam> = {};
@@ -52,6 +54,13 @@ export default function ExamMonitor() {
         const subMap: Record<string, Subject> = {};
         subSnap.forEach(d => subMap[d.id] = d.data() as Subject);
         setSubjects(subMap);
+
+        if (setSnap && setSnap.exists()) {
+          const sData = setSnap.data();
+          if (typeof sData.maxViolations === 'number') {
+            setMaxViolations(sData.maxViolations);
+          }
+        }
       } catch (err) {
         console.error(err);
       }
@@ -130,18 +139,41 @@ export default function ExamMonitor() {
     if (type === 'warning' && session) {
       const msg = "Perhatian! Sistem mendeteksi aktivitas yang tidak sesuai aturan ujian. Mohon tetap fokus dan mengerjakan ujian dengan jujur. Pelanggaran berikutnya dapat menyebabkan ujian dihentikan.";
       try {
+        const currentViolations = session.violationsCount || 0;
+        const newCount = currentViolations + 1;
+        const willDisqualify = maxViolations > 0 && newCount >= maxViolations;
+
+        // 1. Update the student_session document
+        await updateDoc(doc(db, 'student_sessions', session.id!), {
+          violationsCount: newCount,
+          status: willDisqualify ? 'Didiskualifikasi' : 'Melanggar',
+          adminWarningMessage: msg,
+          adminWarningTime: Date.now(),
+          lastActivity: Date.now(),
+          endTime: willDisqualify ? Date.now() : null
+        });
+
+        // 2. Add the violation log
         await addDoc(collection(db, 'violations'), {
           sessionId: session.id,
           studentName: session.studentName,
           subjectId: session.subjectId,
           type: 'Peringatan Admin',
-          status: msg,
+          status: willDisqualify ? 'Diskualifikasi otomatis (Peringatan Maksimal)' : msg,
           timestamp: Date.now()
         });
-        showToast('Peringatan terkirim');
-        if (selectedSession?.id === session.id) openMonitor(session);
+
+        showToast(willDisqualify ? 'Peringatan terkirim (Disertai Diskualifikasi Maksimal)' : 'Peringatan terkirim');
+        if (selectedSession?.id === session.id) {
+          // Re-fetch violations to keep the detail modal updated
+          openMonitor({
+            ...session,
+            violationsCount: newCount,
+            status: willDisqualify ? 'Didiskualifikasi' : 'Melanggar',
+          });
+        }
       } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, 'violations');
+        handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
       }
     } else if (type === 'end_exam' && session) {
       try {

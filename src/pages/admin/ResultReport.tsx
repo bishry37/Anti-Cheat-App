@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, orderBy, where, doc, deleteDoc } from 'firebase/firestore';
-import { StudentSession, Exam, Subject } from '../../types';
-import { Loader2, Download, FileSpreadsheet, FileBarChart, Trash2 } from 'lucide-react';
+import { collection, query, getDocs, orderBy, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { StudentSession, Exam, Question } from '../../types';
+import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function ResultReport() {
@@ -29,6 +29,88 @@ export default function ResultReport() {
     id: '',
     studentName: ''
   });
+
+  // Grading Modal States
+  const [selectedSession, setSelectedSession] = useState<StudentSession | null>(null);
+  const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
+  const [editingScores, setEditingScores] = useState<Record<string, number>>({});
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [savingGrades, setSavingGrades] = useState(false);
+
+  const handleOpenGradingModal = async (session: StudentSession) => {
+    setSelectedSession(session);
+    setLoadingQuestions(true);
+    setEditingScores(session.essayScores || {});
+    setSessionQuestions([]);
+    try {
+      const examObj = exams[session.examId];
+      let qQuery;
+      if (examObj && examObj.packetName) {
+        qQuery = query(collection(db, 'questions'), 
+          where('subjectId', '==', session.subjectId),
+          where('packetName', '==', examObj.packetName)
+        );
+      } else {
+        qQuery = query(collection(db, 'questions'), where('subjectId', '==', session.subjectId));
+      }
+      
+      const qSnap = await getDocs(qQuery);
+      const qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question)).sort((a,b) => a.number - b.number);
+      setSessionQuestions(qs);
+    } catch (e) {
+      console.error(e);
+      showToast('Gagal memuat detail pertanyaan');
+    }
+    setLoadingQuestions(false);
+  };
+
+  const handleSaveEssayGrades = async () => {
+    if (!selectedSession) return;
+    setSavingGrades(true);
+    try {
+      let pointsEarned = 0;
+      let totalWeight = 0;
+      let correct = 0;
+      let wrong = 0;
+      
+      const studentAnswers = selectedSession.answers || {};
+
+      sessionQuestions.forEach(q => {
+        const isEssay = q.type === 'essay';
+        const weight = q.weight || 10;
+        totalWeight += weight;
+
+        if (!isEssay) {
+          const studentAns = studentAnswers[q.id!];
+          if (studentAns === q.correctAnswer) {
+            correct++;
+            pointsEarned += weight;
+          } else {
+            wrong++;
+          }
+        } else {
+          const essayScore = editingScores[q.id!] || 0;
+          pointsEarned += essayScore;
+        }
+      });
+
+      const rootScore = totalWeight > 0 ? (pointsEarned / totalWeight) * 100 : 0;
+
+      await updateDoc(doc(db, 'student_sessions', selectedSession.id!), {
+        essayScores: editingScores,
+        score: rootScore,
+        lastGradedAt: Date.now()
+      });
+
+      showToast('Koreksi essay berhasil disimpan!');
+      setSelectedSession(null);
+      fetchResults();
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menyimpan nilai koreksi.');
+    }
+    setSavingGrades(false);
+  };
 
   useEffect(() => {
     fetchExams();
@@ -195,8 +277,20 @@ export default function ResultReport() {
                         {s.status}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-right mr-0.5">
-                      <button onClick={() => triggerDelete(s.id!, s.studentName)} className="px-2 py-1 rounded text-[10px] font-bold bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 flex items-center justify-center gap-1 ml-auto w-max transition-colors" title="Hapus Hasil">
+                    <td className="px-4 py-2.5 text-right flex items-center justify-end gap-1.5 border-none">
+                      <button 
+                        onClick={() => handleOpenGradingModal(s)}
+                        className="px-2 py-1 rounded text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 flex items-center justify-center gap-1 transition-colors cursor-pointer" 
+                        title="Detail & Koreksi Jawaban"
+                      >
+                        <Award className="w-3.5 h-3.5" />
+                        <span>Koreksi / Detail</span>
+                      </button>
+                      <button 
+                        onClick={() => triggerDelete(s.id!, s.studentName)} 
+                        className="px-2 py-1 rounded text-[10px] font-bold bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 flex items-center justify-center gap-1 transition-colors cursor-pointer" 
+                        title="Hapus Hasil"
+                      >
                         <Trash2 className="w-3 h-3" />
                         <span>Hapus</span>
                       </button>
@@ -242,6 +336,208 @@ export default function ResultReport() {
                 className="flex-1 px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm"
               >
                 Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail Koreksi Essay & Jawaban Siswa Modal */}
+      {selectedSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div>
+                <span className="text-[9px] bg-blue-100 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 font-bold uppercase tracking-wider">
+                  Koreksi & Review Ujian
+                </span>
+                <h3 className="text-sm font-bold text-slate-800 mt-1 uppercase tracking-wide">
+                  {selectedSession.studentName} <span className="text-slate-400 font-normal">({selectedSession.className})</span>
+                </h3>
+              </div>
+              <button 
+                onClick={() => setSelectedSession(null)} 
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 bg-slate-50 divide-y divide-slate-100 space-y-4">
+              <div className="bg-white rounded-xl p-4 border border-slate-200 flex items-center justify-between shadow-xs shrink-0">
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Ujian</p>
+                  <p className="text-xs font-bold text-slate-700 uppercase tracking-tight">{exams[selectedSession.examId]?.title || '-'}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Nilai Terkoreksi</p>
+                  <span className="text-xl font-black text-blue-600 font-mono">
+                    {selectedSession.score?.toFixed(1) || '0'} / 100
+                  </span>
+                </div>
+              </div>
+
+              {loadingQuestions ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-2" />
+                  <p className="text-xs font-bold uppercase">Memuat rincian soal...</p>
+                </div>
+              ) : sessionQuestions.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 text-xs font-bold">
+                  Tidak ada data pertanyaan untuk ujian ini.
+                </div>
+              ) : (
+                <div className="space-y-4 pt-4">
+                  <h4 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">Review Jawaban per Soal:</h4>
+                  {sessionQuestions.map((q, qIndex) => {
+                    const isEssay = q.type === 'essay';
+                    const weight = q.weight || 10;
+                    const studentAns = selectedSession.answers?.[q.id!] || '';
+                    
+                    let isMC_Correct = false;
+                    if (!isEssay) {
+                      isMC_Correct = studentAns.toUpperCase().trim() === q.correctAnswer.toUpperCase().trim();
+                    }
+
+                    return (
+                      <div key={q.id || qIndex} className="bg-white rounded-xl border border-slate-200 p-4 shadow-3xs overflow-hidden">
+                        <div className="flex items-start justify-between border-b border-slate-100 pb-2 mb-3">
+                          <span className={`text-[10px] uppercase font-extrabold px-2 py-0.5 rounded border ${isEssay ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                            Soal {q.number} - {isEssay ? 'Essay / Uraian' : 'Pilihan Ganda'}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">
+                            Bobot: {weight}
+                          </span>
+                        </div>
+
+                        <p className="text-xs font-semibold text-slate-800 mb-3 whitespace-pre-wrap leading-relaxed">{q.question}</p>
+
+                        {!isEssay ? (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 text-[11px] gap-2 mb-3 bg-slate-50 p-2.5 rounded border border-slate-100">
+                              {['A', 'B', 'C', 'D', 'E'].map(l => {
+                                const optVal = (q as any)[`option${l}`];
+                                if (!optVal) return null;
+                                const isKey = q.correctAnswer === l;
+                                const isSt = studentAns === l;
+                                return (
+                                  <div key={l} className={`flex items-start gap-1 p-1 rounded ${isSt ? (isKey ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800') : ''}`}>
+                                    <span className="font-bold">{l}.</span>
+                                    <span>{optVal}</span>
+                                    {isSt && <span className="text-[9px] font-bold uppercase ml-1">(Pilihan Siswa)</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {isMC_Correct ? (
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Jawaban Benar (+{weight} Poin)</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded-full border border-red-100">
+                                  <X className="w-3.5 h-3.5" />
+                                  <span>Jawaban Salah (0 Poin)</span>
+                                </div>
+                              )}
+                              <span className="text-[10px] text-slate-400 font-bold uppercase">Kunci: {q.correctAnswer}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div>
+                              <span className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Jawaban Siswa:</span>
+                              {studentAns.trim() ? (
+                                <blockquote className="bg-purple-50/50 block text-xs border-l-4 border-purple-500 p-3 rounded-r-lg font-semibold text-slate-800 leading-relaxed whitespace-pre-wrap">
+                                  {studentAns}
+                                </blockquote>
+                              ) : (
+                                <div className="bg-slate-100 rounded p-3 text-xs italic text-slate-400 font-semibold text-center">
+                                  Siswa tidak menjawab pertanyaan ini.
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
+                              <span className="block text-[10px] font-bold text-emerald-800 uppercase mb-1">Contoh Jawaban Ideal:</span>
+                              <p className="text-xs font-medium text-emerald-800 leading-relaxed">{q.correctAnswer || '-'}</p>
+                            </div>
+
+                            {/* Scoring Box */}
+                            <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                              <label className="text-[10px] font-bold text-slate-600 uppercase">Input Nilai Koreksi Essay (Maks {weight}):</label>
+                              <div className="flex items-center gap-2">
+                                <input 
+                                  type="number"
+                                  min={0}
+                                  max={weight}
+                                  step={0.5}
+                                  value={editingScores[q.id!] !== undefined ? editingScores[q.id!] : 0}
+                                  onChange={(e) => {
+                                    const val = Math.min(weight, Math.max(0, parseFloat(e.target.value) || 0));
+                                    setEditingScores(prev => ({ ...prev, [q.id!]: val }));
+                                  }}
+                                  className="w-20 px-2 py-1 text-xs bg-white border border-slate-300 rounded text-center font-bold text-slate-800 focus:ring-1 focus:ring-purple-500"
+                                />
+                                <span className="text-[11px] text-slate-500 font-medium font-mono">/ {weight} Poin</span>
+                              </div>
+                              <div className="flex gap-1 ml-auto">
+                                <button 
+                                  type="button"
+                                  onClick={() => setEditingScores(prev => ({ ...prev, [q.id!]: weight }))}
+                                  className="px-2 py-0.5 text-[9px] font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded cursor-pointer uppercase transition-colors"
+                                >
+                                  Benar Sempurna
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => setEditingScores(prev => ({ ...prev, [q.id!]: Math.round(weight / 2) }))}
+                                  className="px-2 py-0.5 text-[9px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded cursor-pointer uppercase transition-colors"
+                                >
+                                  Setengah
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => setEditingScores(prev => ({ ...prev, [q.id!]: 0 }))}
+                                  className="px-2 py-0.5 text-[9px] font-bold text-red-800 bg-red-100 hover:bg-red-200 rounded cursor-pointer uppercase transition-colors"
+                                >
+                                  Salah
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-100 border-t border-slate-200 flex justify-end gap-2 shrink-0">
+              <button 
+                onClick={() => setSelectedSession(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-200 border border-slate-300 hover:bg-slate-300 rounded-lg transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button 
+                disabled={loadingQuestions || savingGrades}
+                onClick={handleSaveEssayGrades}
+                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {savingGrades ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Menyimpan...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Simpan Koreksi & Nilai</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

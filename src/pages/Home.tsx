@@ -221,27 +221,8 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-xl mb-8 border border-slate-200/60 shadow-inner">
-          <button
-            onClick={() => setActiveTab('student')}
-            className={`flex-1 py-2.5 text-xs font-bold tracking-wide uppercase rounded-lg transition-all duration-200 ${
-              activeTab === 'student' ? 'bg-white text-blue-600 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            Siswa
-          </button>
-          <button
-            onClick={() => setActiveTab('admin')}
-            className={`flex-1 py-2.5 text-xs font-bold tracking-wide uppercase rounded-lg transition-all duration-200 ${
-              activeTab === 'admin' ? 'bg-white text-slate-800 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            Admin
-          </button>
-        </div>
-
         {errorMessage && (
-          <div className="mb-8 p-3.5 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm justify-center flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
+          <div className="mb-6 p-3.5 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm justify-center flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
             <ShieldAlert className="w-4 h-4 shrink-0" />
             <span className="font-medium">{errorMessage}</span>
           </div>
@@ -259,6 +240,13 @@ export default function Home() {
                 className="space-y-5"
                 onSubmit={handleStudentLogin}
               >
+                <div className="mb-2 text-center">
+                  <h2 className="text-xs font-bold text-blue-600 uppercase tracking-widest flex items-center justify-center">
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1.5 animate-pulse"></span>
+                    Portal Login Siswa
+                  </h2>
+                </div>
+
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Nama Lengkap</label>
@@ -312,7 +300,7 @@ export default function Home() {
                 <button 
                   type="submit"
                   disabled={loading}
-                  className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+                  className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                     <>
@@ -321,6 +309,19 @@ export default function Home() {
                     </>
                   )}
                 </button>
+
+                <div className="pt-5 border-t border-slate-100 flex justify-center mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('admin');
+                      setErrorMessage('');
+                    }}
+                    className="text-[11px] font-extrabold text-slate-400 hover:text-blue-600 hover:underline transition-all uppercase tracking-wider cursor-pointer"
+                  >
+                    Masuk Sebagai Admin / Proktor
+                  </button>
+                </div>
               </motion.form>
             ) : (
               <motion.form 
@@ -332,6 +333,13 @@ export default function Home() {
                 onSubmit={handleAdminEmailLogin}
                 className="space-y-5"
               >
+                <div className="mb-2 text-center">
+                  <h2 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center justify-center">
+                    <span className="w-1.5 h-1.5 bg-slate-800 rounded-full mr-1.5 animate-pulse"></span>
+                    Portal Login Admin / Proktor
+                  </h2>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Email</label>
                   <input 
@@ -356,10 +364,23 @@ export default function Home() {
                 <button 
                   type="submit"
                   disabled={loading}
-                  className="w-full mt-4 bg-slate-900 hover:bg-slate-800 text-white font-bold tracking-wide py-3.5 rounded-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50 shadow hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
+                  className="w-full mt-4 bg-slate-900 hover:bg-slate-800 text-white font-bold tracking-wide py-3.5 rounded-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50 shadow hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Login sebagai Admin</span>}
                 </button>
+
+                <div className="pt-5 border-t border-slate-100 flex justify-center mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('student');
+                      setErrorMessage('');
+                    }}
+                    className="text-[11px] font-extrabold text-slate-400 hover:text-slate-600 hover:underline transition-all uppercase tracking-wider cursor-pointer"
+                  >
+                    ← Kembali ke Login Siswa
+                  </button>
+                </div>
               </motion.form>
             )}
           </AnimatePresence>

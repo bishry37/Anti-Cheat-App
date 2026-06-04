@@ -146,11 +146,12 @@ export default function QuestionBank() {
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
-      { Nomor: 1, Pertanyaan: 'Apa ibu kota Indonesia?', PilihanA: 'Jakarta', PilihanB: 'Bandung', PilihanC: 'Surabaya', PilihanD: 'Medan', PilihanE: 'Makassar', JawabanBenar: 'A', BobotNilai: 10 }
+      { Nomor: 1, Pertanyaan: 'Apa ibu kota negara Indonesia?', PilihanA: 'Jakarta', PilihanB: 'Bandung', PilihanC: 'Surabaya', PilihanD: 'Medan', PilihanE: 'Makassar', JawabanBenar: 'A', BobotNilai: 10 },
+      { Nomor: 2, Pertanyaan: 'Siapakah presiden pertama Republik Indonesia?', PilihanA: 'Soekarno', PilihanB: 'Soeharto', PilihanC: 'B.J. Habibie', PilihanD: 'Abdurrahman Wahid', PilihanE: 'Megawati Soekarnoputri', JawabanBenar: 'A', BobotNilai: 10 }
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'TemplateSoal');
-    XLSX.writeFile(wb, 'Template_Soal_Anti_Cheating_App.xlsx');
+    XLSX.writeFile(wb, 'Template_Soal_Anti_Cheating.xlsx');
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -194,7 +195,8 @@ export default function QuestionBank() {
             optionC: String(row.PilihanC || ''),
             optionD: String(row.PilihanD || ''),
             optionE: String(row.PilihanE || ''),
-            correctAnswer: String(row.JawabanBenar).toUpperCase(),
+            correctAnswer: String(row.JawabanBenar).toUpperCase().trim(),
+            type: 'pilihan_ganda',
             weight: Number(row.BobotNilai || 10),
             createdAt: Date.now()
           } as Question);
@@ -210,7 +212,7 @@ export default function QuestionBank() {
           await batch.commit();
         }
 
-        showCustomAlert('Berhasil Impor', `Berhasil mengimpor ${count} soal ke dalam template "${deducedTemplateName}".`, true);
+        showCustomAlert('Berhasil Impor', `Berhasil mengimpor ${count} soal pilihan ganda ke dalam template "${deducedTemplateName}".`, true);
         setSelectedTemplateFilter(deducedTemplateName.trim());
         fetchQuestions();
         fetchExistingTemplates();
@@ -342,12 +344,13 @@ export default function QuestionBank() {
       await updateDoc(doc(db, 'questions', editingQuestionId), {
         number: Number(editingData.number),
         question: editingData.question || '',
-        optionA: editingData.optionA || '',
-        optionB: editingData.optionB || '',
-        optionC: editingData.optionC || '',
-        optionD: editingData.optionD || '',
-        optionE: editingData.optionE || '',
-        correctAnswer: editingData.correctAnswer?.toUpperCase() || 'A',
+        optionA: String(editingData.optionA || ''),
+        optionB: String(editingData.optionB || ''),
+        optionC: String(editingData.optionC || ''),
+        optionD: String(editingData.optionD || ''),
+        optionE: String(editingData.optionE || ''),
+        correctAnswer: String(editingData.correctAnswer?.toUpperCase() || 'A'),
+        type: 'pilihan_ganda',
         weight: Number(editingData.weight || 10)
       } as any);
       
@@ -588,7 +591,6 @@ export default function QuestionBank() {
                             </button>
                           </div>
                         </div>
-
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                           <div className="md:col-span-2">
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">No. Soal</label>
@@ -596,7 +598,7 @@ export default function QuestionBank() {
                               type="number"
                               value={editingData.number || ''}
                               onChange={e => setEditingData({ ...editingData, number: parseInt(e.target.value) || 1 })}
-                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800"
                             />
                           </div>
                           <div className="md:col-span-8">
@@ -614,7 +616,7 @@ export default function QuestionBank() {
                               type="number"
                               value={editingData.weight || ''}
                               onChange={e => setEditingData({ ...editingData, weight: parseInt(e.target.value) || 0 })}
-                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800"
                             />
                           </div>
                         </div>
@@ -665,30 +667,40 @@ export default function QuestionBank() {
                                 {q.packetName}
                               </span>
                             )}
-                            <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 font-bold uppercase rounded border border-blue-100">
+                            <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-blue-100 text-blue-700 border-blue-200">
+                              Pilihan Ganda
+                            </span>
+                            <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 font-bold uppercase rounded border border-slate-200">
                               Bobot: {q.weight || 10}
                             </span>
                           </div>
                         </div>
                       </div>
                       
-                      <div className="pl-9 grid grid-cols-1 sm:grid-cols-2 text-[11px] gap-x-4">
-                        {['A', 'B', 'C', 'D', 'E'].map((opt) => {
-                          const key = `option${opt}` as keyof Question;
-                          const val = q[key];
-                          if (!val) return null;
-                          const isCorrect = q.correctAnswer === opt;
-                          
-                          return (
-                            <div key={opt} className={`flex items-start space-x-2 py-1 ${isCorrect ? 'font-bold text-green-700' : 'text-slate-600'}`}>
-                              <span className={`shrink-0 ${isCorrect ? 'text-green-600 font-bold' : 'text-slate-400'}`}>
-                                {opt}.
-                              </span>
-                              <span className={`${isCorrect ? 'bg-green-50 px-1 rounded border border-green-100' : ''}`}>{val as React.ReactNode}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {q.type !== 'essay' ? (
+                        <div className="pl-9 grid grid-cols-1 sm:grid-cols-2 text-[11px] gap-x-4">
+                          {['A', 'B', 'C', 'D', 'E'].map((opt) => {
+                            const key = `option${opt}` as keyof Question;
+                            const val = q[key];
+                            if (!val) return null;
+                            const isCorrect = q.correctAnswer === opt;
+                            
+                            return (
+                              <div key={opt} className={`flex items-start space-x-2 py-1 ${isCorrect ? 'font-bold text-green-700' : 'text-slate-600'}`}>
+                                <span className={`shrink-0 ${isCorrect ? 'text-green-600 font-bold' : 'text-slate-400'}`}>
+                                  {opt}.
+                                </span>
+                                <span className={`${isCorrect ? 'bg-green-50 px-1 rounded border border-green-100' : ''}`}>{val as React.ReactNode}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="pl-9 text-xs text-slate-600">
+                          <span className="inline-block font-extrabold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 text-[10px] uppercase">Contoh Kunci Jawaban:</span>
+                          <p className="mt-1 bg-slate-50/50 p-2.5 rounded border border-slate-100 shadow-3xs leading-relaxed text-slate-700 font-semibold">{q.correctAnswer || '-'}</p>
+                        </div>
+                      )}
 
                       {/* Floating actions */}
                       <div className="absolute top-4 right-4 flex items-center space-x-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity bg-gradient-to-l from-white pl-4 group-hover:from-slate-50 p-0.5 rounded">
