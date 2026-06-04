@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Database, BookOpen, MonitorPlay, AlertTriangle, FileBarChart, Settings, LogOut, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, FileText, Database, BookOpen, Users, MonitorPlay, AlertTriangle, FileBarChart, Settings, LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import brandLogo from '../../assets/images/anti_cheating_logo_1780567204620.png';
 
@@ -17,8 +17,9 @@ export default function AdminLayout() {
     { name: 'Manajemen Ujian', path: '/admin/exams', icon: FileText },
     { name: 'Bank Soal', path: '/admin/questions', icon: Database },
     { name: 'Mata Pelajaran', path: '/admin/subjects', icon: BookOpen },
+    { name: 'Kelas', path: '/admin/classes', icon: Users },
     { name: 'Monitoring Peserta', path: '/admin/monitor', icon: MonitorPlay },
-    { name: 'Hasil & Laporan', path: '/admin/results', icon: FileBarChart },
+    { name: 'Hasil Ujian', path: '/admin/results', icon: FileBarChart },
     { name: 'Pengaturan Sekolah', path: '/admin/settings', icon: Settings },
   ];
 

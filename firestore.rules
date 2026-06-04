@@ -26,6 +26,20 @@ service cloud.firestore {
       allow delete: if isAdmin() && isValidId(adminId);
     }
 
+    function isValidClass(data) {
+      return data.keys().hasAll(['name', 'createdAt']) && data.keys().size() == 2 &&
+             data.name is string && data.name.size() <= 256 &&
+             data.createdAt is number;
+    }
+
+    match /classes/{classId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(classId) && isValidClass(incoming());
+      allow update: if isAdmin() && isValidId(classId) && incoming().diff(existing()).affectedKeys().hasOnly(['name']) &&
+                    incoming().name is string && incoming().name.size() <= 256;
+      allow delete: if isAdmin() && isValidId(classId);
+    }
+
     function isValidSetting(data) {
       return data.keys().hasAll(['schoolName', 'updatedAt']) && 
              data.schoolName is string && data.schoolName.size() <= 256 &&

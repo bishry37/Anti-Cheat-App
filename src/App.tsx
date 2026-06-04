@@ -13,6 +13,7 @@ import ExamMonitor from './pages/admin/ExamMonitor';
 import ResultReport from './pages/admin/ResultReport';
 import Settings from './pages/admin/Settings';
 import Subjects from './pages/admin/Subjects';
+import Classes from './pages/admin/Classes';
 import Exams from './pages/admin/Exams';
 import QuestionBank from './pages/admin/QuestionBank';
 import StudentExam from './pages/exam/StudentExam';
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="exams" element={<Exams />} />
             <Route path="questions" element={<QuestionBank />} />
             <Route path="subjects" element={<Subjects />} />
+            <Route path="classes" element={<Classes />} />
             <Route path="monitor" element={<ExamMonitor />} />
             <Route path="results" element={<ResultReport />} />
             <Route path="settings" element={<Settings />} />

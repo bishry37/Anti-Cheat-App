@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot } from 'firebase/firestore';
-import { Exam, Subject } from '../../types';
+import { Exam, Subject, Class } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Calendar, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -28,6 +28,7 @@ const formatIndonesianDate = (dateStr: string): string => {
 export default function Exams() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [classesData, setClassesData] = useState<Class[]>([]);
   const [availablePackets, setAvailablePackets] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -161,6 +162,10 @@ export default function Exams() {
       const subQ = query(collection(db, 'subjects'), orderBy('createdAt', 'desc'));
       const subSnap = await getDocs(subQ);
       setSubjects(subSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Subject)));
+
+      const classQ = query(collection(db, 'classes'), orderBy('createdAt', 'desc'));
+      const classSnap = await getDocs(classQ);
+      setClassesData(classSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Class)));
     } catch (err) {
       console.error(err);
     }
@@ -314,15 +319,16 @@ export default function Exams() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Keterangan Kelas *</label>
-                    <input 
-                      type="text" 
+                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Kelas *</label>
+                    <select
                       required
                       value={formData.targetClass || ''}
                       onChange={e => setFormData({...formData, targetClass: e.target.value})}
-                      className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
-                      placeholder="Contoh: XII IPA 1 (ditulis manual)"
-                    />
+                      className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none"
+                    >
+                      <option value="">-- Pilih Kelas --</option>
+                      {classesData.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Mata Pelajaran *</label>

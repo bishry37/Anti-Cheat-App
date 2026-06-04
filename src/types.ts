@@ -16,6 +16,12 @@ export interface Subject {
   createdAt: number;
 }
 
+export interface Class {
+  id?: string;
+  name: string;
+  createdAt: number;
+}
+
 export interface Question {
   id?: string;
   subjectId: string;

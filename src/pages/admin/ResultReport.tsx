@@ -8,7 +8,9 @@ import * as XLSX from 'xlsx';
 export default function ResultReport() {
   const [sessions, setSessions] = useState<StudentSession[]>([]);
   const [exams, setExams] = useState<Record<string, Exam>>({});
+  const [classesData, setClassesData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterClass, setFilterClass] = useState<string>('');
   const [filterExam, setFilterExam] = useState<string>('');
 
   // Toast & Custom Delete Confirmation Dialog
@@ -114,11 +116,21 @@ export default function ResultReport() {
 
   useEffect(() => {
     fetchExams();
+    fetchClasses();
   }, []);
 
   useEffect(() => {
     fetchResults();
-  }, [filterExam]);
+  }, [filterExam, filterClass]);
+
+  const fetchClasses = async () => {
+    try {
+      const snap = await getDocs(query(collection(db, 'classes'), orderBy('createdAt', 'desc')));
+      setClassesData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchExams = async () => {
     try {
@@ -138,6 +150,9 @@ export default function ResultReport() {
         collection(db, 'student_sessions'), 
         where('status', 'in', ['Selesai', 'Didiskualifikasi'])
       );
+      if (filterClass) {
+          q = query(q, where('className', '==', filterClass));
+      }
       if (filterExam) {
          q = query(q, where('examId', '==', filterExam));
       }
@@ -145,9 +160,6 @@ export default function ResultReport() {
       let data = snap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
       // Manual sort since compound index might fail without setup
       data.sort((a,b) => b.endTime! - a.endTime!);
-      if (filterExam) {
-        data = data.filter(d => d.examId === filterExam);
-      }
       setSessions(data);
     } catch (err) {
       console.error(err);
@@ -201,18 +213,36 @@ export default function ResultReport() {
     <div className="w-full flex-1 flex flex-col h-full min-h-0">
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col flex-1 min-h-0">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Hasil & Laporan</h3>
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Hasil Ujian</h3>
           <div className="flex items-center space-x-2">
              <select
-               value={filterExam}
-               onChange={e => setFilterExam(e.target.value)}
+               value={filterClass}
+               onChange={e => {
+                 setFilterClass(e.target.value);
+                 setFilterExam(''); // reset exam filter on class change
+               }}
                className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-[11px] font-bold uppercase focus:ring-1 focus:ring-blue-500 outline-none"
              >
-               <option value="">Semua Ujian</option>
-               {(Object.entries(exams) as [string, Exam][]).map(([id, ex]) => (
-                 <option key={id} value={id}>{ex.title}</option>
+               <option value="">Semua Kelas</option>
+               {classesData.map((c) => (
+                 <option key={c.id} value={c.name}>{c.name}</option>
                ))}
              </select>
+
+             {filterClass && (Object.entries(exams) as [string, Exam][]).filter(([id, ex]) => ex.targetClass === filterClass).length > 1 && (
+               <select
+                 value={filterExam}
+                 onChange={e => setFilterExam(e.target.value)}
+                 className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-[11px] font-bold uppercase focus:ring-1 focus:ring-blue-500 outline-none"
+               >
+                 <option value="">Semua Ujian</option>
+                 {(Object.entries(exams) as [string, Exam][])
+                   .filter(([id, ex]) => ex.targetClass === filterClass)
+                   .map(([id, ex]) => (
+                   <option key={id} value={id}>{ex.title}</option>
+                 ))}
+               </select>
+             )}
              <button 
                disabled={sessions.length === 0}
                onClick={handleExportExcel}
