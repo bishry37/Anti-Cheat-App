@@ -823,7 +823,7 @@ export default function QuestionBank() {
                     <div className="md:col-span-8">
                       <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5 flex flex-wrap items-center">
                         <span>Teks Pertanyaan</span>
-                        <span className="ml-1.5 text-[9px] text-amber-600 font-semibold lowercase italic normal-case bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">(Tips: Klik gambar lalu tekan Backspace/Delete untuk menghapus gambar)</span>
+                        <span className="ml-1.5 text-[9px] text-amber-600 font-semibold lowercase italic normal-case bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">(Tips: Klik gambar untuk mengubah ukuran atau menghapusnya dengan cepat)</span>
                       </label>
                       <div className="h-64 mb-12">
   <RichTextEditor 
@@ -923,7 +923,7 @@ export default function QuestionBank() {
                           <div className="md:col-span-8">
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5 flex flex-wrap items-center">
                               <span>Teks Pertanyaan</span>
-                              <span className="ml-1.5 text-[9px] text-amber-600 font-semibold lowercase italic normal-case bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">(Tips: Klik gambar lalu tekan Backspace/Delete untuk menghapus gambar)</span>
+                              <span className="ml-1.5 text-[9px] text-amber-600 font-semibold lowercase italic normal-case bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">(Tips: Klik gambar untuk mengubah ukuran atau menghapusnya dengan cepat)</span>
                             </label>
                             <div className="h-64 mb-12">
   <RichTextEditor 
