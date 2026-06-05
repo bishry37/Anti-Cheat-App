@@ -743,7 +743,7 @@ export default function StudentExam() {
                )
              })}
            </div>
-           <div className="mt-auto p-3 border-t border-slate-100 bg-slate-50 flex flex-col gap-1.5 text-center">
+           <div className="hidden mt-auto p-3 border-t border-slate-100 bg-slate-50 flex flex-col gap-1.5 text-center">
              <button
                onClick={() => setShowConfirmModal(true)}
                className="w-full py-2.5 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold text-xs uppercase tracking-wider rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"

@@ -1,12 +1,18 @@
 @import "tailwindcss";
 @import "quill/dist/quill.snow.css";
 
-.ql-editor img {
-  max-width: 400px;
-  height: auto;
+.ql-editor img, .prose img {
+  max-width: 250px !important;
+  max-height: 180px !important;
+  height: auto !important;
+  width: auto !important;
   display: block;
-  margin: 10px 0;
+  margin: 12px 0;
   cursor: pointer;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  padding: 3px;
+  background-color: #f8fafc;
 }
 
 /* Ensure resize handles are visible */

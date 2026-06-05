@@ -24,7 +24,8 @@ export default function QuestionBank() {
   const [editingData, setEditingData] = useState<Question | null>(null);
   const [originalEditingData, setOriginalEditingData] = useState<Question | null>(null);
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
+  const isDirty = false;
+  const setIsDirty = (_val: boolean) => {};
 
   const isEditingChanged = () => {
     if (!editingData || !originalEditingData) return false;
@@ -741,18 +742,6 @@ export default function QuestionBank() {
             <div className="flex items-center space-x-2">
                 {selectedTemplateFilter !== null && selectedTemplateFilter !== 'all' && (
                   <>
-                    <button 
-                      onClick={handleValidateWeights}
-                      className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase flex items-center space-x-1.5 transition-all cursor-pointer shadow-sm relative ${
-                        isDirty 
-                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500 ring-offset-1 animate-pulse-subtle' 
-                          : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                      }`}
-                      title="Simpan Perubahan & Cek Validasi Bobot"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>{isDirty ? 'Simpan Perubahan *' : 'Simpan Perubahan'}</span>
-                    </button>
                     <button 
                       onClick={handleExportQuestions}
                       className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-[10px] font-bold uppercase flex items-center space-x-1.5 transition-colors cursor-pointer shadow-sm"
