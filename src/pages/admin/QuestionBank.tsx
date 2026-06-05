@@ -13,7 +13,7 @@ export default function QuestionBank() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [existingTemplates, setExistingTemplates] = useState<string[]>([]);
-  const [selectedTemplateFilter, setSelectedTemplateFilter] = useState<string>('all');
+  const [selectedTemplateFilter, setSelectedTemplateFilter] = useState<string | null>(null);
   const [searchTemplateQuery, setSearchTemplateQuery] = useState<string>('');
   const [searchQuestionQuery, setSearchQuestionQuery] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -178,7 +178,10 @@ export default function QuestionBank() {
   };
 
   const fetchQuestions = async () => {
-    if (!user) return;
+    if (!user || !selectedTemplateFilter) {
+      setQuestions([]);
+      return;
+    }
     setLoading(true);
     try {
       let q;
@@ -573,7 +576,7 @@ export default function QuestionBank() {
             value={selectedSubject}
             onChange={e => {
               setSelectedSubject(e.target.value);
-              setSelectedTemplateFilter('all');
+              setSelectedTemplateFilter(null);
             }}
             className="px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded text-xs font-semibold uppercase focus:ring-1 focus:ring-blue-500 outline-none w-full md:w-56 transition-colors cursor-pointer"
           >
@@ -716,7 +719,7 @@ export default function QuestionBank() {
             <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 shrink-0 bg-slate-50/50 rounded-t-lg">
               <div className="flex items-center space-x-2">
                 <span className="text-[11px] font-bold text-blue-700 uppercase tracking-widest bg-blue-50 px-2.5 py-1 border border-blue-100 rounded">
-                  {selectedTemplateFilter === 'all' ? "Tinjauan Semua Soal" : `${selectedTemplateFilter}`}
+                  {selectedTemplateFilter === null ? "Pilih Template" : selectedTemplateFilter === 'all' ? "Tinjauan Semua Soal" : `${selectedTemplateFilter}`}
                 </span>
                 <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 px-2.5 py-1 border border-slate-200 rounded">
                   {questions.length} Soal
@@ -724,7 +727,7 @@ export default function QuestionBank() {
               </div>
 
             <div className="flex items-center space-x-2">
-                {selectedTemplateFilter !== 'all' && (
+                {selectedTemplateFilter !== null && selectedTemplateFilter !== 'all' && (
                   <>
                     <button 
                       onClick={handleValidateWeights}
@@ -862,7 +865,7 @@ export default function QuestionBank() {
                 </div>
               ) : displayedQuestions.length === 0 ? (
                 <div className="text-center p-12 text-slate-400 text-xs font-bold uppercase tracking-wider">
-                  {questions.length === 0 ? "Belum ada soal" : "Tidak ada yang cocok dengan pencarian"}
+                  {selectedTemplateFilter === null ? "Pilih berkas template soal terlebih dahulu" : (questions.length === 0 ? "Belum ada soal" : "Tidak ada yang cocok dengan pencarian")}
                 </div>
               ) : (
                 displayedQuestions.map((q) => {
