@@ -1,5 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import Quill from 'quill';
+if (typeof window !== 'undefined') {
+  (window as any).Quill = Quill;
+}
 import 'quill/dist/quill.snow.css';
 import ImageResize from 'quill-image-resize-module-react';
 
