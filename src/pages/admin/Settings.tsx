@@ -59,7 +59,7 @@ interface ToastMessage {
 }
 
 export default function Settings() {
-  const { user, changePassword } = useAuth();
+  const { user } = useAuth();
   const [setting, setSetting] = useState<Setting>({
     schoolName: '',
     schoolLogo: '',
@@ -76,9 +76,6 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingTeacherPhoto, setUploadingTeacherPhoto] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const teacherPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -427,75 +424,7 @@ export default function Settings() {
         </div>
       </form>
 
-      {/* ROW 3: Account Security */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
-           <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Keamanan Akun</h3>
-        </div>
-        <div className="p-6">
-          <form onSubmit={async (e) => {
-            e.preventDefault();
-            if (newPassword !== confirmPassword) {
-              triggerToast('Password baru dan konfirmasi password tidak cocok', 'error');
-              return;
-            }
-            if (newPassword.length < 6) {
-              triggerToast('Password harus minimal 6 karakter', 'error');
-              return;
-            }
-            setChangingPassword(true);
-            try {
-              await changePassword(newPassword);
-              triggerToast('Password berhasil diperbarui', 'success');
-              setNewPassword('');
-              setConfirmPassword('');
-            } catch (err: any) {
-              console.error(err);
-              let errorMsg = 'Gagal memperbarui password.';
-              if (err.code === 'auth/requires-recent-login') {
-                errorMsg = 'Untuk keamanan, Anda harus login ulang sebelum merubah password.';
-              }
-              triggerToast(errorMsg, 'error');
-            } finally {
-              setChangingPassword(false);
-            }
-          }}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Password Baru</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm"
-                  placeholder="Minimal 6 karakter"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Konfirmasi Password</label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm"
-                  placeholder="Ulangi password baru"
-                />
-              </div>
-            </div>
-            
-            <div className="mt-4">
-              <button 
-                type="submit" 
-                disabled={changingPassword || !newPassword || !confirmPassword} 
-                className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-lg flex items-center space-x-2 transition-colors font-semibold shadow-sm disabled:opacity-50 text-sm"
-              >
-                {changingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
-                <span>Ganti Password</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+      {/* ROW 3: Account Security removed - moved to sidebar */}
     </div>
   );
 }

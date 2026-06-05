@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signOut, signInAnonymously, sendPasswordResetEmail, updatePassword, fetchSignInMethodsForEmail } from 'firebase/auth';
+import { User, onAuthStateChanged, signOut, signInAnonymously, sendPasswordResetEmail, updatePassword, fetchSignInMethodsForEmail, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -11,6 +11,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   changePassword: (newPassword: string) => Promise<void>;
+  reauthenticate: (password: string) => Promise<void>;
   checkEmailExists: (email: string) => Promise<boolean>;
 }
 
@@ -98,6 +99,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     throw new Error('No user logged in');
   };
 
+  const reauthenticate = async (password: string) => {
+    if (auth.currentUser && auth.currentUser.email) {
+      const credential = EmailAuthProvider.credential(auth.currentUser.email, password);
+      return reauthenticateWithCredential(auth.currentUser, credential);
+    }
+    throw new Error('Cannot reauthenticate');
+  };
+
   const checkEmailExists = async (email: string) => {
     try {
       const methods = await fetchSignInMethodsForEmail(auth, email);
@@ -116,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading, loginAsStudent, logout, resetPassword, changePassword, checkEmailExists }}>
+    <AuthContext.Provider value={{ user, isAdmin, loading, loginAsStudent, logout, resetPassword, changePassword, reauthenticate, checkEmailExists }}>
       {!loading && children}
     </AuthContext.Provider>
   );

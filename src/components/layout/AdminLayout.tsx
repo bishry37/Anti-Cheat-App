@@ -6,16 +6,14 @@ import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Setting } from '../../types';
 import brandLogo from '../../assets/images/anti_cheating_logo_1780567204620.png';
+import ChangePasswordModal from '../auth/ChangePasswordModal';
 
 export default function AdminLayout() {
   const { logout, user } = useAuth();
   const location = useLocation();
   const [setting, setSetting] = useState<Setting | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [location.pathname]);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   useEffect(() => {
     async function fetchAdminSetting() {
@@ -97,7 +95,7 @@ export default function AdminLayout() {
             </nav>
 
             <div className="mt-auto p-4 border-t border-slate-800 shrink-0 bg-slate-800/30">
-              <div className="flex items-center gap-3 mb-4 px-2">
+              <div className="flex items-center gap-3 px-2 pt-2 cursor-pointer hover:bg-slate-800 rounded-lg transition-colors p-2" onClick={() => setIsPasswordModalOpen(true)}>
                 {setting?.teacherPhoto ? (
                   <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-slate-600">
                     <img src={setting.teacherPhoto} alt="Profil" className="w-full h-full object-cover" />
@@ -156,7 +154,7 @@ export default function AdminLayout() {
         </nav>
 
         <div className="mt-auto p-4 border-t border-slate-800 shrink-0 bg-slate-800/30">
-          <div className="flex items-center gap-3 mb-4 px-2">
+          <div className="flex items-center gap-3 px-2 pt-2 cursor-pointer hover:bg-slate-800 rounded-lg transition-colors p-2" onClick={() => setIsPasswordModalOpen(true)}>
             {setting?.teacherPhoto ? (
               <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-slate-600">
                 <img src={setting.teacherPhoto} alt="Profil" className="w-full h-full object-cover" />
@@ -224,6 +222,7 @@ export default function AdminLayout() {
           <Outlet />
         </div>
       </main>
+      <ChangePasswordModal isOpen={isPasswordModalOpen} onClose={() => setIsPasswordModalOpen(false)} />
     </div>
   );
 }
