@@ -326,7 +326,7 @@ export default function ResultReport() {
                         title="Detail & Koreksi Jawaban"
                       >
                         <Award className="w-3.5 h-3.5" />
-                        <span>Koreksi / Detail</span>
+                        <span>Detail</span>
                       </button>
                       <button 
                         onClick={() => triggerDelete(s.id!, s.studentName)} 
