@@ -522,6 +522,7 @@ export default function Exams() {
                 <th className="px-4 py-3">Kelas</th>
                 <th className="px-4 py-3">Mata Pelajaran</th>
                 <th className="px-4 py-3">File Soal</th>
+                <th className="px-4 py-3">Urutan Soal</th>
                 <th className="px-4 py-3">Jadwal</th>
                 <th className="px-4 py-3">Token</th>
                 <th className="px-4 py-3 text-center">Status</th>
@@ -531,14 +532,14 @@ export default function Exams() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" />
                     Memuat data...
                   </td>
                 </tr>
               ) : exams.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-slate-500 font-bold">
+                  <td colSpan={9} className="px-4 py-12 text-center text-slate-500 font-bold">
                     Belum ada ujian yang dibuat.
                   </td>
                 </tr>
@@ -549,11 +550,6 @@ export default function Exams() {
                       <div className="text-sm font-semibold text-slate-800 leading-snug">
                         {exam.title}
                       </div>
-                      {exam.randomizeQuestions && (
-                        <div className="mt-1 flex">
-                          <span className="text-[9px] bg-purple-50 text-purple-600 border border-purple-100 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter shrink-0">Acak Soal Aktif</span>
-                        </div>
-                      )}
                     </td>
                     <td className="px-4 py-4">
                       {exam.targetClass ? (
@@ -574,6 +570,17 @@ export default function Exams() {
                         </span>
                       ) : (
                         <span className="text-xs text-slate-400 font-medium">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      {exam.randomizeQuestions ? (
+                        <span className="inline-flex items-center text-[10px] font-black text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                          Acak Soal
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                          Berurutan
+                        </span>
                       )}
                     </td>
                     <td className="px-4 py-4 text-xs text-slate-600 font-medium">
