@@ -43,11 +43,12 @@ export default function Home() {
   const [linkedSubjectName, setLinkedSubjectName] = useState<string>('');
 
   useEffect(() => {
-    if (user) {
+    // Only redirect if we haven't manually disabled auto-redirect in this tab
+    if (user && !sessionStorage.getItem('skip_auto_redirect')) {
       if (isAdmin) {
         navigate('/admin');
       } else {
-        navigate('/exam'); // Automatically goes to exam room
+        navigate('/exam');
       }
     }
   }, [user, isAdmin, navigate]);
@@ -334,6 +335,31 @@ export default function Home() {
             {setting?.schoolSlogan || 'Sistem Ujian Online yang memonitor aktivitas secara real-time dan menjamin integritas.'}
           </p>
         </div>
+
+        {user && !sessionStorage.getItem('skip_auto_redirect') && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-xl text-center">
+                <p className="text-sm font-semibold text-slate-800">Anda sudah login sebagai {isAdmin ? 'Admin' : 'Siswa'}.</p>
+                <div className="flex flex-col gap-2 mt-3">
+                <button 
+                onClick={() => {
+                    sessionStorage.setItem('skip_auto_redirect', 'true');
+                    navigate(isAdmin ? '/admin' : '/exam');
+                }}
+                className="text-xs font-bold text-blue-600 hover:underline"
+                >
+                Lanjut ke Dashboard
+                </button>
+                <button 
+                onClick={() => {
+                    sessionStorage.setItem('skip_auto_redirect', 'true');
+                }}
+                className="text-xs font-bold text-slate-500 hover:underline"
+                >
+                Tetap di halaman ini
+                </button>
+                </div>
+            </div>
+        )}
 
         {errorMessage && (
           <div className="mb-6 p-3.5 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm justify-center flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
