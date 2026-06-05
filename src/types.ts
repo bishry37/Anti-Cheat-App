@@ -63,6 +63,7 @@ export interface Exam {
   createdAt: number;
   targetClass?: string;
   shortCode?: string;
+  randomizeQuestions?: boolean;
 }
 
 export interface StudentSession {

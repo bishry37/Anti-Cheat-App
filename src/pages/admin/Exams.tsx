@@ -55,7 +55,8 @@ export default function Exams() {
     endTime: '10:00',
     isActive: false,
     activeToken: '',
-    autoResetInterval: 'manual'
+    autoResetInterval: 'manual',
+    randomizeQuestions: false
   });
 
   useEffect(() => {
@@ -288,7 +289,8 @@ export default function Exams() {
       isActive: false,
       activeToken: generateToken(),
       autoResetInterval: 'manual',
-      targetClass: ''
+      targetClass: '',
+      randomizeQuestions: false
     });
   };
 
@@ -459,12 +461,22 @@ export default function Exams() {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2 pt-2">
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" checked={formData.isActive} onChange={e => setFormData({...formData, isActive: e.target.checked})} />
-                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                      <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Status Aktif (Siswa)</span>
-                    </label>
+                  <div className="flex flex-col space-y-3 pt-2">
+                    <div className="flex items-center space-x-2">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" className="sr-only peer" checked={formData.isActive} onChange={e => setFormData({...formData, isActive: e.target.checked})} />
+                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                        <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Status Aktif (Siswa)</span>
+                      </label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" className="sr-only peer" checked={formData.randomizeQuestions || false} onChange={e => setFormData({...formData, randomizeQuestions: e.target.checked})} />
+                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                        <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Acak Urutan Soal</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -537,6 +549,11 @@ export default function Exams() {
                       <div className="text-sm font-semibold text-slate-800 leading-snug">
                         {exam.title}
                       </div>
+                      {exam.randomizeQuestions && (
+                        <div className="mt-1 flex">
+                          <span className="text-[9px] bg-purple-50 text-purple-600 border border-purple-100 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter shrink-0">Acak Soal Aktif</span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       {exam.targetClass ? (
