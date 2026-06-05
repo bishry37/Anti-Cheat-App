@@ -31,6 +31,67 @@ export default function StudentExam() {
   
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Submit Exam Function (Declared Early for full accessibility and auto-timeouts)
+  const submitExam = useCallback(async () => {
+    if (!session || !exam || isSubmittingOrFinished) return;
+    
+    // Set submitting flag immediately to prevent duplicate runs and ignore external alerts
+    setIsSubmittingOrFinished(true);
+    
+    const totalQuestions = questions.length;
+    if (totalQuestions === 0) {
+      alert('Tidak ada soal dalam ujian ini. Silakan hubungi pengawas.');
+      setIsSubmittingOrFinished(false);
+      return;
+    }
+
+    // Calculate weight-based score
+    let pointsEarned = 0;
+    let totalWeight = 0;
+    let correct = 0;
+    let wrong = 0;
+    
+    questions.forEach(q => {
+      const isEssay = q.type === 'essay';
+      const weight = q.weight || 10;
+      totalWeight += weight;
+      
+      const studentAns = answers[q.id!];
+      if (!isEssay) {
+        if (studentAns === q.correctAnswer) {
+          correct++;
+          pointsEarned += weight;
+        } else {
+          wrong++;
+        }
+      }
+    });
+
+    const score = totalWeight > 0 ? (pointsEarned / totalWeight) * 100 : 0;
+
+    // Set local session state status to Complete instantly for fast UI feedback
+    setSession(prev => prev ? { ...prev, status: 'Selesai' } : null);
+
+    try {
+      await updateDoc(doc(db, 'student_sessions', user!.uid), {
+        status: 'Selesai',
+        endTime: Date.now(),
+        score,
+        correctCount: correct,
+        wrongCount: wrong,
+        answers
+      });
+      // Safety: Exit fullscreen
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    } catch (e) {
+      console.error("Gagal submit ujian:", e);
+      setIsSubmittingOrFinished(false);
+      alert('Gagal mengumpulkan ujian. Silakan cek koneksi internet Anda dan coba lagi.');
+    }
+  }, [session, exam, questions, answers, user, isSubmittingOrFinished]);
+
   // Real-time Clock Timer
   useEffect(() => {
     const clockTimer = setInterval(() => {
@@ -79,7 +140,7 @@ export default function StudentExam() {
           // Calculate initial time left
           const elapsed = Math.floor((Date.now() - sessData.startTime) / 1000);
           const totalSecs = exData.duration * 60;
-          setTimeLeft(Math.max(0, totalSecs - elapsed));
+          const calculatedTimeLeft = totalSecs - elapsed;
 
           // Fetch questions
           let qQuery;
@@ -95,6 +156,15 @@ export default function StudentExam() {
           const qSnap = await getDocs(qQuery);
           const qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question)).sort((a,b) => a.number - b.number);
           setQuestions(qs);
+
+          if (calculatedTimeLeft <= 0) {
+            setTimeLeft(0);
+            setTimeout(() => {
+              submitExam();
+            }, 500);
+          } else {
+            setTimeLeft(calculatedTimeLeft);
+          }
         }
 
       } catch (err) {
@@ -140,11 +210,19 @@ export default function StudentExam() {
         // Recalculate time left automatically based on the new duration
         const elapsed = Math.floor((Date.now() - session.startTime!) / 1000);
         const totalSecs = exData.duration * 60;
-        setTimeLeft(Math.max(0, totalSecs - elapsed));
+        const calculatedTimeLeft = totalSecs - elapsed;
+        if (calculatedTimeLeft <= 0) {
+          setTimeLeft(0);
+          setTimeout(() => {
+            submitExam();
+          }, 500);
+        } else {
+          setTimeLeft(calculatedTimeLeft);
+        }
       }
     });
     return () => unsub();
-  }, [session?.examId, session?.startTime]);
+  }, [session?.examId, session?.startTime, submitExam]);
 
   // Anti-Cheat: Listeners
   const isUnloading = useRef(false);
@@ -288,7 +366,7 @@ export default function StudentExam() {
 
   // Timer & Heartbeat
   useEffect(() => {
-    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || !isFullscreen || isSubmittingOrFinished) return;
+    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
@@ -334,63 +412,7 @@ export default function StudentExam() {
     } catch(e) { console.error("Gagal simpan jawaban sementara"); }
   };
 
-  const submitExam = async () => {
-    if (!session || !exam) return;
-    
-    const totalQuestions = questions.length;
-    if (totalQuestions === 0) {
-      alert('Tidak ada soal dalam ujian ini. Silakan hubungi pengawas.');
-      return;
-    }
-
-    // Set submitting flag immediately so browser events are ignored
-    setIsSubmittingOrFinished(true);
-    
-    // Calculate weight-based score
-    let pointsEarned = 0;
-    let totalWeight = 0;
-    let correct = 0;
-    let wrong = 0;
-    
-    questions.forEach(q => {
-      const isEssay = q.type === 'essay';
-      const weight = q.weight || 10;
-      totalWeight += weight;
-      
-      const studentAns = answers[q.id!];
-      if (!isEssay) {
-        if (studentAns === q.correctAnswer) {
-          correct++;
-          pointsEarned += weight;
-        } else {
-          wrong++;
-        }
-      }
-    });
-
-    const score = totalWeight > 0 ? (pointsEarned / totalWeight) * 100 : 0;
-
-    // Set status to complete locally first so UI transitions instantly
-    setSession(prev => prev ? { ...prev, status: 'Selesai' } : null);
-
-    try {
-      await updateDoc(doc(db, 'student_sessions', user!.uid), {
-        status: 'Selesai',
-        endTime: Date.now(),
-        score,
-        correctCount: correct,
-        wrongCount: wrong,
-        answers
-      });
-      // Exit fullscreen safely
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Gagal mensubmit ujian. Tolong hubungi pengawas.');
-    }
-  };
+  // submitExam is declared above as a useCallback hook
 
   const formatTime = (secs: number) => {
     const h = Math.floor(secs / 3600);
@@ -583,6 +605,14 @@ export default function StudentExam() {
             <Clock className="w-4 h-4 mr-1.5" />
             <span className="font-mono stroke-2 font-bold text-sm tracking-widest">{formatTime(timeLeft)}</span>
           </div>
+          <button
+            onClick={() => setShowConfirmModal(true)}
+            className="flex items-center bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold text-xs uppercase tracking-wider rounded-lg px-3 py-1.5 shadow-sm transition-all duration-150 cursor-pointer"
+            title="Kumpulkan ujian sekarang"
+          >
+            <Save className="w-3.5 h-3.5 mr-1.5" />
+            <span>Kumpulkan</span>
+          </button>
         </div>
       </header>
 
@@ -712,6 +742,15 @@ export default function StudentExam() {
                  </button>
                )
              })}
+           </div>
+           <div className="mt-auto p-3 border-t border-slate-100 bg-slate-50 flex flex-col gap-1.5 text-center">
+             <button
+               onClick={() => setShowConfirmModal(true)}
+               className="w-full py-2.5 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold text-xs uppercase tracking-wider rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+             >
+               <Save size={14} />
+               Kumpulkan Ujian
+             </button>
            </div>
         </div>
       </div>
