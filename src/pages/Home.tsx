@@ -101,14 +101,14 @@ export default function Home() {
   useEffect(() => {
     const targetCode = codeFromUrl || examIdFromUrl;
     if (targetCode && activeExams.length > 0) {
-      const ex = activeExams.find(e => 
+      const ex = Array.isArray(activeExams) ? activeExams.find(e => 
          e.id === targetCode || 
          e.shortCode === targetCode || 
          e.id?.substring(0, 6) === targetCode
-      );
+      ) : undefined;
       if (ex) {
         setLinkedExam(ex);
-        const subj = allSubjects.find(s => s.id === ex.subjectId);
+        const subj = Array.isArray(allSubjects) ? allSubjects.find(s => s.id === ex.subjectId) : undefined;
         if (subj) setLinkedSubjectName(subj.name);
         
         // Also fetch the specific admin's settings
@@ -139,7 +139,7 @@ export default function Home() {
         for (let i = 0; i < 6; i++) {
           t += chars.charAt(Math.floor(Math.random() * chars.length));
         }
-        isUnique = !activeExams.some(e => e.isActive && e.activeToken === t);
+        isUnique = !Array.isArray(activeExams) || !activeExams.some(e => e.isActive && e.activeToken === t);
         attempts++;
       }
       return t;
@@ -241,7 +241,7 @@ export default function Home() {
   // Effect to load specific teacher settings when token matches
   useEffect(() => {
     if (examToken && examToken.length >= 4) {
-      const matchingExam = activeExams.find(ex => ex.activeToken.toUpperCase() === examToken.toUpperCase());
+      const matchingExam = Array.isArray(activeExams) ? activeExams.find(ex => ex.activeToken.toUpperCase() === examToken.toUpperCase()) : undefined;
       if (matchingExam && matchingExam.adminId) {
         // Fetch setting specific to this teacher/admin
         const fetchAdminSetting = async () => {
@@ -265,7 +265,7 @@ export default function Home() {
     }
 
     // Validate credentials against active exams
-    const matchingExamByToken = activeExams.find(ex => ex.activeToken === examToken);
+    const matchingExamByToken = Array.isArray(activeExams) ? activeExams.find(ex => ex.activeToken === examToken) : undefined;
 
     if (!matchingExamByToken) {
       setErrorMessage('Token ujian salah atau ujian tidak tersedia. Pastikan token yang Anda masukkan benar.');

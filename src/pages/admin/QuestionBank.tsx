@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { RichTextEditor } from '../../components/RichTextEditor';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, deleteDoc, doc, orderBy, where, writeBatch, updateDoc, addDoc } from 'firebase/firestore';
 import { Question, Subject } from '../../types';
@@ -10,6 +11,7 @@ import { useBlocker } from 'react-router-dom';
 export default function QuestionBank() {
   const { user } = useAuth();
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [originalQuestions, setOriginalQuestions] = useState<Question[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [existingTemplates, setExistingTemplates] = useState<string[]>([]);
@@ -20,8 +22,14 @@ export default function QuestionBank() {
   const [processing, setProcessing] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [editingData, setEditingData] = useState<Question | null>(null);
+  const [originalEditingData, setOriginalEditingData] = useState<Question | null>(null);
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+
+  const isEditingChanged = () => {
+    if (!editingData || !originalEditingData) return false;
+    return JSON.stringify(editingData) !== JSON.stringify(originalEditingData);
+  };
   const [addingData, setAddingData] = useState<Partial<Question>>({
     number: 1,
     question: '',
@@ -196,7 +204,9 @@ export default function QuestionBank() {
       }
       const snap = await getDocs(q);
       const qs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
-      setQuestions(qs.sort((a,b) => a.number - b.number));
+      const sortedQs = qs.sort((a,b) => a.number - b.number);
+      setQuestions(sortedQs);
+      setOriginalQuestions(sortedQs);
     } catch (err) {
       console.error(err);
     }
@@ -419,11 +429,13 @@ export default function QuestionBank() {
   const startEditing = (q: Question) => {
     setEditingQuestionId(q.id || null);
     setEditingData({ ...q });
+    setOriginalEditingData({ ...q });
   };
 
   const cancelEditing = () => {
     setEditingQuestionId(null);
     setEditingData(null);
+    setOriginalEditingData(null);
   };
 
   const handleUpdateQuestion = async () => {
@@ -810,13 +822,14 @@ export default function QuestionBank() {
                     </div>
                     <div className="md:col-span-8">
                       <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Teks Pertanyaan</label>
-                      <textarea 
-                        rows={2}
-                        value={addingData.question || ''}
-                        onChange={e => setAddingData({ ...addingData, question: e.target.value })}
-                        className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none resize-y focus:ring-1 focus:ring-blue-500"
-                        placeholder="Ketik pertanyaan di sini..."
-                      />
+                      <div className="h-64 mb-12">
+  <RichTextEditor 
+      placeholder="Ketik pertanyaan di sini..."
+      value={addingData.question || ''}
+      onChange={value => setAddingData({ ...addingData, question: value })}
+      className="h-full"
+  />
+</div>
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Bobot Nilai</label>
@@ -906,12 +919,14 @@ export default function QuestionBank() {
                           </div>
                           <div className="md:col-span-8">
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Teks Pertanyaan</label>
-                            <textarea 
-                              rows={2}
-                              value={editingData.question || ''}
-                              onChange={e => setEditingData({ ...editingData, question: e.target.value })}
-                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none resize-y focus:ring-1 focus:ring-blue-500"
-                            />
+                            <div className="h-64 mb-12">
+  <RichTextEditor 
+    placeholder="Ketik pertanyaan di sini..."
+    value={editingData.question || ''}
+    onChange={value => setEditingData({ ...editingData, question: value })}
+    className="h-full"
+  />
+</div>
                           </div>
                           <div className="md:col-span-2">
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Bobot Nilai</label>
@@ -963,7 +978,7 @@ export default function QuestionBank() {
                           {q.number}
                         </div>
                         <div className="flex-1">
-                          <p className="font-semibold text-slate-800 text-sm leading-snug pr-20 whitespace-pre-wrap">{q.question}</p>
+                          <div className="font-semibold text-slate-800 text-sm leading-snug pr-20 ql-editor whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: q.question }} />
                           <div className="flex items-center space-x-2 mt-1.5">
                             {selectedTemplateFilter === 'all' && q.packetName && (
                               <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 font-bold uppercase rounded border border-slate-200">

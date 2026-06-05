@@ -45,7 +45,7 @@ export default function Classes() {
     try {
       const newName = nameInput.trim();
       if (editingId) {
-        const oldClass = classesList.find(c => c.id === editingId);
+        const oldClass = Array.isArray(classesList) ? classesList.find(c => c.id === editingId) : undefined;
         await updateDoc(doc(db, 'classes', editingId), { name: newName, adminId: user.uid });
         if (oldClass && oldClass.name !== newName) {
            const examsQ = query(collection(db, 'exams'), where('targetClass', '==', oldClass.name), where('adminId', '==', user.uid));
@@ -85,7 +85,7 @@ export default function Classes() {
     if (!modalConfig || !modalConfig.idToDelete) return;
     setProcessing(true);
     try {
-      const oldClass = classesList.find(c => c.id === modalConfig.idToDelete);
+      const oldClass = Array.isArray(classesList) ? classesList.find(c => c.id === modalConfig.idToDelete) : undefined;
       await deleteDoc(doc(db, 'classes', modalConfig.idToDelete));
       if (oldClass && user) {
          const examsQ = query(collection(db, 'exams'), where('targetClass', '==', oldClass.name), where('adminId', '==', user.uid));

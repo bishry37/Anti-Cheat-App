@@ -85,7 +85,7 @@ export default function ExamMonitor() {
         setLoading(false);
         
         // Update selected session if open
-        if (selectedSession) {
+        if (selectedSession && Array.isArray(data)) {
           const updated = data.find(s => s.id === selectedSession.id);
           if (updated) setSelectedSession(updated);
         }

@@ -292,7 +292,7 @@ export default function Exams() {
     });
   };
 
-  const getSubjectName = (subId: string) => subjects.find(s => s.id === subId)?.name || 'Unknown';
+  const getSubjectName = (subId: string) => (Array.isArray(subjects) ? subjects.find(s => s.id === subId) : undefined)?.name || 'Unknown';
 
   const handleCopyLink = (examId: string) => {
     const shortCode = examId.substring(0, 6);

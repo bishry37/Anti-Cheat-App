@@ -1,4 +1,24 @@
 @import "tailwindcss";
+@import "quill/dist/quill.snow.css";
+
+.ql-editor img {
+  max-width: 400px;
+  height: auto;
+  display: block;
+  margin: 10px 0;
+  cursor: pointer;
+}
+
+/* Ensure resize handles are visible */
+.ql-editor .ql-container {
+  overflow: visible;
+}
+.ql-clipboard {
+  display: none;
+}
+.ql-editor img.ql-image-resized {
+  display: block;
+}
 
 @theme {
   @keyframes pulse-subtle {
