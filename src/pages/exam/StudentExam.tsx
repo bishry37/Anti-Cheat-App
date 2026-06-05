@@ -568,16 +568,12 @@ export default function StudentExam() {
         <div className="flex flex-col justify-center">
           <h1 className="font-bold text-slate-800 text-sm">{exam.title}</h1>
           <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">
-            {session.studentName} • Kelas: {session.className} • Mapel: {subjectName}
+            {session.studentName} • Kelas: {session.className} • {subjectName}
           </p>
         </div>
         <div className="flex items-center space-x-3 text-slate-700">
-          <div className="flex items-center px-3 py-1.5 rounded-lg border bg-slate-950 border-slate-900 text-cyan-400 shadow-[inset_0_2px_4px_rgba(0,0,0,0.8)] font-mono text-xs tracking-wider select-none relative overflow-hidden">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse mr-2" />
-            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mr-1.5">Jam:</span>
-            <span className="font-extrabold text-[#06b6d4] tracking-widest drop-shadow-[0_0_6px_rgba(6,182,212,0.6)]">
-              {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </span>
+          <div className="font-mono text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full font-medium">
+            {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
           <div className="flex items-center text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border border-red-100">
             <ShieldAlert className="w-3.5 h-3.5 mr-1" />
