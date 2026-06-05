@@ -7,7 +7,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Setting, Subject, Exam, StudentSession } from '../types';
 import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import brandLogo from '../assets/images/anti_cheating_logo_1780567204620.png';
+import brandLogo from '../assets/images/cheating.jpg';
 
 export default function Home() {
   const navigate = useNavigate();
