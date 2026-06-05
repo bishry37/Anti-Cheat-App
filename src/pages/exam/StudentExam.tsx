@@ -616,12 +616,10 @@ export default function StudentExam() {
         <div className="flex flex-col justify-center">
           <h1 className="font-bold text-slate-800 text-sm leading-tight">{exam.title}</h1>
           <div className="flex items-center flex-wrap gap-2 mt-1">
-            <div className="flex items-center bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shadow-3xs">
-              <span className="opacity-70 mr-1.5 font-medium">Siswa:</span>
+            <div className="flex items-center bg-blue-600 text-white px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider shadow-3xs">
               {session.studentName}
             </div>
-            <div className="flex items-center bg-slate-800 text-white px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shadow-3xs">
-              <span className="opacity-70 mr-1.5 font-medium">Kelas:</span>
+            <div className="flex items-center bg-slate-800 text-white px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider shadow-3xs">
               {session.className}
             </div>
             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight ml-1">
