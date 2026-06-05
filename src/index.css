@@ -2,17 +2,20 @@
 @import "quill/dist/quill.snow.css";
 
 .ql-editor img, .prose img {
-  max-width: 320px !important;
-  max-height: 240px !important;
-  height: auto !important;
-  width: auto !important;
-  display: block;
-  margin: 12px 0;
-  cursor: pointer;
+  max-width: 100%;
+  height: auto;
   border-radius: 6px;
   border: 1px solid #e2e8f0;
   padding: 3px;
   background-color: #f8fafc;
+  cursor: pointer;
+  transition: outline 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Default styling when no specific width is declared in inline styles */
+.ql-editor img:not([style*="width"]), .prose img:not([style*="width"]) {
+  width: 320px;
+  max-width: 100%;
 }
 
 /* Ensure resize handles are visible */
