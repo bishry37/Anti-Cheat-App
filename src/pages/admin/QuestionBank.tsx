@@ -456,9 +456,25 @@ export default function QuestionBank() {
     if (!user || !selectedSubject || selectedTemplateFilter === 'all') return;
     setProcessing(true);
     try {
-      const qRef = collection(db, 'questions');
+      const newNumber = Number(addingData.number || 1);
+      
+      // Batch operation
+      const batch = writeBatch(db);
+      
+      // 1. Identify questions that need renumbering
+      const questionsToRenumber = questions.filter(q => q.number >= newNumber);
+      
+      // 2. Add renumber operations to batch (sort descending to avoid conflicts)
+      questionsToRenumber.sort((a, b) => b.number - a.number).forEach(q => {
+        const qRef = doc(db, 'questions', q.id!);
+        batch.update(qRef, { number: q.number + 1 });
+      });
+      
+      // 3. Add the new question
+      const qRef = doc(collection(db, 'questions'));
       const docData = {
         ...addingData,
+        number: newNumber,
         subjectId: selectedSubject,
         packetName: selectedTemplateFilter,
         adminId: user.uid,
@@ -466,7 +482,9 @@ export default function QuestionBank() {
         type: 'pilihan_ganda'
       };
       
-      await addDoc(qRef, docData);
+      batch.set(qRef, docData);
+      
+      await batch.commit();
       
       setIsAddingQuestion(false);
       setAddingData({
@@ -623,19 +641,20 @@ export default function QuestionBank() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              <button
-                onClick={() => setSelectedTemplateFilter('all')}
-                className={`w-full text-left px-3 py-2 rounded-md transition-all text-xs font-bold uppercase tracking-wider flex items-center justify-between ${
-                  selectedTemplateFilter === 'all' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                <span>Semua Template Soal</span>
-                <span className="text-[10px] bg-black/10 px-1.5 py-0.5 rounded text-white font-mono" title="Jumlah berkas file template">
+              <div className="w-full text-left px-3 py-2 text-xs font-bold uppercase tracking-wider flex items-center justify-between text-slate-700">
+                <span className="pointer-events-none">Jumlah File</span>
+                <button
+                    onClick={() => setSelectedTemplateFilter('all')}
+                    className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                    selectedTemplateFilter === 'all' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-black/10 text-slate-700 hover:bg-black/20'
+                    }`}
+                    title="Klik untuk melihat semua berkas"
+                >
                   {existingTemplates.length} Berkas
-                </span>
-              </button>
+                </button>
+              </div>
 
               <div className="my-2 border-t border-slate-100" />
 
@@ -697,7 +716,7 @@ export default function QuestionBank() {
             <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 shrink-0 bg-slate-50/50 rounded-t-lg">
               <div className="flex items-center space-x-2">
                 <span className="text-[11px] font-bold text-blue-700 uppercase tracking-widest bg-blue-50 px-2.5 py-1 border border-blue-100 rounded">
-                  {selectedTemplateFilter === 'all' ? "Tinjauan Semua Soal" : `Template: ${selectedTemplateFilter}`}
+                  {selectedTemplateFilter === 'all' ? "Tinjauan Semua Soal" : `${selectedTemplateFilter}`}
                 </span>
                 <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 px-2.5 py-1 border border-slate-200 rounded">
                   {questions.length} Soal
