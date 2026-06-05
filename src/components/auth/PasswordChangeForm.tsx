@@ -26,16 +26,10 @@ export default function PasswordChangeForm({ onSuccess, onError }: PasswordChang
     }
     setChangingPassword(true);
     try {
-      try {
-        await changePassword(newPassword);
-      } catch (err: any) {
-        if (err.code === 'auth/requires-recent-login') {
-          await reauthenticate(currentPassword);
-          await changePassword(newPassword);
-        } else {
-          throw err;
-        }
-      }
+      // Reauthenticate first to verify the old password and update session state
+      await reauthenticate(currentPassword);
+      await changePassword(newPassword);
+
       onSuccess?.();
       setNewPassword('');
       setConfirmPassword('');
