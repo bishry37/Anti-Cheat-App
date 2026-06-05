@@ -35,12 +35,15 @@ export default function PasswordChangeForm({ onSuccess, onError }: PasswordChang
       setConfirmPassword('');
       setCurrentPassword('');
     } catch (err: any) {
-      console.error(err);
+      console.error("Change Password Error Details:", err);
       let errorMsg = 'Gagal memperbarui password.';
-      if (err.code === 'auth/invalid-credential') {
+      // Check for common firebase auth error codes for incorrect password
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
         errorMsg = 'Password saat ini salah.';
       } else if (err.code === 'auth/requires-recent-login') {
-         errorMsg = 'Silakan login kembali.';
+         errorMsg = 'Silakan login kembali untuk keamanan.';
+      } else if (err.message) {
+         errorMsg = err.message;
       }
       onError?.(errorMsg);
     } finally {

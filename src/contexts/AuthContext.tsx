@@ -100,10 +100,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const reauthenticate = async (password: string) => {
+    console.log("Attempting reauthentication for:", auth.currentUser?.email);
     if (auth.currentUser && auth.currentUser.email) {
       const credential = EmailAuthProvider.credential(auth.currentUser.email, password);
-      return reauthenticateWithCredential(auth.currentUser, credential);
+      try {
+        const result = await reauthenticateWithCredential(auth.currentUser, credential);
+        console.log("Reauthentication successful", result);
+        return result;
+      } catch (err: any) {
+        console.error("Reauthentication failed", err);
+        throw err;
+      }
     }
+    console.error("Reauthentication failed: No user or email");
     throw new Error('Cannot reauthenticate');
   };
 
