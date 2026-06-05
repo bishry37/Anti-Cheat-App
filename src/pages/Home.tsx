@@ -43,8 +43,8 @@ export default function Home() {
   const [linkedSubjectName, setLinkedSubjectName] = useState<string>('');
 
   useEffect(() => {
-    // Only redirect if we haven't manually disabled auto-redirect in this tab
-    if (user && !sessionStorage.getItem('skip_auto_redirect')) {
+    // Only redirect if we have initiated a login in this tab, and we haven't manually disabled auto-redirect
+    if (user && sessionStorage.getItem('should_auto_redirect') === 'true' && sessionStorage.getItem('skip_auto_redirect') !== 'true') {
       if (isAdmin) {
         navigate('/admin');
       } else {
@@ -201,6 +201,7 @@ export default function Home() {
     setErrorMessage('');
     try {
       await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+      sessionStorage.setItem('should_auto_redirect', 'true');
       // Let onAuthStateChanged handle navigation
     } catch (error: any) {
       console.error(error);
@@ -299,6 +300,7 @@ export default function Home() {
       };
 
       await setDoc(doc(db, 'student_sessions', uid), sessionData);
+      sessionStorage.setItem('should_auto_redirect', 'true');
 
       // Now it will redirect naturally via useEffect.
     } catch (err: any) {
