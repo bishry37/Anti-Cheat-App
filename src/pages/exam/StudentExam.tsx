@@ -162,6 +162,27 @@ export default function StudentExam() {
           } else {
             qs = qs.sort((a,b) => a.number - b.number);
           }
+
+          // Pre-populate shuffled options for all multiple choice questions
+          qs = qs.map(q => {
+            const validOptions = (['A', 'B', 'C', 'D', 'E'] as const)
+              .map(opt => ({
+                key: opt,
+                text: q[`option${opt}` as keyof Question] as string | undefined
+              }))
+              .filter(item => item.text !== undefined && item.text !== null && String(item.text).trim() !== '');
+
+            if (exData.randomizeQuestions) {
+              // Shuffling choices
+              validOptions.sort(() => Math.random() - 0.5);
+            }
+            
+            return {
+              ...q,
+              shuffledOptions: validOptions
+            } as any;
+          });
+
           setQuestions(qs);
 
           if (calculatedTimeLeft <= 0) {
@@ -413,13 +434,11 @@ export default function StudentExam() {
   const handleAnswer = async (qId: string, ans: string) => {
     const newAnswers = { ...answers, [qId]: ans };
     setAnswers(newAnswers);
-    // Auto save answers periodically? Let's just save immediately for safety
+    // Auto save answers immediately for safety
     try {
       await updateDoc(doc(db, 'student_sessions', user!.uid), { answers: newAnswers });
     } catch(e) { console.error("Gagal simpan jawaban sementara"); }
   };
-
-  // submitExam is declared above as a useCallback hook
 
   const formatTime = (secs: number) => {
     const h = Math.floor(secs / 3600);
@@ -640,65 +659,63 @@ export default function StudentExam() {
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 w-full max-w-4xl mx-auto p-4 md:p-6 flex flex-col min-h-full">
             {currentQ ? (
                <div className="flex-1 flex flex-col">
-                 <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-                    <span className="bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Soal No. {currentQ.number}</span>
-                    <span className="text-slate-400 text-[10px] font-bold uppercase">Bobot: {currentQ.weight}</span>
-                 </div>
-                 
-                 <div className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed" dangerouslySetInnerHTML={{ __html: currentQ.question }} />
+                  <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                     <span className="bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Soal No. {currentQuestionIndex + 1}</span>
+                     <span className="text-slate-400 text-[10px] font-bold uppercase">Bobot: {currentQ.weight}</span>
+                  </div>
+                  
+                  <div className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed" dangerouslySetInnerHTML={{ __html: currentQ.question }} />
 
-                 {currentQ.type === 'essay' ? (
-                   <div className="mt-4 flex flex-col flex-1">
-                     <div className="flex items-center justify-between mb-2">
-                       <label className="text-xs font-bold text-slate-500 uppercase flex items-center">
-                         <span className="w-1.5 h-1.5 bg-purple-500 rounded-full mr-1.5 animate-pulse"></span>
-                         Jawaban Uraian Anda:
-                       </label>
-                       <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-100 rounded px-1.5 py-0.5 font-bold uppercase">
-                         Sistem Essay
-                       </span>
-                     </div>
-                     <textarea
-                       rows={8}
-                       value={answers[currentQ.id!] || ''}
-                       onChange={(e) => handleAnswer(currentQ.id!, e.target.value)}
-                       placeholder="Ketikkan jawaban lengkap Anda secara detail di sini..."
-                       className="w-full p-4 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 resize-y font-medium text-slate-800 leading-relaxed shadow-xs transition-all animate-in fade-in"
-                     />
-                     <p className="text-[10px] text-slate-400 mt-1.5 italic font-medium">Jawaban Anda disimpan secara otomatis saat Anda mengetik atau berpindah soal.</p>
-                   </div>
-                 ) : (
-                   <div className="space-y-2 mt-auto">
-                     {['A', 'B', 'C', 'D', 'E'].map(opt => {
-                       const key = `option${opt}` as keyof Question;
-                       const val = currentQ[key];
-                       if (!val) return null;
-                       const isSelected = answers[currentQ.id!] === opt;
-                       
-                       return (
-                         <label 
-                           key={opt}
-                           className={`flex items-start p-3 rounded-lg border cursor-pointer transition-all ${isSelected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50'}`}
-                         >
-                           <input 
-                             type="radio" 
-                             className="sr-only" 
-                             checked={isSelected}
-                             onChange={() => handleAnswer(currentQ.id!, opt)}
-                           />
-                           <span className={`shrink-0 w-6 h-6 rounded-full border flex items-center justify-center font-bold text-[11px] mr-3 ${isSelected ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-300 text-slate-500'}`}>
-                             {opt}
-                           </span>
-                           <div className="flex-1 pt-0 text-sm text-slate-700">{val as string}</div>
-                         </label>
-                       );
-                     })}
-                   </div>
-                 )}
+                  {currentQ.type === 'essay' ? (
+                    <div className="mt-4 flex flex-col flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase flex items-center">
+                          <span className="w-1.5 h-1.5 bg-purple-500 rounded-full mr-1.5 animate-pulse"></span>
+                          Jawaban Uraian Anda:
+                        </label>
+                        <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-100 rounded px-1.5 py-0.5 font-bold uppercase">
+                          Sistem Essay
+                        </span>
+                      </div>
+                      <textarea
+                        rows={8}
+                        value={answers[currentQ.id!] || ''}
+                        onChange={(e) => handleAnswer(currentQ.id!, e.target.value)}
+                        placeholder="Ketikkan jawaban lengkap Anda secara detail di sini..."
+                        className="w-full p-4 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 resize-y font-medium text-slate-800 leading-relaxed shadow-xs transition-all animate-in fade-in"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1.5 italic font-medium">Jawaban Anda disimpan secara otomatis saat Anda mengetik atau berpindah soal.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 mt-auto">
+                      {((currentQ as any).shuffledOptions || []).map((optItem: any, idx: number) => {
+                        const displayLabel = ['A', 'B', 'C', 'D', 'E'][idx];
+                        const isSelected = answers[currentQ.id!] === optItem.key;
+                        
+                        return (
+                          <label 
+                            key={optItem.key}
+                            className={`flex items-start p-3 rounded-lg border cursor-pointer transition-all ${isSelected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50'}`}
+                          >
+                            <input 
+                              type="radio" 
+                              className="sr-only" 
+                              checked={isSelected}
+                              onChange={() => handleAnswer(currentQ.id!, optItem.key)}
+                            />
+                            <span className={`shrink-0 w-6 h-6 rounded-full border flex items-center justify-center font-bold text-[11px] mr-3 ${isSelected ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-300 text-slate-500'}`}>
+                              {displayLabel}
+                            </span>
+                            <div className="flex-1 pt-0 text-sm text-slate-700">{optItem.text}</div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                </div>
             ) : (
                <div className="flex-1 flex items-center justify-center text-slate-500 text-xs font-bold uppercase">
-                 Tidak ada soal ditemukan.
+                  Tidak ada soal ditemukan.
                </div>
             )}
             
@@ -755,7 +772,7 @@ export default function StudentExam() {
                          : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300'
                    }`}
                  >
-                   {q.number}
+                   {idx + 1}
                  </button>
                )
              })}
