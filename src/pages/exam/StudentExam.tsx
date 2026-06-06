@@ -159,14 +159,24 @@ export default function StudentExam() {
     return () => clearInterval(clockTimer);
   }, []);
 
+  // Listen to Settings in real-time based on session adminId
+  useEffect(() => {
+    if (!session?.adminId) return;
+    
+    const unsub = onSnapshot(doc(db, 'settings', session.adminId), (docSnap) => {
+      if (docSnap.exists()) {
+        setSettings(docSnap.data() as Setting);
+      }
+    });
+
+    return () => unsub();
+  }, [session?.adminId]);
+
   // Load Initial Data
   useEffect(() => {
     if (!user) return;
     async function loadData() {
       try {
-        const setSnap = await getDoc(doc(db, 'settings', 'school'));
-        if (setSnap.exists()) setSettings(setSnap.data() as Setting);
-
         const sessSnap = await getDoc(doc(db, 'student_sessions', user!.uid));
         if (!sessSnap.exists()) {
           setLoadError("Sesi ujian tidak valid atau Anda bukan siswa yang terdaftar. Mohon logout lalu login sebagai Admin.");

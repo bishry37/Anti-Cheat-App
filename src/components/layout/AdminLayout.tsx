@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileText, Database, BookOpen, Users, MonitorPlay, AlertTriangle, FileBarChart, Settings, LogOut, ShieldCheck, UserCircle, Menu, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { Setting } from '../../types';
 import brandLogo from '../../assets/images/cheating.jpg';
 import ChangePasswordModal from '../auth/ChangePasswordModal';
@@ -16,17 +16,18 @@ export default function AdminLayout() {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   useEffect(() => {
-    async function fetchAdminSetting() {
-      if (!user) return;
-      try {
-        const docRef = doc(db, 'settings', user.uid);
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          setSetting(snap.data() as Setting);
-        }
-      } catch (err) {}
-    }
-    fetchAdminSetting();
+    if (!user) return;
+    
+    // Listen to settings changes in real-time
+    const unsubProductSettings = onSnapshot(doc(db, 'settings', user.uid), (snap) => {
+      if (snap.exists()) {
+        setSetting(snap.data() as Setting);
+      }
+    }, (err) => {
+      console.error('Error fetching settings:', err);
+    });
+
+    return () => unsubProductSettings();
   }, [user]);
 
   const handleLogout = async () => {
@@ -57,13 +58,15 @@ export default function AdminLayout() {
           
           {/* Menu Drawer contents */}
           <aside className="relative w-64 max-w-xs bg-slate-900 text-slate-300 flex flex-col h-full shadow-2xl z-50 animate-in slide-in-from-left duration-200">
-            <div className="p-4 flex items-center justify-between border-b border-slate-800 shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 flex items-center justify-center shrink-0 overflow-hidden">
-                  <img src={brandLogo} alt="Anti Cheating App" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-                </div>
-                <h1 className="text-base font-bold text-white tracking-tight">Anti Cheating</h1>
-              </div>
+        <div className="p-4 flex items-center justify-between border-b border-slate-800 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 flex items-center justify-center shrink-0 overflow-hidden bg-white/10 rounded-xl p-1.5">
+              <img src={setting?.schoolLogo || brandLogo} alt={setting?.schoolName || "SYSTEM"} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+            </div>
+            <h1 className="text-sm font-black text-white tracking-widest uppercase leading-tight">
+              {setting?.schoolName || 'ANTI CHEATING APP'}
+            </h1>
+          </div>
               <button 
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
@@ -122,13 +125,14 @@ export default function AdminLayout() {
         </div>
       )}
 
-      {/* Sidebar */}
       <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col hidden md:flex shrink-0">
-        <div className="p-6 flex items-center gap-3 border-b border-slate-800 shrink-0">
-          <div className="w-10 h-10 flex items-center justify-center shrink-0 overflow-hidden">
-            <img src={brandLogo} alt="Anti Cheating App" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+        <div className="p-6 flex flex-col items-center text-center gap-3 border-b border-slate-800 shrink-0">
+          <div className="w-16 h-16 flex items-center justify-center shrink-0 overflow-hidden bg-white/10 rounded-2xl p-2">
+            <img src={setting?.schoolLogo || brandLogo} alt={setting?.schoolName || "SYSTEM"} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
           </div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Anti Cheating App</h1>
+          <h1 className="text-sm font-black text-white tracking-widest leading-tight uppercase">
+            {setting?.schoolName || 'ANTI CHEATING APP'}
+          </h1>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
@@ -195,10 +199,12 @@ export default function AdminLayout() {
 
             <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider hidden md:block">Dashboard Admin</h2>
             <div className="md:hidden flex items-center">
-               <div className="w-8 h-8 flex items-center justify-center mr-2 shrink-0">
-                  <img src={brandLogo} alt="Anti Cheating App" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+               <div className="w-11 h-11 flex items-center justify-center mr-3 shrink-0 bg-slate-100 rounded-xl p-1.5">
+                  <img src={setting?.schoolLogo || brandLogo} alt={setting?.schoolName || "SYSTEM"} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                </div>
-               <span className="font-bold text-slate-800 tracking-tight">Anti Cheating App</span>
+               <span className="font-black text-slate-800 tracking-widest text-[10px] uppercase leading-tight">
+                 {setting?.schoolName || 'ANTI CHEATING APP'}
+               </span>
             </div>
             <span className="hidden md:inline-flex px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded uppercase tracking-wider">System Active</span>
           </div>

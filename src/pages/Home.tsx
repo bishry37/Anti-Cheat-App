@@ -59,13 +59,6 @@ export default function Home() {
     let unsubClasses: () => void;
     let unsubSubjects: () => void;
 
-    // Fetch Settings
-    unsubSettings = onSnapshot(collection(db, 'settings'), (settingsSnap) => {
-      if (!settingsSnap.empty) {
-        setSetting(settingsSnap.docs[0].data() as Setting);
-      }
-    }, (err) => console.error(err));
-
     // Fetch Active Exams
     const examsQuery = query(collection(db, 'exams'), where('isActive', '==', true));
     unsubExams = onSnapshot(examsQuery, (examsSnap) => {
@@ -90,7 +83,6 @@ export default function Home() {
     }, (err) => console.error(err));
 
     return () => {
-      if (unsubSettings) unsubSettings();
       if (unsubExams) unsubExams();
       if (unsubClasses) unsubClasses();
       if (unsubSubjects) unsubSubjects();
@@ -110,20 +102,36 @@ export default function Home() {
         setLinkedExam(ex);
         const subj = Array.isArray(allSubjects) ? allSubjects.find(s => s.id === ex.subjectId) : undefined;
         if (subj) setLinkedSubjectName(subj.name);
-        
-        // Also fetch the specific admin's settings
-        const fetchAdminSetting = async () => {
-          try {
-             const settingSnap = await getDocs(query(collection(db, 'settings'), where('adminId', '==', ex.adminId)));
-             if (!settingSnap.empty) {
-               setSetting(settingSnap.docs[0].data() as Setting);
-             }
-          } catch(e) {}
-        };
-        fetchAdminSetting();
       }
     }
   }, [examIdFromUrl, codeFromUrl, activeExams, allSubjects]);
+
+  // Sync Settings when Admin is identified
+  useEffect(() => {
+    let adminId = '';
+    
+    // 1. Check linkedExam (from URL)
+    if (linkedExam?.adminId) {
+      adminId = linkedExam.adminId;
+    } 
+    // 2. Check token entry
+    else if (examToken && examToken.length >= 4) {
+      const matchingExam = Array.isArray(activeExams) ? activeExams.find(ex => ex.activeToken.toUpperCase() === examToken.toUpperCase()) : undefined;
+      if (matchingExam?.adminId) {
+        adminId = matchingExam.adminId;
+      }
+    }
+
+    if (adminId) {
+      const qSettings = query(collection(db, 'settings'), where('adminId', '==', adminId));
+      const unsub = onSnapshot(qSettings, (snap) => {
+        if (!snap.empty) {
+          setSetting(snap.docs[0].data() as Setting);
+        }
+      });
+      return () => unsub();
+    }
+  }, [linkedExam?.adminId, examToken, activeExams]);
 
   // Background token auto-reset check
   useEffect(() => {
@@ -238,25 +246,6 @@ export default function Home() {
     }
   };
 
-  // Effect to load specific teacher settings when token matches
-  useEffect(() => {
-    if (examToken && examToken.length >= 4) {
-      const matchingExam = Array.isArray(activeExams) ? activeExams.find(ex => ex.activeToken.toUpperCase() === examToken.toUpperCase()) : undefined;
-      if (matchingExam && matchingExam.adminId) {
-        // Fetch setting specific to this teacher/admin
-        const fetchAdminSetting = async () => {
-          try {
-             const settingSnap = await getDocs(query(collection(db, 'settings'), where('adminId', '==', matchingExam.adminId)));
-             if (!settingSnap.empty) {
-               setSetting(settingSnap.docs[0].data() as Setting);
-             }
-          } catch(e) {}
-        };
-        fetchAdminSetting();
-      }
-    }
-  }, [examToken, activeExams]);
-
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentName || !examToken) {
@@ -316,23 +305,19 @@ export default function Home() {
         
         {/* Top Branding Section */}
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-24 h-24 bg-white border border-slate-200 shadow-md rounded-[1.25rem] p-3 flex items-center justify-center mb-5 overflow-hidden">
-            {setting?.schoolLogo ? (
-              <img src={setting.schoolLogo} alt="Logo" className="w-full h-full object-contain" />
-            ) : (
-              <img 
-                src={brandLogo} 
-                alt="Anti Cheating App Logo" 
-                className="w-full h-full object-contain" 
-                referrerPolicy="no-referrer"
-              />
-            )}
+          <div className="w-28 h-28 bg-white border border-slate-200 shadow-xl rounded-[1.75rem] p-1 flex items-center justify-center mb-5 overflow-hidden">
+            <img 
+              src={brandLogo} 
+              alt="ANTI CHEATING APP" 
+              className="w-full h-full object-contain scale-125" 
+              referrerPolicy="no-referrer"
+            />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-            {setting?.schoolName || 'Anti Cheating App'}
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tighter text-slate-900 uppercase">
+            ANTI CHEATING APP
           </h1>
-          <p className="text-slate-500 mt-2 text-sm px-4">
-            {setting?.schoolSlogan || 'Sistem Ujian Online yang memonitor aktivitas secara real-time dan menjamin integritas.'}
+          <p className="text-slate-500 mt-2 text-[11px] px-4 font-bold uppercase tracking-wider opacity-60">
+            {setting?.schoolSlogan || 'Sistem Ujian Online dengan Integritas Real-time'}
           </p>
         </div>
 

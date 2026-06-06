@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, handleFirestoreError, OperationType, storage } from '../../lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Setting } from '../../types';
 import { Save, Loader2, AlertCircle, Shield, Upload, X, CheckCircle2, Info, Trash2, UserCircle } from 'lucide-react';
@@ -96,20 +96,20 @@ export default function Settings() {
   }, [toast]);
 
   useEffect(() => {
-    async function fetchSettings() {
-      if (!user) return;
-      try {
-        const docRef = doc(db, 'settings', SETTINGS_DOC_ID);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setSetting(docSnap.data() as Setting);
-        }
-      } catch (err) {
-        console.error(err);
+    if (!user) return;
+    
+    // Listen to settings changes in real-time
+    const unsub = onSnapshot(doc(db, 'settings', SETTINGS_DOC_ID), (docSnap) => {
+      if (docSnap.exists()) {
+        setSetting(docSnap.data() as Setting);
       }
       setLoading(false);
-    }
-    fetchSettings();
+    }, (err) => {
+      console.error('Error fetching settings:', err);
+      setLoading(false);
+    });
+
+    return () => unsub();
   }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
