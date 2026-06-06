@@ -45,6 +45,53 @@ export default function StudentExam() {
       return;
     }
 
+    // Smart Grading Helper
+    const calculateSmartPoints = (studentAns: string, correctAns: string, weight: number): number => {
+      if (!studentAns || !studentAns.trim()) return 0;
+      
+      const normalize = (text: string) => {
+        return text
+          .toLowerCase()
+          .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, " ") // remove punctuation
+          .replace(/\s+/g, ' ') // compact whitespace
+          .split(' ')
+          .filter(w => !['a', 'an', 'the'].includes(w)) // remove articles
+          .join(' ')
+          .trim();
+      };
+
+      const s = normalize(studentAns);
+      const c = normalize(correctAns);
+
+      if (s === c) return weight;
+      if (!s) return 0;
+
+      const sWords = s.split(' ');
+      const cWords = c.split(' ');
+      const maxLen = Math.max(sWords.length, cWords.length);
+
+      // Word-level matching
+      let matches = 0;
+      const tempCWords = [...cWords];
+      sWords.forEach(w => {
+        const idx = tempCWords.indexOf(w);
+        if (idx !== -1) {
+          matches++;
+          tempCWords.splice(idx, 1);
+        }
+      });
+
+      const missingOrWrongCount = maxLen - matches;
+
+      // Rule 1: Just missing dots/articles handled by normalize (s === c)
+      // Rule 2: 1 word typo/difference
+      if (missingOrWrongCount === 1) return weight * 0.9;
+      // Rule 3: > 1 word typo/difference but still has significant overlap
+      if (missingOrWrongCount > 1 && matches >= maxLen / 2) return weight * 0.5;
+      
+      return 0;
+    };
+
     // Calculate weight-based score
     let pointsEarned = 0;
     let totalWeight = 0;
@@ -52,28 +99,29 @@ export default function StudentExam() {
     let wrong = 0;
     
     questions.forEach(q => {
-      const isEssay = q.type === 'essay';
       const weight = q.weight || 10;
       totalWeight += weight;
       
       const studentAns = answers[q.id!];
-      if (!isEssay) {
-        if (q.type === 'isian_singkat') {
-          const cleanAns = String(studentAns || '').toLowerCase().trim();
-          const cleanCorrect = String(q.correctAnswer || '').toLowerCase().trim();
-          if (cleanAns === cleanCorrect) {
-            correct++;
-            pointsEarned += weight;
-          } else {
-            wrong++;
-          }
+      
+      if (q.type === 'pilihan_ganda') {
+        if (studentAns === q.correctAnswer) {
+          correct++;
+          pointsEarned += weight;
         } else {
-          if (studentAns === q.correctAnswer) {
-            correct++;
-            pointsEarned += weight;
-          } else {
-            wrong++;
-          }
+          wrong++;
+        }
+      } else {
+        // Smart grading for isian_singkat and essay
+        const earned = calculateSmartPoints(studentAns || '', q.correctAnswer || '', weight);
+        pointsEarned += earned;
+        if (earned === weight) {
+          correct++;
+        } else if (earned > 0) {
+          // partially correct counts as half correct in stats for simplicity or just skip
+          correct++; 
+        } else {
+          wrong++;
         }
       }
     });
