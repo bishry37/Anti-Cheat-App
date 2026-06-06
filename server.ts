@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -76,10 +76,21 @@ async function startServer() {
         config: {
           systemInstruction,
           responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              score: { type: Type.NUMBER },
+              feedback: { type: Type.STRING },
+            },
+            required: ["score", "feedback"],
+          },
         }
       });
 
-      const responseText = result.text || "{}";
+      const responseText = result.text;
+      if (!responseText) {
+        throw new Error("Tidak ada respon dari AI");
+      }
       const grading = JSON.parse(responseText);
 
       res.json(grading);

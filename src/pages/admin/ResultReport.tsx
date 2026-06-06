@@ -94,6 +94,16 @@ export default function ResultReport() {
           type: q.type
         })
       });
+
+      const contentType = resp.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await resp.text();
+        console.error("AI Response not JSON:", text);
+        showToast("Server tidak mengirim data JSON. Hubungi admin.");
+        setGradingAIId(null);
+        return;
+      }
+
       const data = await resp.json();
       if (resp.ok && data.score !== undefined) {
         const weight = q.weight || 10;
@@ -106,7 +116,7 @@ export default function ResultReport() {
       }
     } catch (err: any) {
       console.error(err);
-      showToast('Gagal terhubung ke layanan: ' + (err.message || 'Cek koneksi internet Anda'));
+      showToast('Gagal terhubung ke layanan: Sematkan GEMINI_API_KEY di Settings > Secrets.');
     }
     setGradingAIId(null);
   };
