@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, orderBy, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { StudentSession, Exam, Question, Class } from '../../types';
-import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Check } from 'lucide-react';
+import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Check, Sparkles } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -40,6 +40,7 @@ export default function ResultReport() {
   const [editingScores, setEditingScores] = useState<Record<string, number>>({});
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [savingGrades, setSavingGrades] = useState(false);
+  const [gradingAIId, setGradingAIId] = useState<string | null>(null);
 
   const handleOpenGradingModal = async (session: StudentSession) => {
     setSelectedSession(session);
@@ -77,6 +78,36 @@ export default function ResultReport() {
       showToast('Gagal memuat detail pertanyaan');
     }
     setLoadingQuestions(false);
+  };
+
+  const handleAIGrade = async (q: Question, studentAns: string) => {
+    if (!q.id) return;
+    setGradingAIId(q.id);
+    try {
+      const resp = await fetch('/api/ai/grade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: q.question,
+          studentAnswer: studentAns,
+          referenceAnswer: q.correctAnswer,
+          type: q.type
+        })
+      });
+      const data = await resp.json();
+      if (data.score !== undefined) {
+        const weight = q.weight || 10;
+        const calculatedScore = Math.round(data.score * weight * 2) / 2; // round to nearest 0.5
+        setEditingScores(prev => ({ ...prev, [q.id!]: calculatedScore }));
+        showToast(`AI: ${data.feedback}`);
+      } else {
+        showToast('Koreksi AI gagal mendapatkan hasil yang valid.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal terhubung ke layanan AI.');
+    }
+    setGradingAIId(null);
   };
 
   const handleSaveEssayGrades = async () => {
@@ -506,6 +537,21 @@ export default function ResultReport() {
                                   <span>Jawaban Salah (0 Poin)</span>
                                 </div>
                               )}
+                              {studentAns && (
+                                <button
+                                  type="button"
+                                  disabled={gradingAIId === q.id}
+                                  onClick={() => handleAIGrade(q, studentAns)}
+                                  className="ml-auto flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-full hover:bg-blue-100 transition-all disabled:opacity-50"
+                                >
+                                  {gradingAIId === q.id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Sparkles className="w-3 h-3" />
+                                  )}
+                                  <span>Koreksi AI (Gemini)</span>
+                                </button>
+                              )}
                             </div>
                           </div>
                         ) : !isEssay ? (
@@ -577,6 +623,21 @@ export default function ResultReport() {
                                   className="w-20 px-2 py-1 text-xs bg-white border border-slate-300 rounded text-center font-bold text-slate-800 focus:ring-1 focus:ring-purple-500"
                                 />
                                 <span className="text-[11px] text-slate-500 font-medium font-mono">/ {weight} Poin</span>
+                                {studentAns && (
+                                  <button
+                                    type="button"
+                                    disabled={gradingAIId === q.id}
+                                    onClick={() => handleAIGrade(q, studentAns)}
+                                    className="ml-2 flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-all disabled:opacity-50 cursor-pointer"
+                                  >
+                                    {gradingAIId === q.id ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <Sparkles className="w-3 h-3" />
+                                    )}
+                                    <span>Koreksi dengan AI</span>
+                                  </button>
+                                )}
                               </div>
                               <div className="flex gap-1 ml-auto">
                                 <button 
