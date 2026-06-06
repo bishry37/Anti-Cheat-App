@@ -59,8 +59,19 @@ export default function ResultReport() {
       }
       
       const qSnap = await getDocs(qQuery);
-      const qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question)).sort((a,b) => a.number - b.number);
-      setSessionQuestions(qs);
+      const qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
+      
+      const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
+      const sortedQs = qs.sort((a, b) => {
+        const aType = a.type || 'pilihan_ganda';
+        const bType = b.type || 'pilihan_ganda';
+        if (typeOrder[aType] !== typeOrder[bType]) {
+          return typeOrder[aType] - typeOrder[bType];
+        }
+        return (a.number || 0) - (b.number || 0);
+      });
+      
+      setSessionQuestions(sortedQs);
     } catch (e) {
       console.error(e);
       showToast('Gagal memuat detail pertanyaan');
@@ -460,7 +471,7 @@ export default function ResultReport() {
                             q.type === 'isian_singkat' ? 'bg-amber-100 text-amber-800 border-amber-200' : 
                             'bg-slate-50 text-slate-600 border-slate-200'
                           }`}>
-                            Soal {q.number} - {
+                            Soal {qIndex + 1} - {
                               isEssay ? 'Essay / Uraian' : 
                               q.type === 'isian_singkat' ? 'Isian Singkat' : 
                               'Pilihan Ganda'

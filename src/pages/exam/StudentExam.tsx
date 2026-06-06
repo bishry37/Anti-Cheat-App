@@ -167,11 +167,33 @@ export default function StudentExam() {
           const qSnap = await getDocs(qQuery);
           let qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
           
+          const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
+          
           if (exData.randomizeQuestions) {
-            // Simple shuffle
-            qs = qs.sort(() => Math.random() - 0.5);
+            // Group by type and shuffle within each group
+            const groups: Record<number, Question[]> = { 1: [], 2: [], 3: [] };
+            qs.forEach(q => {
+              const order = typeOrder[q.type || 'pilihan_ganda'] || 1;
+              groups[order].push(q);
+            });
+            
+            // Shuffle each group
+            Object.values(groups).forEach(group => {
+              group.sort(() => Math.random() - 0.5);
+            });
+            
+            // Combine in order: 1 (PG), 2 (IS), 3 (Essay)
+            qs = [...groups[1], ...groups[2], ...groups[3]];
           } else {
-            qs = qs.sort((a,b) => a.number - b.number);
+            // Respect the question sequence but grouped by type
+            qs = qs.sort((a, b) => {
+              const aType = a.type || 'pilihan_ganda';
+              const bType = b.type || 'pilihan_ganda';
+              if (typeOrder[aType] !== typeOrder[bType]) {
+                return typeOrder[aType] - typeOrder[bType];
+              }
+              return (a.number || 0) - (b.number || 0);
+            });
           }
 
           // Pre-populate shuffled options for all multiple choice questions

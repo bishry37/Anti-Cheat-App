@@ -207,7 +207,17 @@ export default function QuestionBank() {
       }
       const snap = await getDocs(q);
       const qs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
-      const sortedQs = qs.sort((a,b) => a.number - b.number);
+      
+      const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
+      const sortedQs = qs.sort((a, b) => {
+        const aType = a.type || 'pilihan_ganda';
+        const bType = b.type || 'pilihan_ganda';
+        if (typeOrder[aType] !== typeOrder[bType]) {
+          return typeOrder[aType] - typeOrder[bType];
+        }
+        return (a.number || 0) - (b.number || 0);
+      });
+      
       setQuestions(sortedQs);
       setOriginalQuestions(sortedQs);
     } catch (err) {
@@ -1488,7 +1498,7 @@ export default function QuestionBank() {
                     <div key={q.id} className="p-4 hover:bg-slate-50 transition-colors group relative">
                       <div className="flex items-start space-x-3 mb-2">
                         <div className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-500 font-bold text-[10px] shrink-0 mt-0.5">
-                           {q.number}
+                           {questions.findIndex(item => item.id === q.id) + 1}
                         </div>
                         <div className="flex-1">
                           <div className="font-semibold text-slate-800 text-sm leading-snug pr-20 ql-editor whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: q.question }} />
