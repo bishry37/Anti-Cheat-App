@@ -584,9 +584,9 @@ export default function QuestionBank() {
         
         const parseType = (val: string) => {
           const v = val.toLowerCase().trim();
-          if (v === '1' || v.includes('ganda') || v.includes('pilihan')) return 'pilihan_ganda';
+          if (v === '1' || v.includes('ganda') || v.includes('pilihan') || v.includes('pg')) return 'pilihan_ganda';
           if (v === '2' || v.includes('singkat') || v.includes('isian')) return 'isian_singkat';
-          if (v === '3' || v.includes('essay') || v.includes('essai') || v.includes('uraian') || v.includes('paragraf')) return 'essay';
+          if (v === '3' || v.includes('essay') || v.includes('essai') || v.includes('uraian') || v.includes('paragraf') || v.includes('panjang')) return 'essay';
           return 'pilihan_ganda';
         };
 
@@ -682,7 +682,7 @@ export default function QuestionBank() {
         }
 
         const totalQ = questionsToUpload.length;
-        const typeUnits: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 3, 'essay': 6 };
+        const typeUnits: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 5, 'essay': 15 };
         let totalUnits = 0;
         questionsToUpload.forEach(q => {
           totalUnits += typeUnits[q.type] || 1;
@@ -1241,7 +1241,7 @@ export default function QuestionBank() {
                         value={addingData.type || 'pilihan_ganda'}
                         onChange={e => {
                           const val = e.target.value as any;
-                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 3, 'essay': 6, 'menjodohkan': 1 };
+                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 5, 'essay': 15 };
                           setAddingData({ 
                             ...addingData, 
                             type: val,
@@ -1404,7 +1404,7 @@ export default function QuestionBank() {
                               value={editingData.type || 'pilihan_ganda'}
                               onChange={e => {
                                 const val = e.target.value as any;
-                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 3, 'essay': 6, 'menjodohkan': 1 };
+                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 5, 'essay': 15 };
                                 setEditingData({ 
                                   ...editingData, 
                                   type: val,
