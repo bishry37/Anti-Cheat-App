@@ -720,10 +720,10 @@ export default function StudentExam() {
                       <div className="flex items-center justify-between mb-3">
                          <label className="text-xs font-bold text-slate-500 uppercase flex items-center">
                             <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1.5 animate-pulse"></span>
-                            {currentQ.type === 'menjodohkan' ? 'Pasangkan Premis dengan Jawaban:' : 'Pilih Jawaban Anda:'}
+                            Pilih Jawaban Anda:
                          </label>
-                         <span className={`text-[10px] font-bold uppercase border rounded px-1.5 py-0.5 ${currentQ.type === 'menjodohkan' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
-                            {currentQ.type === 'menjodohkan' ? 'Menjodohkan' : 'Pilihan Ganda'}
+                         <span className="text-[10px] font-bold uppercase border rounded px-1.5 py-0.5 bg-blue-50 text-blue-700 border-blue-100">
+                            Pilihan Ganda
                          </span>
                       </div>
                       {((currentQ as any).shuffledOptions || []).map((optItem: any, idx: number) => {

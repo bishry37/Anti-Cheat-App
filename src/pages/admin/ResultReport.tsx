@@ -458,13 +458,11 @@ export default function ResultReport() {
                           <span className={`text-[10px] uppercase font-extrabold px-2 py-0.5 rounded border ${
                             isEssay ? 'bg-purple-50 text-purple-700 border-purple-100' : 
                             q.type === 'isian_singkat' ? 'bg-amber-100 text-amber-800 border-amber-200' : 
-                            q.type === 'menjodohkan' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
                             'bg-slate-50 text-slate-600 border-slate-200'
                           }`}>
                             Soal {q.number} - {
                               isEssay ? 'Essay / Uraian' : 
                               q.type === 'isian_singkat' ? 'Isian Singkat' : 
-                              q.type === 'menjodohkan' ? 'Menjodohkan' :
                               'Pilihan Ganda'
                             }
                           </span>

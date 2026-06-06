@@ -7,7 +7,7 @@ import { Edit2, Trash2, Loader2, X, Upload, Download, FileSpreadsheet, Search, C
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBlocker } from 'react-router-dom';
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType } from 'docx';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType, VerticalMergeType } from 'docx';
 import * as mammoth from 'mammoth';
 
 export default function QuestionBank() {
@@ -218,7 +218,7 @@ export default function QuestionBank() {
 
   const handleDownloadTemplate = async () => {
     try {
-      const createCell = (text: string, bold: boolean = false, bgColor: string | undefined = undefined, widthPct: number | undefined = undefined) => {
+      const createCell = (text: string, bold: boolean = false, bgColor: string | undefined = undefined, widthPct: number | undefined = undefined, vMerge: any = undefined) => {
         return new TableCell({
           children: [
             new Paragraph({
@@ -235,6 +235,7 @@ export default function QuestionBank() {
           ],
           shading: bgColor ? { fill: bgColor } : undefined,
           width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
+          verticalMerge: vMerge,
           margins: { top: 120, bottom: 120, left: 120, right: 120 },
           borders: {
             top: { style: BorderStyle.SINGLE, size: 4, color: "cbd5e1" },
@@ -244,6 +245,8 @@ export default function QuestionBank() {
           }
         });
       };
+      
+      // Removed require('docx') because it's imported at the top
 
       // 1. INFO BOX TABLE (1 row, 1 cell, sits nicely boxed at the top)
       const infoBox = new Table({
@@ -298,15 +301,6 @@ export default function QuestionBank() {
                       new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
                       new TextRun({ text: "Paragraf / Essay (Kunci Jawaban sebagai acuan koreksi)", bold: true, size: 18 })
                     ]
-                  }),
-                  new Paragraph({
-                    spacing: { before: 20, after: 20 },
-                    children: [
-                      new TextRun({ text: "• Kode ", size: 18 }),
-                      new TextRun({ text: "4", bold: true, size: 18, color: "15803d" }),
-                      new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
-                      new TextRun({ text: "Menjodohkan (Pasangkan Soal/Premis Kiri dengan Opsi Jawaban Kanan)", bold: true, size: 18 })
-                    ]
                   })
                 ]
               })
@@ -318,44 +312,81 @@ export default function QuestionBank() {
       // 2. PILIHAN GANDA TABLE (Table 1)
       const mcqHeader = new TableRow({
         children: [
-          createCell("No", true, "e0f2fe", 10),
-          createCell("Soal / Pertanyaan", true, "e0f2fe", 30),
-          createCell("Jenis Soal", true, "e0f2fe", 10),
-          createCell("Pilihan A", true, "e0f2fe", 10),
-          createCell("Pilihan B", true, "e0f2fe", 10),
-          createCell("Pilihan C", true, "e0f2fe", 10),
-          createCell("Pilihan D", true, "e0f2fe", 10),
-          createCell("Pilihan E", true, "e0f2fe", 10),
-          createCell("Kunci Jawaban", true, "e0f2fe", 10),
-        ]
-      });
-
-      const mcqRowExample = new TableRow({
-        children: [
-          createCell("1", false),
-          createCell("Apa nama ibukota baru Negara Republik Indonesia?", false),
-          createCell("1", false),
-          createCell("Nusantara", false),
-          createCell("Jakarta", false),
-          createCell("Surabaya", false),
-          createCell("IKN", false),
-          createCell("Samarinda", false),
-          createCell("A", false),
+          createCell("NO", true, "e0f2fe", 6),
+          createCell("SOAL", true, "e0f2fe", 42),
+          createCell("JENIS", true, "e0f2fe", 8),
+          createCell("OPSI", true, "e0f2fe", 6),
+          createCell("JAWABAN", true, "e0f2fe", 32),
+          createCell("KUNCI", true, "e0f2fe", 6),
         ]
       });
 
       const mcqTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [mcqHeader, mcqRowExample]
+        rows: [
+          mcqHeader,
+          // Question Row 1 (Start merge)
+          new TableRow({
+            children: [
+              createCell("1", false, undefined, undefined, VerticalMergeType.RESTART),
+              createCell("Siapakah Presiden Indonesia pada tahun 1999?", false, undefined, undefined, VerticalMergeType.RESTART),
+              createCell("1", false, undefined, undefined, VerticalMergeType.RESTART),
+              createCell("A", false),
+              createCell("Soekarno", false),
+              createCell("B", false, undefined, undefined, VerticalMergeType.RESTART),
+            ]
+          }),
+          // Row 2-5 (Option continuation)
+          new TableRow({
+            children: [
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("B", false),
+              createCell("Soeharto", false),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+            ]
+          }),
+          new TableRow({
+            children: [
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("C", false),
+              createCell("B. J. Habibie", false),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+            ]
+          }),
+          new TableRow({
+            children: [
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("D", false),
+              createCell("Abdurrahman Wahid", false),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+            ]
+          }),
+          new TableRow({
+            children: [
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("E", false),
+              createCell("Megawati Soekarnoputri", false),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+            ]
+          }),
+        ]
       });
 
-      // 3. ISIAN SINGKAT TABLE (Table 2)
+      // 3. ISIAN SINGKAT & ESSAY follow similar logic but simpler rows
       const shortHeader = new TableRow({
         children: [
-          createCell("No", true, "fef3c7", 10),
-          createCell("Soal / Pertanyaan", true, "fef3c7", 60),
-          createCell("Jenis Soal", true, "fef3c7", 10),
-          createCell("Kunci Jawaban", true, "fef3c7", 20),
+          createCell("NO", true, "fef3c7", 6),
+          createCell("SOAL", true, "fef3c7", 58),
+          createCell("JENIS", true, "fef3c7", 8),
+          createCell("KUNCI JAWABAN", true, "fef3c7", 28),
         ]
       });
 
@@ -373,13 +404,13 @@ export default function QuestionBank() {
         rows: [shortHeader, shortRowExample]
       });
 
-      // 4. PARAGRAF / ESSAY TABLE (Table 3)
+      // 4. PARAGRAF / ESSAY TABLE
       const essayHeader = new TableRow({
         children: [
-          createCell("No", true, "f3e8ff", 10),
-          createCell("Soal / Pertanyaan", true, "f3e8ff", 60),
-          createCell("Jenis Soal", true, "f3e8ff", 10),
-          createCell("Kunci Jawaban (Pedoman)", true, "f3e8ff", 20),
+          createCell("NO", true, "f3e8ff", 6),
+          createCell("SOAL", true, "f3e8ff", 58),
+          createCell("JENIS", true, "f3e8ff", 8),
+          createCell("KUNCI (PEDOMAN)", true, "f3e8ff", 28),
         ]
       });
 
@@ -395,40 +426,6 @@ export default function QuestionBank() {
       const essayTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [essayHeader, essayRowExample]
-      });
-
-      // 5. MENJODOHKAN TABLE (Table 4)
-      const matchHeader = new TableRow({
-        children: [
-          createCell("No", true, "dcfce7", 10),
-          createCell("Soal / Premis (Kiri)", true, "dcfce7", 25),
-          createCell("Jenis Soal", true, "dcfce7", 10),
-          createCell("Opsi A (Kanan)", true, "dcfce7", 11),
-          createCell("Opsi B (Kanan)", true, "dcfce7", 11),
-          createCell("Opsi C (Kanan)", true, "dcfce7", 11),
-          createCell("Opsi D (Kanan)", true, "dcfce7", 11),
-          createCell("Opsi E (Kanan)", true, "dcfce7", 11),
-          createCell("Kunci Jawaban (Abjad)", true, "dcfce7", 10),
-        ]
-      });
-
-      const matchRowExample = new TableRow({
-        children: [
-          createCell("1", false),
-          createCell("Hewan Gajah", false),
-          createCell("4", false),
-          createCell("Mamalia", false),
-          createCell("Burung", false),
-          createCell("Ikan", false),
-          createCell("Reptil", false),
-          createCell("Amfibi", false),
-          createCell("A", false),
-        ]
-      });
-
-      const matchingTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [matchHeader, matchRowExample]
       });
 
       // Assemble everything!
@@ -501,20 +498,6 @@ export default function QuestionBank() {
                 ]
               }),
               essayTable,
-
-              // Table 4
-              new Paragraph({
-                spacing: { before: 300, after: 100 },
-                children: [
-                  new TextRun({
-                    text: "4. TABEL SOAL MENJODOHKAN (Jenis Soal = 4)",
-                    bold: true,
-                    size: 20,
-                    color: "15803d"
-                  })
-                ]
-              }),
-              matchingTable,
             ]
           }
         ]
@@ -589,100 +572,99 @@ export default function QuestionBank() {
         let batch = writeBatch(db);
         let questionsToUpload: any[] = [];
         
+        const parseType = (val: string) => {
+          const v = val.toLowerCase().trim();
+          if (v === '1' || v.includes('ganda') || v.includes('pilihan')) return 'pilihan_ganda';
+          if (v === '2' || v.includes('singkat') || v.includes('isian')) return 'isian_singkat';
+          if (v === '3' || v.includes('essay') || v.includes('essai') || v.includes('uraian') || v.includes('paragraf')) return 'essay';
+          return 'pilihan_ganda';
+        };
+
         // Loop through each table in the document
         for (let k = 0; k < tables.length; k++) {
           const table = tables[k];
-          const trs = table.querySelectorAll('tr');
+          const trs = Array.from(table.querySelectorAll('tr'));
           if (trs.length <= 1) continue; 
 
+          // Detect column mapper
           let colMap = {
-            number: -1,
-            question: -1,
-            type: -1,
-            optionA: -1,
-            optionB: -1,
-            optionC: -1,
-            optionD: -1,
-            optionE: -1,
-            correctAnswer: -1
+            number: -1, question: -1, type: -1, 
+            optionLabel: -1, optionContent: -1, correctAnswer: -1
           };
-
           const headerTds = Array.from(trs[0].querySelectorAll('td')).map(td => td.textContent?.trim().toLowerCase() || '');
           headerTds.forEach((text, idx) => {
             if (text === 'no' || text === 'nomor') colMap.number = idx;
-            else if (text.includes('soal') || text.includes('pertanyaan') || text === 'teks') colMap.question = idx;
-            else if (text.includes('jenis') || text.includes('tipe') || text.includes('kode')) colMap.type = idx;
-            else if (text.includes('pilihan a') || text.includes('opsi a') || text === 'a' || text === 'opsia' || text.endsWith(' a')) colMap.optionA = idx;
-            else if (text.includes('pilihan b') || text.includes('opsi b') || text === 'b' || text === 'opsib' || text.endsWith(' b')) colMap.optionB = idx;
-            else if (text.includes('pilihan c') || text.includes('opsi c') || text === 'c' || text === 'opsic' || text.endsWith(' c')) colMap.optionC = idx;
-            else if (text.includes('pilihan d') || text.includes('opsi d') || text === 'd' || text === 'opsid' || text.endsWith(' d')) colMap.optionD = idx;
-            else if (text.includes('pilihan e') || text.includes('opsi e') || text === 'e' || text === 'opsie' || text.endsWith(' e')) colMap.optionE = idx;
-            else if (text.includes('kunci') || text.includes('jawaban')) colMap.correctAnswer = idx;
+            else if (text.includes('soal')) colMap.question = idx;
+            else if (text.includes('jenis') || text.includes('kode')) colMap.type = idx;
+            else if (text === 'opsi' || text === 'label') colMap.optionLabel = idx;
+            else if (text === 'jawaban') colMap.optionContent = idx;
+            else if (text.includes('kunci')) colMap.correctAnswer = idx;
           });
 
-          if (colMap.question === -1) continue;
+          // Fallback mapper for old formats or single-row tables
+          let fallbackLabelIdx = -1;
+          headerTds.forEach((t, i) => { if(t.includes('pilihan a')) fallbackLabelIdx = i; });
+
+          let currentQ: any = null;
 
           for (let i = 1; i < trs.length; i++) {
             const tds = trs[i].querySelectorAll('td');
             const rowCells = Array.from(tds).map(td => td.textContent?.trim() || '');
             if (rowCells.length === 0) continue;
 
-            const qText = colMap.question !== -1 ? rowCells[colMap.question] : '';
-            if (!qText || qText.trim() === "") continue;
-
-            const isDummyText = qText.toLowerCase().trim().includes("apa nama ibukota baru negara") || 
-                                qText.toLowerCase().trim().includes("gas apa yang paling banyak terkandung") ||
-                                qText.toLowerCase().trim().includes("jelaskan pengertian ekologi laut") ||
-                                qText.toLowerCase().trim().includes("hewan gajah");
-            if (isDummyText) continue;
-
-            const typeValStr = colMap.type !== -1 ? rowCells[colMap.type] : '';
-            let qType: 'pilihan_ganda' | 'isian_singkat' | 'essay' | 'menjodohkan' = 'pilihan_ganda';
+            const cellNo = colMap.number !== -1 ? rowCells[colMap.number] : '';
+            const cellSoal = colMap.question !== -1 ? rowCells[colMap.question] : '';
             
-            if (typeValStr) {
-              const val = typeValStr.toLowerCase().trim();
-              if (val === '1' || val.includes('ganda') || val.includes('pilihan')) qType = 'pilihan_ganda';
-              else if (val === '2' || val.includes('singkat') || val.includes('isian')) qType = 'isian_singkat';
-              else if (val === '3' || val.includes('essay') || val.includes('essai') || val.includes('uraian') || val.includes('paragraf')) qType = 'essay';
-              else if (val === '4' || val.includes('jodoh') || val.includes('match') || val.includes('menjodohkan')) qType = 'menjodohkan';
+            // Logic for finding a new question Row
+            // 1. Logic for STARTING A NEW QUESTION: Has a number or a question text in a full-length row
+            if (rowCells.length >= 4 && ((cellNo && !isNaN(Number(cellNo))) || cellSoal)) {
+              if (currentQ && currentQ.question.trim()) questionsToUpload.push(currentQ);
+              
+              currentQ = {
+                subjectId: selectedSubject,
+                packetName: templateName.trim(),
+                number: Number(cellNo) || (questionsToUpload.length + 1),
+                question: cellSoal,
+                optionA: '', optionB: '', optionC: '', optionD: '', optionE: '',
+                correctAnswer: colMap.correctAnswer !== -1 ? rowCells[colMap.correctAnswer]?.trim().toUpperCase() : '',
+                type: colMap.type !== -1 ? parseType(rowCells[colMap.type]) : 'pilihan_ganda',
+                adminId: user!.uid
+              };
+
+              // Dummy check for the sample question
+              if (currentQ.question.toLowerCase().includes("presiden indonesia pada tahun 1999")) {
+                 currentQ = null; continue;
+              }
             }
 
-            const numValStr = colMap.number !== -1 ? rowCells[colMap.number] : '';
-            const numberNum = Number(numValStr) || (questionsToUpload.length + 1);
+            // 2. Logic for READING OPTIONS (Can be in the same row or subsequent sub-rows)
+            if (currentQ) {
+              let label = '';
+              let content = '';
 
-            let correctAns = '';
-            if (colMap.correctAnswer !== -1) {
-              correctAns = rowCells[colMap.correctAnswer] || '';
+              // Try mapping by index if columns exist
+              if (colMap.optionLabel !== -1 && rowCells[colMap.optionLabel]) {
+                label = rowCells[colMap.optionLabel].trim().toUpperCase();
+                content = colMap.optionContent !== -1 ? rowCells[colMap.optionContent]?.trim() : '';
+              } 
+              // Fallback for vertically merged rows where columns shift left
+              else if (rowCells.length >= 2 && rowCells.length < 6) {
+                // Usually the first 2 columns in a merged sub-row are OPSI and JAWABAN
+                label = rowCells[0].trim().toUpperCase();
+                content = rowCells[1].trim();
+              }
+
+              // Apply the option if valid label found
+              if (['A', 'B', 'C', 'D', 'E'].includes(label)) {
+                if (label === 'A') currentQ.optionA = content;
+                else if (label === 'B') currentQ.optionB = content;
+                else if (label === 'C') currentQ.optionC = content;
+                else if (label === 'D') currentQ.optionD = content;
+                else if (label === 'E') currentQ.optionE = content;
+              }
             }
-            if (qType === 'pilihan_ganda' || qType === 'menjodohkan') {
-              correctAns = correctAns.toUpperCase().trim();
-              if (!correctAns && colMap.correctAnswer !== -1) continue;
-            } else {
-              correctAns = correctAns.trim();
-            }
-
-            const isPgOrMatching = qType === 'pilihan_ganda' || qType === 'menjodohkan';
-            const opA = isPgOrMatching && colMap.optionA !== -1 ? (rowCells[colMap.optionA] || '') : '';
-            const opB = isPgOrMatching && colMap.optionB !== -1 ? (rowCells[colMap.optionB] || '') : '';
-            const opC = isPgOrMatching && colMap.optionC !== -1 ? (rowCells[colMap.optionC] || '') : '';
-            const opD = isPgOrMatching && colMap.optionD !== -1 ? (rowCells[colMap.optionD] || '') : '';
-            const opE = isPgOrMatching && colMap.optionE !== -1 ? (rowCells[colMap.optionE] || '') : '';
-
-            questionsToUpload.push({
-              subjectId: selectedSubject,
-              packetName: templateName.trim(),
-              number: numberNum,
-              question: qText,
-              optionA: opA,
-              optionB: opB,
-              optionC: opC,
-              optionD: opD,
-              optionE: opE,
-              correctAnswer: correctAns,
-              type: qType,
-              adminId: user!.uid
-            });
           }
+          if (currentQ && currentQ.question.trim()) questionsToUpload.push(currentQ);
         }
 
         if (questionsToUpload.length === 0) {
@@ -848,16 +830,16 @@ export default function QuestionBank() {
     setProcessing(true);
     try {
       const qType = editingData.type || 'pilihan_ganda';
-      const isPgOrMatching = qType === 'pilihan_ganda' || qType === 'menjodohkan';
+      const isPg = qType === 'pilihan_ganda';
       await updateDoc(doc(db, 'questions', editingQuestionId), {
         number: Number(editingData.number),
         question: editingData.question || '',
-        optionA: isPgOrMatching ? String(editingData.optionA || '') : '',
-        optionB: isPgOrMatching ? String(editingData.optionB || '') : '',
-        optionC: isPgOrMatching ? String(editingData.optionC || '') : '',
-        optionD: isPgOrMatching ? String(editingData.optionD || '') : '',
-        optionE: isPgOrMatching ? String(editingData.optionE || '') : '',
-        correctAnswer: isPgOrMatching ? String(editingData.correctAnswer?.toUpperCase() || 'A') : (editingData.correctAnswer || ''),
+        optionA: isPg ? String(editingData.optionA || '') : '',
+        optionB: isPg ? String(editingData.optionB || '') : '',
+        optionC: isPg ? String(editingData.optionC || '') : '',
+        optionD: isPg ? String(editingData.optionD || '') : '',
+        optionE: isPg ? String(editingData.optionE || '') : '',
+        correctAnswer: isPg ? String(editingData.correctAnswer?.toUpperCase() || 'A') : (editingData.correctAnswer || ''),
         type: qType,
         weight: Number(editingData.weight || 10),
         lastEditedAt: Date.now()
@@ -895,7 +877,7 @@ export default function QuestionBank() {
       // 3. Add the new question
       const qRef = doc(collection(db, 'questions'));
       const qType = addingData.type || 'pilihan_ganda';
-      const isPgOrMatching = qType === 'pilihan_ganda' || qType === 'menjodohkan';
+      const isPg = qType === 'pilihan_ganda';
       const docData = {
         number: newNumber,
         subjectId: selectedSubject,
@@ -903,12 +885,12 @@ export default function QuestionBank() {
         adminId: user.uid,
         createdAt: Date.now(),
         question: addingData.question || '',
-        optionA: isPgOrMatching ? String(addingData.optionA || '') : '',
-        optionB: isPgOrMatching ? String(addingData.optionB || '') : '',
-        optionC: isPgOrMatching ? String(addingData.optionC || '') : '',
-        optionD: isPgOrMatching ? String(addingData.optionD || '') : '',
-        optionE: isPgOrMatching ? String(addingData.optionE || '') : '',
-        correctAnswer: isPgOrMatching ? String(addingData.correctAnswer?.toUpperCase() || 'A') : (addingData.correctAnswer || ''),
+        optionA: isPg ? String(addingData.optionA || '') : '',
+        optionB: isPg ? String(addingData.optionB || '') : '',
+        optionC: isPg ? String(addingData.optionC || '') : '',
+        optionD: isPg ? String(addingData.optionD || '') : '',
+        optionE: isPg ? String(addingData.optionE || '') : '',
+        correctAnswer: isPg ? String(addingData.correctAnswer?.toUpperCase() || 'A') : (addingData.correctAnswer || ''),
         type: qType,
         weight: Number(addingData.weight || 10)
       };
