@@ -86,11 +86,22 @@ export default function ResultReport() {
 
         if (!isEssay) {
           const studentAns = studentAnswers[q.id!];
-          if (studentAns === q.correctAnswer) {
-            correct++;
-            pointsEarned += weight;
+          if (q.type === 'isian_singkat') {
+            const cleanAns = String(studentAns || '').toLowerCase().trim();
+            const cleanCorrect = String(q.correctAnswer || '').toLowerCase().trim();
+            if (cleanAns === cleanCorrect) {
+              correct++;
+              pointsEarned += weight;
+            } else {
+              wrong++;
+            }
           } else {
-            wrong++;
+            if (studentAns === q.correctAnswer) {
+              correct++;
+              pointsEarned += weight;
+            } else {
+              wrong++;
+            }
           }
         } else {
           const essayScore = editingScores[q.id!] || 0;
@@ -444,8 +455,18 @@ export default function ResultReport() {
                     return (
                       <div key={q.id || qIndex} className="bg-white rounded-xl border border-slate-200 p-4 shadow-3xs overflow-hidden">
                         <div className="flex items-start justify-between border-b border-slate-100 pb-2 mb-3">
-                          <span className={`text-[10px] uppercase font-extrabold px-2 py-0.5 rounded border ${isEssay ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                            Soal {q.number} - {isEssay ? 'Essay / Uraian' : 'Pilihan Ganda'}
+                          <span className={`text-[10px] uppercase font-extrabold px-2 py-0.5 rounded border ${
+                            isEssay ? 'bg-purple-50 text-purple-700 border-purple-100' : 
+                            q.type === 'isian_singkat' ? 'bg-amber-100 text-amber-800 border-amber-200' : 
+                            q.type === 'menjodohkan' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                            'bg-slate-50 text-slate-600 border-slate-200'
+                          }`}>
+                            Soal {q.number} - {
+                              isEssay ? 'Essay / Uraian' : 
+                              q.type === 'isian_singkat' ? 'Isian Singkat' : 
+                              q.type === 'menjodohkan' ? 'Menjodohkan' :
+                              'Pilihan Ganda'
+                            }
                           </span>
                           <span className="text-[10px] font-bold text-slate-400 uppercase">
                             Bobot: {weight}
@@ -454,7 +475,31 @@ export default function ResultReport() {
 
                         <p className="text-xs font-semibold text-slate-800 mb-3 whitespace-pre-wrap leading-relaxed">{q.question}</p>
 
-                        {!isEssay ? (
+                        {q.type === 'isian_singkat' ? (
+                          <div className="space-y-2">
+                            <div className="p-3 bg-slate-50 border border-slate-150 rounded-xl">
+                              <p className="text-[10px] font-extrabold text-slate-500 uppercase">Jawaban Siswa:</p>
+                              <p className="text-sm font-bold text-slate-800 mt-1">{studentAns || <em className="text-slate-400 font-normal">Siswa tidak menjawab</em>}</p>
+                            </div>
+                            <div className="p-3 bg-emerald-50/50 border border-emerald-150 rounded-xl">
+                              <p className="text-[10px] font-extrabold text-emerald-700 uppercase">Kunci Isian Singkat:</p>
+                              <p className="text-sm font-bold text-emerald-800 mt-0.5">{q.correctAnswer || '-'}</p>
+                            </div>
+                            <div className="flex items-center gap-2 mt-3 block">
+                              {(studentAns || '').toLowerCase().trim() === (q.correctAnswer || '').toLowerCase().trim() ? (
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Jawaban Benar (+{weight} Poin)</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded-full border border-red-100">
+                                  <X className="w-3.5 h-3.5" />
+                                  <span>Jawaban Salah (0 Poin)</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : !isEssay ? (
                           <div className="space-y-2">
                             <div className="grid grid-cols-1 sm:grid-cols-2 text-[11px] gap-2 mb-3 bg-slate-50 p-2.5 rounded border border-slate-100">
                               {['A', 'B', 'C', 'D', 'E'].map(l => {
@@ -483,7 +528,7 @@ export default function ResultReport() {
                                   <span>Jawaban Salah (0 Poin)</span>
                                 </div>
                               )}
-                              <span className="text-[10px] text-slate-400 font-bold uppercase">Kunci: {q.correctAnswer}</span>
+                              <span className="text-[10px] text-slate-400 font-bold uppercase font-mono">Kunci: {q.correctAnswer}</span>
                             </div>
                           </div>
                         ) : (

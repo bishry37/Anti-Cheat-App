@@ -58,11 +58,22 @@ export default function StudentExam() {
       
       const studentAns = answers[q.id!];
       if (!isEssay) {
-        if (studentAns === q.correctAnswer) {
-          correct++;
-          pointsEarned += weight;
+        if (q.type === 'isian_singkat') {
+          const cleanAns = String(studentAns || '').toLowerCase().trim();
+          const cleanCorrect = String(q.correctAnswer || '').toLowerCase().trim();
+          if (cleanAns === cleanCorrect) {
+            correct++;
+            pointsEarned += weight;
+          } else {
+            wrong++;
+          }
         } else {
-          wrong++;
+          if (studentAns === q.correctAnswer) {
+            correct++;
+            pointsEarned += weight;
+          } else {
+            wrong++;
+          }
         }
       }
     });
@@ -665,27 +676,56 @@ export default function StudentExam() {
                   <div className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed" dangerouslySetInnerHTML={{ __html: currentQ.question }} />
 
                   {currentQ.type === 'essay' ? (
-                    <div className="mt-4 flex flex-col flex-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase flex items-center">
-                          <span className="w-1.5 h-1.5 bg-purple-500 rounded-full mr-1.5 animate-pulse"></span>
-                          Jawaban Uraian Anda:
-                        </label>
-                        <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-100 rounded px-1.5 py-0.5 font-bold uppercase">
-                          Sistem Essay
-                        </span>
-                      </div>
-                      <textarea
-                        rows={8}
-                        value={answers[currentQ.id!] || ''}
-                        onChange={(e) => handleAnswer(currentQ.id!, e.target.value)}
-                        placeholder="Ketikkan jawaban lengkap Anda secara detail di sini..."
-                        className="w-full p-4 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 resize-y font-medium text-slate-800 leading-relaxed shadow-xs transition-all animate-in fade-in"
-                      />
-                      <p className="text-[10px] text-slate-400 mt-1.5 italic font-medium">Jawaban Anda disimpan secara otomatis saat Anda mengetik atau berpindah soal.</p>
-                    </div>
+                     <div className="mt-4 flex flex-col flex-1">
+                       <div className="flex items-center justify-between mb-2">
+                         <label className="text-xs font-bold text-slate-500 uppercase flex items-center">
+                           <span className="w-1.5 h-1.5 bg-purple-500 rounded-full mr-1.5 animate-pulse"></span>
+                           Jawaban Uraian Anda:
+                         </label>
+                         <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-100 rounded px-1.5 py-0.5 font-bold uppercase">
+                           Sistem Essay
+                         </span>
+                       </div>
+                       <textarea
+                         rows={8}
+                         value={answers[currentQ.id!] || ''}
+                         onChange={(e) => handleAnswer(currentQ.id!, e.target.value)}
+                         placeholder="Ketikkan jawaban lengkap Anda secara detail di sini..."
+                         className="w-full p-4 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 resize-y font-medium text-slate-800 leading-relaxed shadow-xs transition-all animate-in fade-in"
+                       />
+                       <p className="text-[10px] text-slate-400 mt-1.5 italic font-medium">Jawaban Anda disimpan secara otomatis saat Anda mengetik atau berpindah soal.</p>
+                     </div>
+                  ) : currentQ.type === 'isian_singkat' ? (
+                     <div className="mt-4 flex flex-col flex-1">
+                       <div className="flex items-center justify-between mb-2">
+                         <label className="text-xs font-bold text-slate-500 uppercase flex items-center">
+                           <span className="w-1.5 h-1.5 bg-amber-550 rounded-full mr-1.5 animate-pulse animate-duration-1000"></span>
+                           Jawaban Singkat Anda:
+                         </label>
+                         <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-250 rounded px-1.5 py-0.5 font-bold uppercase">
+                           Isian Singkat
+                         </span>
+                       </div>
+                       <input
+                         type="text"
+                         value={answers[currentQ.id!] || ''}
+                         onChange={(e) => handleAnswer(currentQ.id!, e.target.value)}
+                         placeholder="Ketikkan jawaban singkat Anda di sini..."
+                         className="w-full p-4 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-bold text-slate-800 shadow-xs transition-all animate-in fade-in"
+                       />
+                       <p className="text-[10px] text-slate-400 mt-1.5 italic font-medium">Jawaban Anda disimpan secara otomatis saat Anda mengetik atau berpindah soal.</p>
+                     </div>
                   ) : (
                     <div className="space-y-2 mt-auto">
+                      <div className="flex items-center justify-between mb-3">
+                         <label className="text-xs font-bold text-slate-500 uppercase flex items-center">
+                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1.5 animate-pulse"></span>
+                            {currentQ.type === 'menjodohkan' ? 'Pasangkan Premis dengan Jawaban:' : 'Pilih Jawaban Anda:'}
+                         </label>
+                         <span className={`text-[10px] font-bold uppercase border rounded px-1.5 py-0.5 ${currentQ.type === 'menjodohkan' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+                            {currentQ.type === 'menjodohkan' ? 'Menjodohkan' : 'Pilihan Ganda'}
+                         </span>
+                      </div>
                       {((currentQ as any).shuffledOptions || []).map((optItem: any, idx: number) => {
                         const displayLabel = ['A', 'B', 'C', 'D', 'E'][idx];
                         const isSelected = answers[currentQ.id!] === optItem.key;

@@ -41,7 +41,7 @@ export interface Question {
   correctAnswer: string;
   weight: number;
   packetName?: string;
-  type?: 'pilihan_ganda' | 'essay';
+  type?: 'pilihan_ganda' | 'isian_singkat' | 'essay' | 'menjodohkan';
   createdAt: number;
 }
 
