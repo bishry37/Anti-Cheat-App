@@ -1549,7 +1549,7 @@ export default function QuestionBank() {
                               </span>
                             )}
                             <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 font-bold uppercase rounded border border-slate-200">
-                              Bobot: {q.weight || 10}
+                              Bobot: {q.weight !== undefined ? Number(q.weight).toFixed(2).replace(/\.00$/, '') : '1'}
                             </span>
                           </div>
                         </div>
