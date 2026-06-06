@@ -42,7 +42,7 @@ export default function QuestionBank() {
     optionD: '',
     optionE: '',
     correctAnswer: 'A',
-    weight: 10,
+    weight: 1,
     type: 'pilihan_ganda'
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -682,13 +682,32 @@ export default function QuestionBank() {
         }
 
         const totalQ = questionsToUpload.length;
-        const autoWeight = 100 / totalQ;
+        const typeUnits: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 3, 'essay': 6 };
+        let totalUnits = 0;
+        questionsToUpload.forEach(q => {
+          totalUnits += typeUnits[q.type] || 1;
+        });
 
-        for (const qData of questionsToUpload) {
+        const unitValue = 100 / totalUnits;
+        let currentWeightSum = 0;
+
+        for (let idx = 0; idx < questionsToUpload.length; idx++) {
+          const qData = questionsToUpload[idx];
           const newDoc = doc(collection(db, 'questions'));
+          
+          let qWeight = (typeUnits[qData.type] || 1) * unitValue;
+          
+          // Adjust last item to ensure total is exactly 100
+          if (idx === questionsToUpload.length - 1) {
+            qWeight = 100 - currentWeightSum;
+          } else {
+            qWeight = Number(qWeight.toFixed(2));
+            currentWeightSum += qWeight;
+          }
+
           batch.set(newDoc, {
             ...qData,
-            weight: Number(autoWeight.toFixed(2)),
+            weight: qWeight,
             createdAt: Date.now()
           });
           count++;
@@ -703,7 +722,7 @@ export default function QuestionBank() {
           await batch.commit();
         }
 
-        const msg = `Berhasil mengimpor ${count} soal ke dalam template "${templateName}". Setiap soal diberi bobot otomatis @${autoWeight.toFixed(2)} agar total skor maksimal 100.`;
+        const msg = `Berhasil mengimpor ${count} soal ke dalam template "${templateName}". Bobot setiap soal telah disesuaikan secara otomatis berdasarkan tingkat kesulitan (Essay > Isian Singkat > Pilihan Ganda) dengan total skor maksimal setara 100.`;
         showCustomAlert('Berhasil Impor', msg, true);
         setSelectedTemplateFilter(templateName.trim());
         fetchQuestions();
@@ -919,7 +938,7 @@ export default function QuestionBank() {
         optionD: '',
         optionE: '',
         correctAnswer: 'A',
-        weight: 10,
+        weight: 1,
         type: 'pilihan_ganda'
       });
       fetchQuestions();
@@ -958,12 +977,12 @@ export default function QuestionBank() {
     const total = questions.reduce((acc, q) => acc + (q.weight || 0), 0);
     if (total !== 100) {
       showCustomAlert(
-        'Bobot Tidak Seimbang', 
-        `Total bobot soal saat ini adalah ${total}. Kami menyarankan total bobot adalah 100 agar nilai maksimal siswa adalah 100. Silakan periksa kembali bobot tiap soal.`,
+        'Bobot Saat Ini', 
+        `Total bobot soal saat ini adalah ${total.toFixed(2)}. Sistem akan tetap menghitung nilai siswa dalam skala 100 dengan rumus (skor/total_bobot * 100). Namun, kami menyarankan total bobot 100 untuk transparansi penilaian yang lebih mudah.`,
         false
       );
     } else {
-      showCustomAlert('Sempurna', 'Total bobot soal sudah bernilai 100. Data perubahan telah tersimpan di server.', true);
+      showCustomAlert('Sempurna', 'Total bobot soal sudah bernilai 100. Penilaian Anda kini sangat proporsional.', true);
       setIsDirty(false);
     }
   };
@@ -1222,9 +1241,11 @@ export default function QuestionBank() {
                         value={addingData.type || 'pilihan_ganda'}
                         onChange={e => {
                           const val = e.target.value as any;
+                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 3, 'essay': 6, 'menjodohkan': 1 };
                           setAddingData({ 
                             ...addingData, 
                             type: val,
+                            weight: weightUnits[val] || 1,
                             correctAnswer: (val === 'pilihan_ganda' || val === 'menjodohkan') ? 'A' : '' 
                           });
                         }}
@@ -1383,9 +1404,11 @@ export default function QuestionBank() {
                               value={editingData.type || 'pilihan_ganda'}
                               onChange={e => {
                                 const val = e.target.value as any;
+                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 3, 'essay': 6, 'menjodohkan': 1 };
                                 setEditingData({ 
                                   ...editingData, 
                                   type: val,
+                                  weight: weightUnits[val] || 1,
                                   correctAnswer: (val === 'pilihan_ganda' || val === 'menjodohkan') ? 'A' : '' 
                                 });
                               }}
