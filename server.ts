@@ -23,9 +23,21 @@ async function startServer() {
   });
 
   // API Routes
+  app.get("/api/ai/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      env: process.env.NODE_ENV,
+      hasKey: !!process.env.GEMINI_API_KEY 
+    });
+  });
+
   app.post("/api/ai/grade", async (req, res) => {
     try {
       const { question, studentAnswer, referenceAnswer, type } = req.body;
+
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(500).json({ error: "GEMINI_API_KEY tidak ditemukan di environment. Silakan cek Settings > Secrets." });
+      }
 
       if (!question || !studentAnswer) {
         return res.status(400).json({ error: "Missing required fields" });

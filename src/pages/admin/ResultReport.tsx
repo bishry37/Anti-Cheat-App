@@ -95,17 +95,18 @@ export default function ResultReport() {
         })
       });
       const data = await resp.json();
-      if (data.score !== undefined) {
+      if (resp.ok && data.score !== undefined) {
         const weight = q.weight || 10;
         const calculatedScore = Math.round(data.score * weight * 2) / 2; // round to nearest 0.5
         setEditingScores(prev => ({ ...prev, [q.id!]: calculatedScore }));
         showToast(`AI: ${data.feedback}`);
       } else {
-        showToast('Koreksi AI gagal mendapatkan hasil yang valid.');
+        const errMsg = data.error || data.details || 'Koreksi AI gagal mendapatkan hasil yang valid.';
+        showToast(errMsg);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showToast('Gagal terhubung ke layanan AI.');
+      showToast('Gagal terhubung ke layanan: ' + (err.message || 'Cek koneksi internet Anda'));
     }
     setGradingAIId(null);
   };
