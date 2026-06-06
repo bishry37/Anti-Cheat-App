@@ -318,8 +318,8 @@ export default function QuestionBank() {
       // 2. PILIHAN GANDA TABLE (Table 1)
       const mcqHeader = new TableRow({
         children: [
-          createCell("No", true, "e0f2fe", 5),
-          createCell("Soal / Pertanyaan", true, "e0f2fe", 25),
+          createCell("No", true, "e0f2fe", 10),
+          createCell("Soal / Pertanyaan", true, "e0f2fe", 30),
           createCell("Jenis Soal", true, "e0f2fe", 10),
           createCell("Pilihan A", true, "e0f2fe", 10),
           createCell("Pilihan B", true, "e0f2fe", 10),
@@ -327,7 +327,6 @@ export default function QuestionBank() {
           createCell("Pilihan D", true, "e0f2fe", 10),
           createCell("Pilihan E", true, "e0f2fe", 10),
           createCell("Kunci Jawaban", true, "e0f2fe", 10),
-          createCell("Bobot", true, "e0f2fe", 5),
         ]
       });
 
@@ -342,7 +341,6 @@ export default function QuestionBank() {
           createCell("IKN", false),
           createCell("Samarinda", false),
           createCell("A", false),
-          createCell("10", false),
         ]
       });
 
@@ -354,11 +352,10 @@ export default function QuestionBank() {
       // 3. ISIAN SINGKAT TABLE (Table 2)
       const shortHeader = new TableRow({
         children: [
-          createCell("No", true, "fef3c7", 5),
-          createCell("Soal / Pertanyaan", true, "fef3c7", 55),
+          createCell("No", true, "fef3c7", 10),
+          createCell("Soal / Pertanyaan", true, "fef3c7", 60),
           createCell("Jenis Soal", true, "fef3c7", 10),
           createCell("Kunci Jawaban", true, "fef3c7", 20),
-          createCell("Bobot", true, "fef3c7", 10),
         ]
       });
 
@@ -368,7 +365,6 @@ export default function QuestionBank() {
           createCell("Gas apa yang paling banyak terkandung di atmosfer bumi?", false),
           createCell("2", false),
           createCell("Nitrogen", false),
-          createCell("10", false),
         ]
       });
 
@@ -380,11 +376,10 @@ export default function QuestionBank() {
       // 4. PARAGRAF / ESSAY TABLE (Table 3)
       const essayHeader = new TableRow({
         children: [
-          createCell("No", true, "f3e8ff", 5),
-          createCell("Soal / Pertanyaan", true, "f3e8ff", 55),
+          createCell("No", true, "f3e8ff", 10),
+          createCell("Soal / Pertanyaan", true, "f3e8ff", 60),
           createCell("Jenis Soal", true, "f3e8ff", 10),
           createCell("Kunci Jawaban (Pedoman)", true, "f3e8ff", 20),
-          createCell("Bobot", true, "f3e8ff", 10),
         ]
       });
 
@@ -394,7 +389,6 @@ export default function QuestionBank() {
           createCell("Jelaskan pengertian ekologi laut dan berikan 2 contoh ekosistemnya!", false),
           createCell("3", false),
           createCell("Ekologi laut adalah studi hubungan organisme dengan lingkungan laut. Contoh: Terumbu karang dan Padang lamun.", false),
-          createCell("10", false),
         ]
       });
 
@@ -406,16 +400,15 @@ export default function QuestionBank() {
       // 5. MENJODOHKAN TABLE (Table 4)
       const matchHeader = new TableRow({
         children: [
-          createCell("No", true, "dcfce7", 5),
+          createCell("No", true, "dcfce7", 10),
           createCell("Soal / Premis (Kiri)", true, "dcfce7", 25),
           createCell("Jenis Soal", true, "dcfce7", 10),
-          createCell("Opsi A (Kanan)", true, "dcfce7", 10),
-          createCell("Opsi B (Kanan)", true, "dcfce7", 10),
-          createCell("Opsi C (Kanan)", true, "dcfce7", 10),
-          createCell("Opsi D (Kanan)", true, "dcfce7", 10),
-          createCell("Opsi E (Kanan)", true, "dcfce7", 10),
+          createCell("Opsi A (Kanan)", true, "dcfce7", 11),
+          createCell("Opsi B (Kanan)", true, "dcfce7", 11),
+          createCell("Opsi C (Kanan)", true, "dcfce7", 11),
+          createCell("Opsi D (Kanan)", true, "dcfce7", 11),
+          createCell("Opsi E (Kanan)", true, "dcfce7", 11),
           createCell("Kunci Jawaban (Abjad)", true, "dcfce7", 10),
-          createCell("Bobot", true, "dcfce7", 5),
         ]
       });
 
@@ -430,7 +423,6 @@ export default function QuestionBank() {
           createCell("Reptil", false),
           createCell("Amfibi", false),
           createCell("A", false),
-          createCell("10", false),
         ]
       });
 
