@@ -16,11 +16,21 @@ export default function Home() {
   const codeFromUrl = searchParams.get('c');
   const hasStudentLink = !!(examIdFromUrl || codeFromUrl);
 
-  const { user, isAdmin, loginAsStudent, resetPassword, checkEmailExists } = useAuth();
+  const { user, isAdmin, loginAsStudent, resetPassword, checkEmailExists, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'student' | 'admin' | 'forgot_password'>('student');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Always force logout when visiting the root login page 
+  // to ensure a fresh session and default to student portal.
+  useEffect(() => {
+    // If they did not just sign in and they hit the landing page, 
+    // force clean their session so they really are logged out.
+    if (!sessionStorage.getItem('just_logged_in_admin') && !sessionStorage.getItem('just_logged_in_student')) {
+      logout().catch(console.error);
+    }
+  }, []);
 
   // Data
   const [setting, setSetting] = useState<Setting | null>(null);
@@ -44,15 +54,18 @@ export default function Home() {
   const [linkedSubjectName, setLinkedSubjectName] = useState<string>('');
 
   useEffect(() => {
-    // Only redirect if we haven't manually disabled auto-redirect in this tab
-    if (user && !isLoggingInStudent && !sessionStorage.getItem('skip_auto_redirect')) {
-      if (isAdmin) {
-        navigate('/admin');
-      } else {
-        navigate('/exam');
-      }
+    // Only navigate to admin if we just explicitly logged in during this session
+    if (user && isAdmin && sessionStorage.getItem('just_logged_in_admin') === 'true') {
+      sessionStorage.removeItem('just_logged_in_admin');
+      navigate('/admin');
     }
-  }, [user, isAdmin, navigate, isLoggingInStudent]);
+    
+    // Only navigate to exam if student explicitly logged in
+    if (user && !isAdmin && sessionStorage.getItem('just_logged_in_student') === 'true') {
+      sessionStorage.removeItem('just_logged_in_student');
+      navigate('/exam');
+    }
+  }, [user, isAdmin, navigate]);
 
   useEffect(() => {
     let unsubSettings: () => void;
@@ -209,8 +222,10 @@ export default function Home() {
     setLoading(true);
     setErrorMessage('');
     try {
+      sessionStorage.setItem('just_logged_in_admin', 'true');
       await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
-      // Let onAuthStateChanged handle navigation
+      // Removed immediate navigate('/admin') to avoid race conditions. 
+      // The useEffect observing user + isAdmin state will handle navigation.
     } catch (error: any) {
       console.error(error);
       setErrorMessage('Email atau Password salah.');
@@ -364,8 +379,10 @@ export default function Home() {
 
       await setDoc(doc(db, 'student_sessions', uid), sessionData);
 
+      sessionStorage.setItem('just_logged_in_student', 'true');
       setIsLoggingInStudent(false);
-      navigate('/exam');
+      // Removed immediate navigate('/exam'); 
+      // The useEffect observing user will smoothly navigate to /exam safely.
     } catch (err: any) {
       setErrorMessage(err.message || 'Gagal memulai ujian.');
       setIsLoggingInStudent(false);
@@ -398,30 +415,7 @@ export default function Home() {
           </p>
         </div>
 
-        {user && !sessionStorage.getItem('skip_auto_redirect') && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-xl text-center">
-                <p className="text-sm font-semibold text-slate-800">Anda sudah login sebagai {isAdmin ? 'Admin' : 'Siswa'}.</p>
-                <div className="flex flex-col gap-2 mt-3">
-                <button 
-                onClick={() => {
-                    sessionStorage.setItem('skip_auto_redirect', 'true');
-                    navigate(isAdmin ? '/admin' : '/exam');
-                }}
-                className="text-xs font-bold text-blue-600 hover:underline"
-                >
-                Lanjut ke Dashboard
-                </button>
-                <button 
-                onClick={() => {
-                    sessionStorage.setItem('skip_auto_redirect', 'true');
-                }}
-                className="text-xs font-bold text-slate-500 hover:underline"
-                >
-                Tetap di halaman ini
-                </button>
-                </div>
-            </div>
-        )}
+        {/* Admin Login Box Removed */}
 
         {errorMessage && (
           <div className="mb-6 p-3.5 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm justify-center flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
