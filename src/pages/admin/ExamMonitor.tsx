@@ -525,9 +525,9 @@ export default function ExamMonitor() {
                                 const isAll = ansLen >= total && total > 0;
                                 return (
                                   <div className="flex flex-col items-center">
-                                    <CheckCircle2 className={`w-4 h-4 mb-0.5 ${isAll ? 'text-blue-500' : 'text-orange-400'}`} />
-                                    <span className={`text-[9px] font-black uppercase tracking-tighter ${isAll ? 'text-blue-600' : 'text-orange-600'}`}>
-                                      {isAll ? 'Selesai Semua' : 'Selesai (Parsial)'}
+                                    <CheckCircle2 className={`w-4 h-4 mb-0.5 ${isAll ? 'text-emerald-500' : 'text-amber-500'}`} />
+                                    <span className={`text-[9px] font-black uppercase tracking-tighter ${isAll ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                      {isAll ? 'Selesai' : 'Selesai (Parsial)'}
                                     </span>
                                   </div>
                                 );

@@ -129,7 +129,7 @@ export default function StudentExam() {
     const score = totalWeight > 0 ? (pointsEarned / totalWeight) * 100 : 0;
 
     // Set local session state status to Complete instantly for fast UI feedback
-    setSession(prev => prev ? { ...prev, status: 'Selesai' } : null);
+    setSession(prev => prev ? { ...prev, status: 'Selesai', score, correctCount: correct, wrongCount: wrong } : null);
 
     try {
       await updateDoc(doc(db, 'student_sessions', user!.uid), {
@@ -609,6 +609,27 @@ export default function StudentExam() {
               ? 'Sesi ujian Anda telah dihentikan oleh pengawas karena terdeteksi adanya pelanggaran tata tertib ujian.' 
               : 'Terima kasih, pengerjaan ujian Anda telah selesai dan seluruh jawaban Anda telah berhasil disimpan secara aman di server.'}
           </p>
+
+          {session.status === 'Selesai' && exam.showScoreToStudent && (
+            <div className="mb-6 bg-slate-50 rounded-xl p-5 border border-slate-200/60 text-center animate-in zoom-in-95 duration-300">
+              <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5 font-sans">
+                Skor Akhir Anda
+              </div>
+              <div className="text-5xl font-black text-blue-600 font-mono tracking-tight">
+                {session.score !== undefined ? (typeof session.score === 'number' ? session.score.toFixed(1) : parseFloat(session.score).toFixed(1)) : '0.0'}
+              </div>
+              <div className="flex items-center justify-center gap-5 mt-4 pt-4 border-t border-slate-200 text-xs font-bold text-slate-600">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200"></span>
+                  <span>Benar: {session.correctCount ?? 0}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm shadow-amber-200"></span>
+                  <span>Salah: {session.wrongCount ?? 0}</span>
+                </div>
+              </div>
+            </div>
+          )}
           <button onClick={async () => { await logout(); navigate('/'); }} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors w-full">
             Kembali ke Beranda
           </button>

@@ -64,6 +64,7 @@ export interface Exam {
   targetClass?: string;
   shortCode?: string;
   randomizeQuestions?: boolean;
+  showScoreToStudent?: boolean;
 }
 
 export interface StudentSession {

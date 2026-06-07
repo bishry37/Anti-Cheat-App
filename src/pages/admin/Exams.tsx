@@ -56,7 +56,8 @@ export default function Exams() {
     isActive: false,
     activeToken: '',
     autoResetInterval: 'manual',
-    randomizeQuestions: false
+    randomizeQuestions: false,
+    showScoreToStudent: false
   });
 
   useEffect(() => {
@@ -290,7 +291,8 @@ export default function Exams() {
       activeToken: generateToken(),
       autoResetInterval: 'manual',
       targetClass: '',
-      randomizeQuestions: false
+      randomizeQuestions: false,
+      showScoreToStudent: false
     });
   };
 
@@ -471,10 +473,18 @@ export default function Exams() {
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      <label className="relative inline-flex items-center cursor-pointer">
+                      <label className="relative inline-flex items-center cursor-pointer font-sans select-none">
                         <input type="checkbox" className="sr-only peer" checked={formData.randomizeQuestions || false} onChange={e => setFormData({...formData, randomizeQuestions: e.target.checked})} />
                         <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
                         <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Acak Urutan Soal</span>
+                      </label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <label className="relative inline-flex items-center cursor-pointer font-sans select-none">
+                        <input type="checkbox" className="sr-only peer" checked={formData.showScoreToStudent || false} onChange={e => setFormData({...formData, showScoreToStudent: e.target.checked})} />
+                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                        <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Izinkan Siswa Melihat Skor Akhir</span>
                       </label>
                     </div>
                   </div>
@@ -522,7 +532,7 @@ export default function Exams() {
                 <th className="px-4 py-3">Kelas</th>
                 <th className="px-4 py-3">Mata Pelajaran</th>
                 <th className="px-4 py-3">File Soal</th>
-                <th className="px-4 py-3">Urutan Soal</th>
+                <th className="px-4 py-3">Konfigurasi</th>
                 <th className="px-4 py-3">Jadwal</th>
                 <th className="px-4 py-3">Token</th>
                 <th className="px-4 py-3 text-center">Status</th>
@@ -573,15 +583,26 @@ export default function Exams() {
                       )}
                     </td>
                     <td className="px-4 py-4">
-                      {exam.randomizeQuestions ? (
-                        <span className="inline-flex items-center text-[10px] font-black text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                          Acak Soal
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                          Berurutan
-                        </span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {exam.randomizeQuestions ? (
+                          <span className="inline-flex items-center w-max text-[9px] font-black text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded uppercase tracking-wider">
+                            Acak Soal
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center w-max text-[9px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded uppercase tracking-wider">
+                            Berurutan
+                          </span>
+                        )}
+                        {exam.showScoreToStudent ? (
+                          <span className="inline-flex items-center w-max text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded uppercase tracking-wider" title="Siswa dapat melihat skor akhir setelah kirim">
+                            Skor Terbuka
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center w-max text-[9px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded uppercase tracking-wider" title="Skor disembunyikan dari siswa">
+                            Skor Ditutup
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-4 text-xs text-slate-600 font-medium">
                       <div className="flex items-center mb-1 text-slate-700 font-semibold">
