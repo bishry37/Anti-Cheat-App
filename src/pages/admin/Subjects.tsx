@@ -31,7 +31,7 @@ export default function Subjects() {
       const q = query(collection(db, 'subjects'), where('adminId', '==', user.uid));
       const snap = await getDocs(q);
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
-      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setSubjects(list);
     } catch (err) {
       console.error(err);

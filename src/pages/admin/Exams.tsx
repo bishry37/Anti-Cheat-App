@@ -173,7 +173,7 @@ export default function Exams() {
       const subQ = query(collection(db, 'subjects'), where('adminId', '==', user.uid));
       const subSnap = await getDocs(subQ);
       const subList = subSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Subject));
-      subList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      subList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setSubjects(subList);
 
       const classQ = query(collection(db, 'classes'), where('adminId', '==', user.uid));
