@@ -110,15 +110,38 @@ export default function ExamMonitor() {
     });
   }, [user]);
 
-  const filteredSessions = sessions.filter(s => {
-    if (showAllMode) return true;
-    if (filterClass && s.className !== filterClass) return false;
-    if (filterExam && s.examId !== filterExam) return false;
-    // If not in showAllMode and no filters selected, we won't show the table anyway, 
-    // but this helps keep the state consistent
-    if (!filterClass && !filterExam) return false;
-    return true;
-  });
+  const filteredSessions = sessions
+    .filter(s => {
+      if (showAllMode) return true;
+      if (filterClass && s.className !== filterClass) return false;
+      if (filterExam && s.examId !== filterExam) return false;
+      if (!filterClass && !filterExam) return false;
+      return true;
+    })
+    .reduce((acc: StudentSession[], current) => {
+      // Deduplicate by Name + ExamID to handle students logging in again after clearing cache/restoration
+      const key = `${current.studentName}_${current.examId}`;
+      const existingIdx = acc.findIndex(s => `${s.studentName}_${s.examId}` === key);
+      
+      if (existingIdx === -1) {
+        acc.push(current);
+      } else {
+        const existing = acc[existingIdx];
+        // Give priority to status and then activity time
+        const getPriority = (status: string) => {
+          if (status === 'Aktif') return 3;
+          if (status === 'Selesai') return 2;
+          return 1;
+        };
+        
+        if (getPriority(current.status) > getPriority(existing.status)) {
+          acc[existingIdx] = current;
+        } else if (getPriority(current.status) === getPriority(existing.status) && (current.lastActivity || 0) > (existing.lastActivity || 0)) {
+          acc[existingIdx] = current;
+        }
+      }
+      return acc;
+    }, []);
 
   const openMonitor = async (session: StudentSession) => {
     setSelectedSession(session);
@@ -494,21 +517,48 @@ export default function ExamMonitor() {
                           <td className="px-6 py-4 text-center">
                              <div className="flex items-center justify-center gap-2">
                                 {s.status === 'Didiskualifikasi' && (
-                                  <button onClick={() => triggerRestore(s)} className="h-8 px-4 flex items-center justify-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 border-none rounded-lg transition-all shadow-lg shadow-emerald-100 group animate-in slide-in-from-right-4 duration-300" title="Pulihkan akses pengerjaan murid">
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      triggerRestore(s);
+                                    }} 
+                                    className="h-8 px-4 flex items-center justify-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 border-none rounded-lg transition-all shadow-lg shadow-emerald-100 group animate-in slide-in-from-right-4 duration-300" 
+                                    title="Pulihkan akses pengerjaan murid"
+                                  >
                                     <Play className="w-3 h-3 fill-current" />
                                     <span className="text-[10px] font-black uppercase tracking-widest leading-none">Teruskan</span>
                                   </button>
                                 )}
                                 <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
-                                  <button onClick={() => openMonitor(s)} className="h-7 w-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all" title="Detail Monitor">
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openMonitor(s);
+                                    }} 
+                                    className="h-7 w-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all" 
+                                    title="Detail Monitor"
+                                  >
                                     <Eye className="w-4 h-4" />
                                   </button>
                                   {s.status !== 'Selesai' && s.status !== 'Didiskualifikasi' ? (
-                                    <button onClick={() => triggerWarning(s)} className={`h-7 px-2.5 rounded-md text-[9px] font-black uppercase tracking-tight transition-all ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        triggerWarning(s);
+                                      }} 
+                                      className={`h-7 px-2.5 rounded-md text-[9px] font-black uppercase tracking-tight transition-all ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
+                                    >
                                       Tegur
                                     </button>
                                   ) : (
-                                    <button onClick={() => triggerDelete(s.id!, s.studentName)} className="h-7 w-7 flex items-center justify-center text-red-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all" title="Hapus Sesi">
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        triggerDelete(s.id!, s.studentName);
+                                      }} 
+                                      className="h-7 w-7 flex items-center justify-center text-red-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all" 
+                                      title="Hapus Sesi"
+                                    >
                                       <Trash2 className="w-4 h-4" />
                                     </button>
                                   )}

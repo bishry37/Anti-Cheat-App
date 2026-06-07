@@ -253,12 +253,13 @@ export default function Home() {
       return;
     }
 
-    // Validate credentials against active exams
     const upperName = studentName.trim().toUpperCase();
-    const matchingExamByToken = Array.isArray(activeExams) ? activeExams.find(ex => ex.activeToken === examToken) : undefined;
+    
+    // Find exam by token first - important to handle case insensitive token entry
+    const matchingExamByToken = Array.isArray(activeExams) ? activeExams.find(ex => ex.activeToken.toUpperCase() === examToken.trim().toUpperCase()) : undefined;
 
     if (!matchingExamByToken) {
-      setErrorMessage('Token ujian salah atau ujian tidak tersedia. Pastikan token yang Anda masukkan benar.');
+      setErrorMessage('Token ujian salah atau tidak valid. Silakan hubungi pengawas.');
       return;
     }
 
@@ -449,8 +450,8 @@ export default function Home() {
                       type="text" 
                       value={studentName}
                       onChange={(e) => setStudentName(e.target.value.toUpperCase())}
-                      placeholder="Tulis nama lengkap anda"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all focus:bg-white text-sm"
+                      placeholder="CONTOH: BUDI SETIAWAN"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all focus:bg-white text-sm font-bold placeholder:font-normal"
                       required
                     />
                   </div>
