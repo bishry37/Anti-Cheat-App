@@ -7,7 +7,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Setting, Subject, Exam, StudentSession } from '../types';
 import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import brandLogo from '../assets/images/cheating.jpg';
+import brandLogo from '../assets/images/logo.jpg';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -385,16 +385,16 @@ export default function Home() {
           <div className="w-28 h-28 bg-white border border-slate-200 shadow-xl rounded-[1.75rem] p-1 flex items-center justify-center mb-5 overflow-hidden">
             <img 
               src={brandLogo} 
-              alt="ANTI CHEATING APP" 
+              alt="ANTI CHEAT APP" 
               className="w-full h-full object-contain scale-125" 
               referrerPolicy="no-referrer"
             />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tighter text-slate-900 uppercase">
-            ANTI CHEATING APP
+            ANTI CHEAT APP
           </h1>
           <p className="text-slate-500 mt-2 text-[11px] px-4 font-bold uppercase tracking-wider opacity-60">
-            {setting?.schoolSlogan || 'Sistem Ujian Online dengan Integritas Real-time'}
+            {setting?.schoolSlogan || 'Secure Online Examination System'}
           </p>
         </div>
 

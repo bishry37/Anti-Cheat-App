@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { Setting } from '../../types';
-import brandLogo from '../../assets/images/cheating.jpg';
+import brandLogo from '../../assets/images/logo.jpg';
 import ChangePasswordModal from '../auth/ChangePasswordModal';
 
 export default function AdminLayout() {
