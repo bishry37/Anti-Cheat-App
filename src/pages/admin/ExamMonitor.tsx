@@ -229,8 +229,10 @@ export default function ExamMonitor() {
       try {
         await updateDoc(doc(db, 'student_sessions', session.id!), {
           status: 'Aktif',
+          violationsCount: 0, // Reset violations on restore
           endTime: null,
-          wasDisqualified: true // Keep true to show they were previously disqualified
+          wasDisqualified: true, // Keep true for history
+          lastActivity: 0 // Reset activity to force "Waiting for Login" status UI
         });
         showToast('Murid diizinkan melanjutkan ujian');
       } catch (err) {
@@ -391,31 +393,35 @@ export default function ExamMonitor() {
                 <thead>
                   <tr className="bg-white text-slate-400 text-[10px] uppercase font-black tracking-widest border-b border-slate-100 sticky top-0 z-10">
                     <th className="px-6 py-4 w-12 text-center">No</th>
-                    <th className="px-4 py-4">Peserta & Identitas</th>
+                    <th className="px-4 py-4">Peserta</th>
+                    <th className="px-4 py-4 text-center">Kelas</th>
                     <th className="px-4 py-4">Data Ujian</th>
                     <th className="px-4 py-4 text-center">Status Keamanan</th>
                     <th className="px-4 py-4 text-center">Progres Status</th>
-                    <th className="px-6 py-4 text-right">Aksi</th>
+                    <th className="px-6 py-4 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="text-xs">
                   {filteredSessions.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-24 text-center bg-slate-50/20">
+                      <td colSpan={7} className="px-4 py-24 text-center bg-slate-50/20">
                         <p className="font-bold text-slate-300 uppercase tracking-widest text-[11px]">No active candidates in this scope</p>
                       </td>
                     </tr>
                   ) : (
                     filteredSessions.map((s, idx) => {
                       const isWarning = s.violationsCount > 0 && s.status === 'Aktif';
-                      const isOffline = (Date.now() - s.lastActivity) > 60000 && s.status === 'Aktif';
+                      const isOffline = (Date.now() - s.lastActivity) > 60000 && s.status === 'Aktif' && s.lastActivity > 0;
+                      const isWaitingLogin = s.status === 'Aktif' && s.lastActivity === 0;
                       
                       return (
                         <tr key={s.id} className={`group border-b border-slate-50 hover:bg-slate-50 transition-colors ${isWarning ? 'bg-orange-50/50' : ''} ${s.status === 'Melanggar' ? 'bg-red-50/30' : ''}`}>
                           <td className="px-6 py-4 text-center text-slate-300 font-mono text-[11px]">{idx + 1}</td>
                           <td className="px-4 py-4">
-                            <div className="font-bold text-slate-800 text-sm mb-0.5">{s.studentName}</div>
-                            <div className="text-[10px] font-bold text-slate-400 bg-slate-100 inline-block px-1.5 rounded uppercase">Kelas {s.className}</div>
+                            <div className="font-bold text-slate-800 text-sm">{s.studentName}</div>
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            <div className="text-[10px] font-bold text-slate-500 bg-slate-100 inline-block px-1.5 rounded uppercase">{s.className}</div>
                           </td>
                           <td className="px-4 py-4">
                              <div className="font-bold text-slate-600 text-[11px] line-clamp-1 mb-0.5">{exams[s.examId]?.title || 'Unknown Exam'}</div>
@@ -430,7 +436,7 @@ export default function ExamMonitor() {
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-[10px] text-emerald-600 font-black bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-tight">Safe</span>
+                              <span className="text-[10px] text-emerald-600 font-black bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-tight">Normal</span>
                             )}
                           </td>
                           <td className="px-4 py-4 text-center">
@@ -440,6 +446,18 @@ export default function ExamMonitor() {
                                   <div className="flex flex-col items-center">
                                     <ShieldAlert className="w-4 h-4 text-red-600 mb-0.5" />
                                     <span className="text-[9px] font-black text-red-600 uppercase tracking-tighter">Diskualifikasi</span>
+                                  </div>
+                                );
+                              }
+
+                              if (isWaitingLogin) {
+                                return (
+                                  <div className="flex flex-col items-center">
+                                    <Users className="w-4 h-4 text-indigo-400 mb-0.5" />
+                                    <span className="text-[9px] font-black text-indigo-500 uppercase tracking-tighter">Menunggu Login</span>
+                                    {s.wasDisqualified && (
+                                      <span className="text-[7px] text-emerald-500 font-bold uppercase">(Pemulihan Akses)</span>
+                                    )}
                                   </div>
                                 );
                               }
@@ -460,37 +478,41 @@ export default function ExamMonitor() {
 
                               return (
                                 <div className="flex flex-col items-center">
-                                  <Clock3 className="w-4 h-4 text-slate-400 mb-0.5" />
+                                  <Clock3 className={`w-4 h-4 mb-0.5 ${isOffline ? 'text-red-400' : 'text-emerald-400'}`} />
                                   <div className="flex flex-col items-center">
-                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Mengerjakan</span>
+                                    <span className={`text-[9px] font-black uppercase tracking-tighter ${isOffline ? 'text-red-500' : 'text-emerald-500'}`}>
+                                      {isOffline ? 'Terputus' : 'Mengerjakan'}
+                                    </span>
                                     {s.wasDisqualified && (
-                                      <span className="text-[7px] text-red-400 font-bold uppercase">(Pernah Diskualifikasi)</span>
+                                      <span className="text-[7px] text-indigo-500 font-black uppercase tracking-wider bg-indigo-50 px-1 rounded mt-0.5 border border-indigo-100">Izin Lanjutan</span>
                                     )}
                                   </div>
                                 </div>
                               );
                             })()}
                           </td>
-                          <td className="px-6 py-4 text-right">
-                             <div className="flex items-center justify-end gap-2">
+                          <td className="px-6 py-4 text-center">
+                             <div className="flex items-center justify-center gap-2">
                                 {s.status === 'Didiskualifikasi' && (
-                                  <button onClick={() => triggerRestore(s)} className="h-8 px-3 flex items-center justify-center gap-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100 rounded-lg transition-all shadow-sm group" title="Izinkan Murid Melanjutkan">
-                                    <Play className="w-3.5 h-3.5" />
-                                    <span className="text-[10px] font-black uppercase tracking-tight">Teruskan</span>
+                                  <button onClick={() => triggerRestore(s)} className="h-8 px-4 flex items-center justify-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 border-none rounded-lg transition-all shadow-lg shadow-emerald-100 group animate-in slide-in-from-right-4 duration-300" title="Izinkan Murid Melanjutkan">
+                                    <Play className="w-3 h-3 fill-current" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Teruskan</span>
                                   </button>
                                 )}
-                                <button onClick={() => openMonitor(s)} className="h-8 w-8 flex items-center justify-center bg-white text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-lg transition-all shadow-sm" title="Monitoring Detail">
-                                  <Eye className="w-4 h-4" />
-                                </button>
-                                {s.status !== 'Selesai' && s.status !== 'Didiskualifikasi' ? (
-                                  <button onClick={() => triggerWarning(s)} className={`h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all border ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white border-red-700 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-800'}`}>
-                                    Tegur
+                                <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
+                                  <button onClick={() => openMonitor(s)} className="h-7 w-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all" title="Monitoring Detail">
+                                    <Eye className="w-4 h-4" />
                                   </button>
-                                ) : (
-                                  <button onClick={() => triggerDelete(s.id!, s.studentName)} className="h-8 w-8 flex items-center justify-center bg-red-50 text-red-500 hover:bg-red-100 border border-red-100 rounded-lg transition-all" title="Hapus">
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
+                                  {s.status !== 'Selesai' && s.status !== 'Didiskualifikasi' ? (
+                                    <button onClick={() => triggerWarning(s)} className={`h-7 px-2.5 rounded-md text-[9px] font-black uppercase tracking-tight transition-all ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
+                                      Tegur
+                                    </button>
+                                  ) : (
+                                    <button onClick={() => triggerDelete(s.id!, s.studentName)} className="h-7 w-7 flex items-center justify-center text-red-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all" title="Hapus">
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
                              </div>
                           </td>
                         </tr>

@@ -272,9 +272,56 @@ export default function Home() {
     try {
       setLoading(true);
       setErrorMessage('');
-      const uid = await loginAsStudent();
 
-      const sessionData: StudentSession = {
+      // Check for an existing session with exact same candidate name and exam
+      const sessionQuery = query(
+        collection(db, 'student_sessions'),
+        where('examId', '==', matchingExam.id),
+        where('studentName', '==', studentName),
+        where('adminId', '==', matchingExam.adminId)
+      );
+      
+      const sessionSnap = await getDocs(sessionQuery);
+      let targetUid = '';
+      let isResume = false;
+      let existingSessionData: StudentSession | null = null;
+
+      if (!sessionSnap.empty) {
+        const docSnap = sessionSnap.docs[0];
+        existingSessionData = docSnap.data() as StudentSession;
+        targetUid = docSnap.id;
+        isResume = true;
+
+        // Validation for resuming
+        if (existingSessionData.status === 'Selesai') {
+          setErrorMessage('Anda sudah menyelesaikan ujian ini sebelumnya.');
+          setLoading(false);
+          return;
+        }
+
+        if (existingSessionData.status === 'Didiskualifikasi') {
+          setErrorMessage('Akun Anda telah didiskualifikasi dari ujian ini.');
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Login to Firebase (Anonymous)
+      const uid = await loginAsStudent();
+      
+      // If we found an existing session but the current auth UID is different,
+      // we'll update the record to use the current UID or simply continue using the old document ID 
+      // if we want to preserve answers.
+      // Better: Use the name+exam as the basis. 
+      // For simplicity and preventing duplicates, we will write to the found targetUid if it exists.
+      const sessionDocId = isResume ? targetUid : uid;
+
+      const sessionData: StudentSession = isResume ? {
+        ...existingSessionData!,
+        status: 'Aktif',
+        lastActivity: Date.now(),
+        token: examToken // update token in case it changed
+      } : {
         studentName,
         className: matchingExam.targetClass || 'Tidak Diketahui',
         examId: matchingExam.id!,
@@ -287,7 +334,7 @@ export default function Home() {
         adminId: matchingExam.adminId
       };
 
-      await setDoc(doc(db, 'student_sessions', uid), sessionData);
+      await setDoc(doc(db, 'student_sessions', sessionDocId), sessionData);
 
       // Now it will redirect naturally via useEffect.
     } catch (err: any) {
