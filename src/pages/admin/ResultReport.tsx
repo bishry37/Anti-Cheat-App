@@ -204,7 +204,7 @@ export default function ResultReport() {
     try {
       const snap = await getDocs(query(collection(db, 'classes'), where('adminId', '==', user.uid)));
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Class));
-      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setClassesData(list);
     } catch (e) {
       console.error(e);

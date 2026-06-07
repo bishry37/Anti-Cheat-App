@@ -179,7 +179,7 @@ export default function Exams() {
       const classQ = query(collection(db, 'classes'), where('adminId', '==', user.uid));
       const classSnap = await getDocs(classQ);
       const classList = classSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Class));
-      classList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      classList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setClassesData(classList);
     } catch (err) {
       console.error(err);

@@ -142,7 +142,7 @@ export default function ExamMonitor() {
         setSubjects(subMap);
 
         const clsList = clsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Class));
-        clsList.sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+        clsList.sort((a,b) => (a.createdAt || 0) - (b.createdAt || 0));
         setClassesData(clsList);
 
         if (setSnap && setSnap.exists()) {
