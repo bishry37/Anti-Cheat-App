@@ -46,6 +46,71 @@ export default function ExamMonitor() {
     candidateName: ''
   });
 
+  // A global timer ticker to update remaining time on display dynamically every second
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const [durationModal, setDurationModal] = useState<{
+    isOpen: boolean;
+    mode: 'individual' | 'mass';
+    studentSession?: StudentSession;
+    className?: string;
+    newDuration: number;
+  }>({
+    isOpen: false,
+    mode: 'individual',
+    newDuration: 90
+  });
+
+  const handleSaveDuration = async () => {
+    const { mode, studentSession, className, newDuration } = durationModal;
+    setDurationModal(prev => ({ ...prev, isOpen: false }));
+
+    if (mode === 'individual' && studentSession) {
+      try {
+        await updateDoc(doc(db, 'student_sessions', studentSession.id!), {
+          duration: newDuration
+        });
+        showToast(`Durasi ujian ${studentSession.studentName} diubah menjadi ${newDuration} menit`);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
+      }
+    } else if (mode === 'mass' && className) {
+      try {
+        // Find all active student sessions for this target class and update their durations
+        const activeSessionsInClass = sessions.filter(
+          s => s.className === className && s.status !== 'Selesai' && s.status !== 'Didiskualifikasi'
+        );
+        if (activeSessionsInClass.length === 0) {
+          showToast(`Tidak ada peserta aktif di kelas ${className}`);
+          return;
+        }
+        
+        let successCount = 0;
+        await Promise.all(activeSessionsInClass.map(async (s) => {
+          try {
+            await updateDoc(doc(db, 'student_sessions', s.id!), {
+              duration: newDuration
+            });
+            successCount++;
+          } catch(e) {
+            console.error(`Gagal update durasi ${s.studentName}`, e);
+          }
+        }));
+        
+        showToast(`Berhasil mengubah durasi untuk ${successCount} siswa di kelas ${className} menjadi ${newDuration} menit`);
+      } catch (err) {
+        console.error(err);
+        showToast('Ada kesalahan saat mengubah durasi massal');
+      }
+    }
+  };
+
   useEffect(() => {
     // Fetch static references first
     const fetchRefs = async () => {
@@ -201,7 +266,8 @@ export default function ExamMonitor() {
       try {
         const currentViolations = session.violationsCount || 0;
         const newCount = currentViolations + 1;
-        const willDisqualify = maxViolations > 0 && newCount >= maxViolations;
+        const examMax = typeof exams[session.examId]?.maxViolations === 'number' ? exams[session.examId].maxViolations : maxViolations;
+        const willDisqualify = examMax > 0 && newCount >= examMax;
 
         // 1. Update the student_session document
         await updateDoc(doc(db, 'student_sessions', session.id!), {
@@ -295,6 +361,57 @@ export default function ExamMonitor() {
     }
   };
 
+  const getRemainingTimeDisplay = (s: StudentSession) => {
+    if (s.status === 'Selesai' || s.status === 'Didiskualifikasi') {
+      return <span className="text-slate-400 font-bold">-</span>;
+    }
+    
+    // Total duration in minutes
+    const durationMin = typeof s.duration === 'number' ? s.duration : (exams[s.examId]?.duration || 0);
+    const limitMs = durationMin * 60 * 1000;
+    const elapsedMs = now - s.startTime;
+    const remainingMs = limitMs - elapsedMs;
+    
+    if (remainingMs <= 0) {
+      return <span className="text-red-600 font-black uppercase tracking-tight text-[10px] bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-100">Waktu Habis</span>;
+    }
+    
+    const secs = Math.floor(remainingMs / 1000);
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const sec = secs % 60;
+    
+    let timeStr = '';
+    if (h > 0) {
+      timeStr = `${h}j ${m}m ${sec}s`;
+    } else {
+      timeStr = `${m}m ${sec}s`;
+    }
+    
+    const isCrisis = m < 10 && h === 0; // less than 10 mins remaining
+    return (
+      <div className="flex items-center justify-center space-x-1.5 bg-slate-50 border border-slate-200/60 rounded-lg py-1 px-2.5 max-w-[130px] mx-auto shadow-3xs">
+        <Clock3 className={`w-3.5 h-3.5 shrink-0 ${isCrisis ? 'text-red-500 animate-pulse' : 'text-slate-400'}`} />
+        <div className="flex flex-col items-center">
+          <span className={`font-mono text-[11px] font-black tracking-tight ${isCrisis ? 'text-red-600 animate-pulse' : 'text-slate-700'}`}>
+            {timeStr}
+          </span>
+          <span className="text-[8.5px] text-slate-400 font-medium">dari {durationMin}m</span>
+        </div>
+      </div>
+    );
+  };
+
+  const openIndividualDurationModal = (s: StudentSession) => {
+    const currentDur = typeof s.duration === 'number' ? s.duration : (exams[s.examId]?.duration || 90);
+    setDurationModal({
+      isOpen: true,
+      mode: 'individual',
+      studentSession: s,
+      newDuration: currentDur
+    });
+  };
+
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>;
 
   return (
@@ -370,6 +487,30 @@ export default function ExamMonitor() {
                     ))
                   }
                 </select>
+
+                {filterClass && (
+                  <button 
+                    onClick={() => {
+                      const activeSessionsInClass = sessions.filter(
+                        s => s.className === filterClass && s.status !== 'Selesai' && s.status !== 'Didiskualifikasi'
+                      );
+                      const defaultDur = activeSessionsInClass.length > 0 && typeof activeSessionsInClass[0].duration === 'number' 
+                        ? activeSessionsInClass[0].duration 
+                        : 90;
+                      setDurationModal({
+                        isOpen: true,
+                        mode: 'mass',
+                        className: filterClass,
+                        newDuration: defaultDur
+                      });
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all text-[11px] font-extrabold uppercase shadow-sm cursor-pointer"
+                    title={`Sesuaikan durasi pengerjaan untuk semua siswa kelas ${filterClass}`}
+                  >
+                    <Clock3 className="w-3.5 h-3.5 text-indigo-200" />
+                    <span>Atur Durasi Kelas</span>
+                  </button>
+                )}
              </div>
 
              {(filterClass || filterExam || showAllMode) && (
@@ -432,6 +573,7 @@ export default function ExamMonitor() {
                     <th className="px-4 py-4">Peserta</th>
                     <th className="px-4 py-4 text-center">Kelas</th>
                     <th className="px-4 py-4">Data Ujian</th>
+                    <th className="px-4 py-4 text-center">Sisa Waktu</th>
                     <th className="px-4 py-4 text-center">Status Keamanan</th>
                     <th className="px-4 py-4 text-center">Progres Status</th>
                     <th className="px-6 py-4 text-center">Aksi</th>
@@ -440,7 +582,7 @@ export default function ExamMonitor() {
                 <tbody className="text-xs">
                   {filteredSessions.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-24 text-center bg-slate-50/20">
+                      <td colSpan={8} className="px-4 py-24 text-center bg-slate-50/20">
                         <p className="font-bold text-slate-300 uppercase tracking-widest text-[11px]">No active candidates in this scope</p>
                       </td>
                     </tr>
@@ -462,6 +604,23 @@ export default function ExamMonitor() {
                           <td className="px-4 py-4">
                              <div className="font-bold text-slate-600 text-[11px] line-clamp-1 mb-0.5">{exams[s.examId]?.title || 'Unknown Exam'}</div>
                              <div className="text-[9px] text-slate-400 font-bold uppercase">{subjects[s.subjectId]?.name || 'Unknown Subject'}</div>
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                             <div className="flex items-center justify-center gap-1.5 min-w-[120px]">
+                               {getRemainingTimeDisplay(s)}
+                               {s.status !== 'Selesai' && s.status !== 'Didiskualifikasi' && (
+                                 <button
+                                   onClick={(e) => {
+                                     e.stopPropagation();
+                                     openIndividualDurationModal(s);
+                                   }}
+                                   className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                                   title="Ubah Durasi Murid"
+                                 >
+                                   <Clock3 className="w-3.5 h-3.5" />
+                                 </button>
+                               )}
+                             </div>
                           </td>
                           <td className="px-4 py-4 text-center">
                              <div className="flex flex-col items-center gap-1 justify-center">
@@ -759,6 +918,81 @@ export default function ExamMonitor() {
                 {confirmDialog.type === 'delete' ? 'Hapus' :
                  confirmDialog.type === 'end_exam' ? 'Akhiri' : 
                  confirmDialog.type === 'restore' ? 'Izinkan' : 'Kirim'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Duration Adjustment Modal */}
+      {durationModal.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full border border-slate-100 p-5 flex flex-col animate-in scale-in duration-200">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <Clock3 className="w-5 h-5 animate-pulse" />
+              </div>
+              <div className="text-left">
+                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-tight">
+                  {durationModal.mode === 'individual' ? 'Sesuaikan Durasi Murid' : 'Atur Durasi Massal Kelas'}
+                </h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  {durationModal.mode === 'individual' ? durationModal.studentSession?.studentName : `Kelas ${durationModal.className}`}
+                </p>
+              </div>
+            </div>
+            
+            <p className="text-xs text-slate-500 text-left leading-relaxed mb-4 font-medium">
+              {durationModal.mode === 'individual' 
+                ? `Atur total batas durasi pengerjaan ujian untuk murid ini dalam satuan menit. Perubahan akan langsung aktif secara real time.`
+                : `Atur total batas durasi ujian untuk seluruh siswa aktif di kelas ${durationModal.className}. Perubahan akan langsung aktif secara real time.`
+              }
+            </p>
+
+            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-5 text-center">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Total Durasi Ujian (Menit)</label>
+              <div className="flex items-center justify-center space-x-4">
+                <button 
+                  type="button"
+                  onClick={() => setDurationModal(prev => ({ ...prev, newDuration: Math.max(5, prev.newDuration - 5) }))}
+                  className="w-8 h-8 rounded bg-white hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-sm font-black text-slate-600 active:scale-95 transition-all outline-none cursor-pointer"
+                >
+                  -5
+                </button>
+                <input 
+                  type="number"
+                  min={5}
+                  value={durationModal.newDuration}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 5;
+                    setDurationModal(prev => ({ ...prev, newDuration: val }));
+                  }}
+                  className="w-20 px-2 py-1 bg-white border border-slate-300 rounded text-center text-sm font-bold focus:ring-1 focus:ring-indigo-500 text-slate-800 outline-none"
+                />
+                <button 
+                  type="button"
+                  onClick={() => setDurationModal(prev => ({ ...prev, newDuration: prev.newDuration + 5 }))}
+                  className="w-8 h-8 rounded bg-white hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-sm font-black text-slate-600 active:scale-95 transition-all outline-none cursor-pointer"
+                >
+                  +5
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2 w-full">
+              <button 
+                type="button"
+                onClick={() => setDurationModal(prev => ({ ...prev, isOpen: false }))} 
+                className="flex-1 px-3 py-2 text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button 
+                type="button"
+                onClick={handleSaveDuration} 
+                className="flex-1 px-3 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm cursor-pointer"
+              >
+                Simpan Durasi
               </button>
             </div>
           </div>

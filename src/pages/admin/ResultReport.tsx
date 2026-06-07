@@ -265,6 +265,29 @@ export default function ResultReport() {
   };
 
   const handleExportExcel = () => {
+    const format24hInput = (timestamp: number) => {
+      const d = new Date(timestamp);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const dateStr = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+      const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      return `${dateStr} ${timeStr}`;
+    };
+
+    const getDurationText = (s: StudentSession) => {
+      if (s.status === 'Didiskualifikasi') return '-';
+      if (!s.startTime) return '-';
+      const end = s.endTime || Date.now();
+      const diffMs = end - s.startTime;
+      if (diffMs <= 0) return '0 detik';
+      const totalSecs = Math.floor(diffMs / 1000);
+      const h = Math.floor(totalSecs / 3600);
+      const m = Math.floor((totalSecs % 3600) / 60);
+      const sPart = totalSecs % 60;
+      if (h > 0) return `${h} jam ${m} menit ${sPart} detik`;
+      if (m > 0) return `${m} menit ${sPart} detik`;
+      return `${sPart} detik`;
+    };
+
     const data = sessions.map((s, i) => ({
       No: i + 1,
       NamaSiswa: s.studentName,
@@ -275,14 +298,34 @@ export default function ResultReport() {
       Benar: s.correctCount || 0,
       Salah: s.wrongCount || 0,
       Pelanggaran: s.violationsCount,
-      WaktuMulai: new Date(s.startTime).toLocaleString(),
-      WaktuSelesai: s.endTime ? new Date(s.endTime).toLocaleString() : '-'
+      DurasiKerja: getDurationText(s),
+      WaktuMulai: format24hInput(s.startTime),
+      WaktuSelesai: s.endTime ? format24hInput(s.endTime) : '-'
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Hasil Ujian');
     XLSX.writeFile(wb, `Hasil_Ujian_${new Date().getTime()}.xlsx`);
+  };
+
+  const getDurationDisplay = (s: StudentSession) => {
+    if (s.status === 'Didiskualifikasi') {
+      return '-';
+    }
+    if (!s.startTime) return '-';
+    const end = s.endTime || Date.now();
+    const diffMs = end - s.startTime;
+    if (diffMs <= 0) return '0 detik';
+    
+    const totalSecs = Math.floor(diffMs / 1000);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const sPart = totalSecs % 60;
+    
+    if (h > 0) return `${h} jam ${m} menit ${sPart} detik`;
+    if (m > 0) return `${m} menit ${sPart} detik`;
+    return `${sPart} detik`;
   };
 
   const triggerDelete = (id: string, name: string) => {
@@ -455,6 +498,7 @@ export default function ResultReport() {
                   <th className="px-4 py-2">Ujian</th>
                   <th className="px-4 py-2 text-center">Nilai</th>
                   <th className="px-4 py-2 text-center">Benar/Salah</th>
+                  <th className="px-4 py-2 text-center">Durasi Kerja</th>
                   <th className="px-4 py-2 text-center">Status</th>
                   <th className="px-4 py-2 text-center">Aksi</th>
                 </tr>
@@ -462,14 +506,14 @@ export default function ResultReport() {
               <tbody className="text-xs divide-y divide-slate-50">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
+                    <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
                       <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" />
                       Memuat data...
                     </td>
                   </tr>
                 ) : sessions.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-slate-500 font-bold">
+                    <td colSpan={8} className="px-4 py-12 text-center text-slate-500 font-bold">
                       Belum ada hasil ujian untuk filter ini.
                     </td>
                   </tr>
@@ -493,6 +537,9 @@ export default function ResultReport() {
                       <td className="px-4 py-2.5 text-center">
                         <span className="text-green-600 font-bold bg-green-50 px-1.5 py-0.5 rounded mr-1">{s.correctCount || 0}</span>
                         <span className="text-red-500 font-bold bg-red-50 px-1.5 py-0.5 rounded">{s.wrongCount || 0}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-center text-slate-600 font-bold whitespace-nowrap">
+                        {getDurationDisplay(s)}
                       </td>
                       <td className="px-4 py-2.5 text-center">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${s.status === 'Didiskualifikasi' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>

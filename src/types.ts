@@ -65,6 +65,7 @@ export interface Exam {
   shortCode?: string;
   randomizeQuestions?: boolean;
   showScoreToStudent?: boolean;
+  maxViolations?: number;
 }
 
 export interface StudentSession {
@@ -90,6 +91,7 @@ export interface StudentSession {
   adminWarningTime?: number;
   lastQuestionIndex?: number;
   wasDisqualified?: boolean;
+  duration?: number;
 }
 
 export interface Violation {

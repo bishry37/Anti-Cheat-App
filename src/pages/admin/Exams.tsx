@@ -57,7 +57,8 @@ export default function Exams() {
     activeToken: '',
     autoResetInterval: 'manual',
     randomizeQuestions: false,
-    showScoreToStudent: false
+    showScoreToStudent: false,
+    maxViolations: 3
   });
 
   useEffect(() => {
@@ -292,7 +293,8 @@ export default function Exams() {
       autoResetInterval: 'manual',
       targetClass: '',
       randomizeQuestions: false,
-      showScoreToStudent: false
+      showScoreToStudent: false,
+      maxViolations: 3
     });
   };
 
@@ -460,6 +462,19 @@ export default function Exams() {
                           <option value="60">60 Menit</option>
                         </select>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100/50 mt-1">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Batas Maksimal Pelanggaran *</label>
+                    <div className="flex items-center space-x-3">
+                      <input 
+                        type="number" required min={0}
+                        value={formData.maxViolations !== undefined ? formData.maxViolations : 3}
+                        onChange={e => setFormData({...formData, maxViolations: Number(e.target.value)})}
+                        className="w-20 px-2 py-1 text-xs bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 text-center font-bold"
+                      />
+                      <span className="text-[10px] text-slate-500 font-semibold leading-tight">Ujian dihentikan otomatis bila batas tercapai (gunakan 0 untuk tanpa batas)</span>
                     </div>
                   </div>
 

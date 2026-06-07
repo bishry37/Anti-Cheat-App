@@ -207,8 +207,9 @@ export default function StudentExam() {
           }
           
           // Calculate initial time left
+          const activeDuration = typeof sessData.duration === 'number' ? sessData.duration : exData.duration;
           const elapsed = Math.floor((Date.now() - sessData.startTime) / 1000);
-          const totalSecs = exData.duration * 60;
+          const totalSecs = activeDuration * 60;
           const calculatedTimeLeft = totalSecs - elapsed;
 
           // Fetch questions
@@ -324,27 +325,33 @@ export default function StudentExam() {
 
   // Listen to exam duration changes
   useEffect(() => {
-    if (!session?.examId || !session?.startTime) return;
+    if (!session?.examId) return;
     const unsub = onSnapshot(doc(db, 'exams', session.examId), (docSnap) => {
       if (docSnap.exists()) {
         const exData = docSnap.data() as Exam;
         setExam(exData);
-        // Recalculate time left automatically based on the new duration
-        const elapsed = Math.floor((Date.now() - session.startTime!) / 1000);
-        const totalSecs = exData.duration * 60;
-        const calculatedTimeLeft = totalSecs - elapsed;
-        if (calculatedTimeLeft <= 0) {
-          setTimeLeft(0);
-          setTimeout(() => {
-            submitExam();
-          }, 500);
-        } else {
-          setTimeLeft(calculatedTimeLeft);
-        }
       }
     });
     return () => unsub();
-  }, [session?.examId, session?.startTime, submitExam]);
+  }, [session?.examId]);
+
+  // Recalculate time left whenever session or exam duration changes
+  useEffect(() => {
+    if (!session?.startTime || !exam) return;
+    const activeDuration = typeof session.duration === 'number' ? session.duration : exam.duration;
+    const elapsed = Math.floor((Date.now() - session.startTime) / 1000);
+    const totalSecs = activeDuration * 60;
+    const calculatedTimeLeft = totalSecs - elapsed;
+    
+    if (calculatedTimeLeft <= 0) {
+      setTimeLeft(0);
+      if (session.status !== 'Selesai' && session.status !== 'Didiskualifikasi' && !isSubmittingOrFinished) {
+        submitExam();
+      }
+    } else {
+      setTimeLeft(calculatedTimeLeft);
+    }
+  }, [session?.duration, exam?.duration, session?.startTime, exam, submitExam, isSubmittingOrFinished, session?.status]);
 
   // Anti-Cheat: Listeners
   const isUnloading = useRef(false);
@@ -384,7 +391,7 @@ export default function StudentExam() {
       setTimeout(() => setWarningMessage(''), 5000);
 
       const newCount = (currentSession.violationsCount || 0) + 1;
-      const max = settings?.maxViolations || 3;
+      const max = typeof exam?.maxViolations === 'number' ? exam.maxViolations : (settings?.maxViolations !== undefined ? settings.maxViolations : 3);
       const willDisqualify = max > 0 && newCount >= max;
 
       await addDoc(collection(db, 'violations'), {

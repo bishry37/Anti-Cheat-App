@@ -662,14 +662,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Footer Motivation */}
-      {(setting?.motivationText !== undefined ? setting?.motivationText : 'Kejujuran adalah prestasi yang paling berharga. Kerjakan ujian dengan kemampuan dan integritas terbaikmu.') && (
-        <div className="mt-12 max-w-lg w-full text-center space-y-4 text-slate-500 z-10 flex flex-col items-center">
-          <p className="text-sm leading-relaxed font-serif italic px-6">
-            "{setting?.motivationText !== undefined ? setting?.motivationText : 'Kejujuran adalah prestasi yang paling berharga. Kerjakan ujian dengan kemampuan dan integritas terbaikmu.'}"
-          </p>
-        </div>
-      )}
+
     </div>
   );
 }

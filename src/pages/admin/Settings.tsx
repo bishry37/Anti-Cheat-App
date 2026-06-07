@@ -204,14 +204,17 @@ export default function Settings() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!setting.schoolName) {
-      triggerToast('Nama sekolah wajib diisi.', 'error');
-      return;
-    }
     if (!user) return;
     setSaving(true);
     try {
-      const dataToSave = { ...setting, updatedAt: Date.now(), adminId: user.uid };
+      // If teacher name is empty, fill with user's email address
+      const teacherName = setting.teacherName?.trim() || user.email || '';
+      const dataToSave = { 
+        ...setting, 
+        teacherName,
+        updatedAt: Date.now(), 
+        adminId: user.uid 
+      };
       await setDoc(doc(db, 'settings', SETTINGS_DOC_ID), dataToSave);
       triggerToast('Pengaturan berhasil disimpan.', 'success');
     } catch (err) {
@@ -274,15 +277,14 @@ export default function Settings() {
             </div>
             <div className="p-6 space-y-6 flex-1">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Nama Sekolah *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Nama Sekolah (Opsional)</label>
                 <input
                   type="text"
                   name="schoolName"
-                  value={setting.schoolName}
+                  value={setting.schoolName || ''}
                   onChange={handleChange}
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm font-medium placeholder-slate-400"
                   placeholder="Contoh: SMA Negeri 1 Jakarta"
-                  required
                 />
               </div>
 
@@ -377,43 +379,6 @@ export default function Settings() {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* ROW 2: Options */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-           <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
-               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Pengaturan Tambahan</h3>
-            </div>
-           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Pesan Integritas & Motivasi (Opsional)</label>
-                <textarea
-                  name="motivationText"
-                  value={setting.motivationText || ''}
-                  onChange={handleChange}
-                  rows={2}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm placeholder-slate-400"
-                  placeholder="Misal: Kejujuran adalah prestasi yang paling berharga..."
-                />
-                 <p className="text-[10px] text-slate-500 mt-1">Kosongkan jika tidak ingin ditampilkan di halaman depan.</p>
-              </div>
-
-               <div className="flex flex-col justify-center">
-                 <label className="block text-sm font-medium text-slate-700 mb-1">Batas Maksimal Pelanggaran</label>
-                 <div className="flex items-center space-x-3 mt-1">
-                   <input
-                      type="number"
-                      name="maxViolations"
-                      value={setting.maxViolations || 0}
-                      onChange={handleChange}
-                      min={0}
-                      className="w-24 px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-center text-sm"
-                    />
-                    <span className="text-sm text-slate-600">Terhitung Diskualifikasi Otomatis</span>
-                  </div>
-                   <p className="text-[10px] text-slate-500 mt-1">Gunakan angka 0 jika tidak ingin ujian diakhiri otomatis.</p>
-              </div>
-           </div>
         </div>
 
         <div className="bg-slate-50 p-6 border border-slate-200 rounded-xl flex justify-end shadow-sm">
