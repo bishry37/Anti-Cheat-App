@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc, deleteDoc, getDoc, where } from 'firebase/firestore';
 import { StudentSession, Violation, Exam, Subject, Class } from '../../types';
-import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight, Play, CheckCircle2, Clock3, Ban } from 'lucide-react';
+import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight, Play, CheckCircle2, Clock3, Ban, Unlock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -556,11 +556,10 @@ export default function ExamMonitor() {
                                       e.stopPropagation();
                                       triggerRestore(s);
                                     }} 
-                                    className="h-8 px-4 flex items-center justify-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 border-none rounded-lg transition-all shadow-lg shadow-emerald-100 group animate-in slide-in-from-right-4 duration-300" 
-                                    title="Pulihkan akses pengerjaan murid"
+                                    className="h-8 w-8 flex items-center justify-center bg-emerald-600 text-white hover:bg-emerald-700 hover:scale-105 active:scale-95 border-none rounded-lg transition-all shadow-md shadow-emerald-100 group animate-in zoom-in-50 duration-200 shrink-0" 
+                                    title="Pulihkan akses & Izinkan Melanjutkan"
                                   >
-                                    <Play className="w-3 h-3 fill-current" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest leading-none">Teruskan</span>
+                                    <Unlock className="w-4 h-4 text-white" />
                                   </button>
                                 )}
                                 <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
