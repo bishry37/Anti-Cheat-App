@@ -363,44 +363,75 @@ export default function StudentExam() {
 
   const recordViolation = async (type: string, message: string) => {
     if (isUnloading.current) return;
-    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
-    setWarningMessage(message);
-    
-    setTimeout(() => setWarningMessage(''), 5000);
-
-    const newCount = (session.violationsCount || 0) + 1;
-    const max = settings?.maxViolations || 3;
-    const willDisqualify = max > 0 && newCount >= max;
+    if (isSubmittingOrFinished) return;
 
     try {
+      // Fetch latest session data directly from Firestore for accuracy and to prevent race conditions
+      const docRef = doc(db, 'student_sessions', user!.uid);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) return;
+      
+      const currentSession = docSnap.data() as StudentSession;
+      if (currentSession.status === 'Selesai' || currentSession.status === 'Didiskualifikasi') {
+        // Exit fullscreen immediately if disqualified
+        if (currentSession.status === 'Didiskualifikasi' && document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+        return;
+      }
+
+      setWarningMessage(message);
+      setTimeout(() => setWarningMessage(''), 5000);
+
+      const newCount = (currentSession.violationsCount || 0) + 1;
+      const max = settings?.maxViolations || 3;
+      const willDisqualify = max > 0 && newCount >= max;
+
       await addDoc(collection(db, 'violations'), {
-        sessionId: session.id || user!.uid,
-        studentName: session.studentName || 'Siswa',
-        subjectId: session.subjectId || '',
+        sessionId: currentSession.id || user!.uid,
+        studentName: currentSession.studentName || 'Siswa',
+        subjectId: currentSession.subjectId || '',
         type,
         status: willDisqualify ? 'Diskualifikasi otomatis' : 'Tercatat',
         timestamp: Date.now()
       });
 
       if (willDisqualify) {
-         await updateDoc(doc(db, 'student_sessions', user!.uid), {
-           status: 'Didiskualifikasi',
-           violationsCount: newCount,
-           endTime: Date.now()
-         });
+        await updateDoc(docRef, {
+          status: 'Didiskualifikasi',
+          violationsCount: newCount,
+          endTime: Date.now()
+        });
+
+        // Exit fullscreen immediately
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
       } else {
-         await updateDoc(doc(db, 'student_sessions', user!.uid), {
-           status: 'Melanggar',
-           violationsCount: newCount,
-           lastActivity: Date.now()
-         });
-         
-         // reset status briefly
-         setTimeout(() => {
-            updateDoc(doc(db, 'student_sessions', user!.uid), { status: 'Aktif' }).catch(()=>{});
-         }, 5000);
+        await updateDoc(docRef, {
+          status: 'Melanggar',
+          violationsCount: newCount,
+          lastActivity: Date.now()
+        });
+        
+        // Reset status briefly, but ONLY if they are not disqualified/done in the meantime
+        setTimeout(async () => {
+          try {
+            const freshSnap = await getDoc(docRef);
+            if (freshSnap.exists()) {
+              const freshData = freshSnap.data() as StudentSession;
+              if (freshData.status !== 'Didiskualifikasi' && freshData.status !== 'Selesai') {
+                await updateDoc(docRef, { status: 'Aktif' });
+              }
+            }
+          } catch (err) {
+            console.error("Gagal reset status ke Aktif", err);
+          }
+        }, 5000);
       }
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error("Gagal mencatat pelanggaran:", err);
+    }
   };
 
   useEffect(() => {
