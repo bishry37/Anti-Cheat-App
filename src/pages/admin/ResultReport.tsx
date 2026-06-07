@@ -135,8 +135,13 @@ export default function ResultReport() {
             pointsEarned += weight;
           }
         } else if (q.type === 'isian_singkat') {
-          // Use smart grading logic for isian_singkat
-          pointsEarned += calculateSmartPoints(studentAnswers[q.id!] || '', q.correctAnswer || '', weight);
+          // For short answer, if admin changed manual score use it, otherwise use smart auto score
+          const manualScore = editingScores[q.id!];
+          if (manualScore !== undefined) {
+            pointsEarned += manualScore;
+          } else {
+            pointsEarned += calculateSmartPoints(studentAnswers[q.id!] || '', q.correctAnswer || '', weight);
+          }
         } else if (isEssay) {
           // For essay, if admin changed manual score use it, otherwise use smart auto score
           const manualScore = editingScores[q.id!];
@@ -317,7 +322,7 @@ export default function ResultReport() {
                </button>
              )}
              <button 
-               disabled={sessions.length === 0}
+               disabled={sessions.length === 0 || !filterClass || !filterExam}
                onClick={handleExportExcel}
                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded flex items-center space-x-1.5 transition-colors text-[10px] font-bold uppercase shadow-sm disabled:opacity-50"
              >
@@ -625,18 +630,63 @@ export default function ResultReport() {
                               <p className="text-[10px] font-extrabold text-emerald-700 uppercase">Kunci Isian Singkat:</p>
                               <p className="text-sm font-bold text-emerald-800 mt-0.5">{q.correctAnswer || '-'}</p>
                             </div>
-                            <div className="flex items-center gap-2 mt-3 block">
+                            <div className="flex items-center gap-2 mt-3 mb-4">
                               {(studentAns || '').toLowerCase().trim() === (q.correctAnswer || '').toLowerCase().trim() ? (
                                 <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
                                   <Check className="w-3.5 h-3.5" />
-                                  <span>Jawaban Benar (+{weight} Poin)</span>
+                                  <span>Automatis: Benar (+{weight} Poin)</span>
                                 </div>
                               ) : (
                                 <div className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded-full border border-red-100">
                                   <X className="w-3.5 h-3.5" />
-                                  <span>Jawaban Salah (0 Poin)</span>
+                                  <span>Automatis: Salah (0 Poin)</span>
                                 </div>
                               )}
+                            </div>
+
+                            {/* Scoring Box for Isian Singkat */}
+                            <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">Koreksi Manual (Maks {weight}):</label>
+                              <div className="flex items-center gap-2">
+                                <input 
+                                  type="number"
+                                  min={0}
+                                  max={weight}
+                                  step={0.5}
+                                  value={editingScores[q.id!] !== undefined ? editingScores[q.id!] : 
+                                    ((studentAns || '').toLowerCase().trim() === (q.correctAnswer || '').toLowerCase().trim() ? weight : 0)
+                                  }
+                                  onChange={(e) => {
+                                    const val = Math.min(weight, Math.max(0, parseFloat(e.target.value) || 0));
+                                    setEditingScores(prev => ({ ...prev, [q.id!]: val }));
+                                  }}
+                                  className="w-16 px-2 py-1 text-xs bg-white border border-slate-300 rounded text-center font-bold text-slate-800 focus:ring-1 focus:ring-amber-500"
+                                />
+                                <span className="text-[10px] text-slate-500 font-bold">/ {weight}</span>
+                              </div>
+                              <div className="flex gap-1 ml-auto">
+                                <button 
+                                  type="button"
+                                  onClick={() => setEditingScores(prev => ({ ...prev, [q.id!]: weight }))}
+                                  className="px-2 py-1 text-[8px] font-black text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-md cursor-pointer uppercase transition-colors"
+                                >
+                                  Benar Sempurna
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => setEditingScores(prev => ({ ...prev, [q.id!]: Math.round(weight / 2) }))}
+                                  className="px-2 py-1 text-[8px] font-black text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-md cursor-pointer uppercase transition-colors"
+                                >
+                                  Setengah
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => setEditingScores(prev => ({ ...prev, [q.id!]: 0 }))}
+                                  className="px-2 py-1 text-[8px] font-black text-red-800 bg-red-100 hover:bg-red-200 rounded-md cursor-pointer uppercase transition-colors"
+                                >
+                                  Salah
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ) : !isEssay ? (
