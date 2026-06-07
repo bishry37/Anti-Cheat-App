@@ -464,11 +464,12 @@ export default function ExamMonitor() {
                              <div className="text-[9px] text-slate-400 font-bold uppercase">{subjects[s.subjectId]?.name || 'Unknown Subject'}</div>
                           </td>
                           <td className="px-4 py-4 text-center">
-                            {s.status === 'Selesai' && s.wasDisqualified ? (
+                             <div className="flex flex-col items-center gap-1 justify-center">
+                               {false ? (
                               <div className="inline-flex flex-col items-center gap-1 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 text-center max-w-[180px] mx-auto shadow-3xs">
                                 <div className="flex items-center gap-1 text-amber-700 font-extrabold text-[9px] uppercase tracking-wider">
                                   <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                  <span>Eks-Diskualifikasi</span>
+                                  <span>Akses Dipulihkan</span>
                                 </div>
                                 <span className="text-[8.5px] text-slate-600 font-medium leading-normal">
                                   Peserta ini sempat didiskualifikasi dari ujian, namun kembali diberikan izin melanjutkan pengerjaan hingga selesai oleh pengawas/admin.
@@ -483,6 +484,16 @@ export default function ExamMonitor() {
                               </div>
                             ) : (
                               <span className="text-[10px] text-emerald-600 font-black bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-tight">Normal</span>
+                             )}
+                             {s.wasDisqualified && (
+                               <span className="inline-flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded shadow-3xs" title="Siswa sempat didiskualifikasi, namun diizinkan melanjutkan pengerjaan kembali oleh pengawas.">
+                                 <CheckCircle2 className="w-3 h-3 text-blue-500 shrink-0" />
+                                 <span>Akses Dipulihkan</span>
+                               </span>
+                             )}
+                             </div>
+                             {false && (
+                               <span>Normal</span>
                             )}
                           </td>
                           <td className="px-4 py-4 text-center">
