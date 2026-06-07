@@ -456,7 +456,7 @@ export default function ExamMonitor() {
                                     <Users className="w-4 h-4 text-indigo-400 mb-0.5" />
                                     <span className="text-[9px] font-black text-indigo-500 uppercase tracking-tighter">Menunggu Login</span>
                                     {s.wasDisqualified && (
-                                      <span className="text-[7px] text-emerald-500 font-bold uppercase">(Pemulihan Akses)</span>
+                                      <span className="text-[7px] text-emerald-600 font-black uppercase tracking-wider bg-emerald-50 px-1.5 rounded mt-0.5 border border-emerald-100 shadow-3xs">Restorasi Akses</span>
                                     )}
                                   </div>
                                 );
@@ -484,7 +484,7 @@ export default function ExamMonitor() {
                                       {isOffline ? 'Terputus' : 'Mengerjakan'}
                                     </span>
                                     {s.wasDisqualified && (
-                                      <span className="text-[7px] text-indigo-500 font-black uppercase tracking-wider bg-indigo-50 px-1 rounded mt-0.5 border border-indigo-100">Izin Lanjutan</span>
+                                      <span className="text-[7px] text-indigo-600 font-black uppercase tracking-wider bg-indigo-50 px-1.5 rounded mt-0.5 border border-indigo-100 shadow-3xs">Akses Lanjutan</span>
                                     )}
                                   </div>
                                 </div>
@@ -494,21 +494,21 @@ export default function ExamMonitor() {
                           <td className="px-6 py-4 text-center">
                              <div className="flex items-center justify-center gap-2">
                                 {s.status === 'Didiskualifikasi' && (
-                                  <button onClick={() => triggerRestore(s)} className="h-8 px-4 flex items-center justify-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 border-none rounded-lg transition-all shadow-lg shadow-emerald-100 group animate-in slide-in-from-right-4 duration-300" title="Izinkan Murid Melanjutkan">
+                                  <button onClick={() => triggerRestore(s)} className="h-8 px-4 flex items-center justify-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 border-none rounded-lg transition-all shadow-lg shadow-emerald-100 group animate-in slide-in-from-right-4 duration-300" title="Pulihkan akses pengerjaan murid">
                                     <Play className="w-3 h-3 fill-current" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Teruskan</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest leading-none">Teruskan</span>
                                   </button>
                                 )}
                                 <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
-                                  <button onClick={() => openMonitor(s)} className="h-7 w-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all" title="Monitoring Detail">
+                                  <button onClick={() => openMonitor(s)} className="h-7 w-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all" title="Detail Monitor">
                                     <Eye className="w-4 h-4" />
                                   </button>
                                   {s.status !== 'Selesai' && s.status !== 'Didiskualifikasi' ? (
-                                    <button onClick={() => triggerWarning(s)} className={`h-7 px-2.5 rounded-md text-[9px] font-black uppercase tracking-tight transition-all ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
+                                    <button onClick={() => triggerWarning(s)} className={`h-7 px-2.5 rounded-md text-[9px] font-black uppercase tracking-tight transition-all ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
                                       Tegur
                                     </button>
                                   ) : (
-                                    <button onClick={() => triggerDelete(s.id!, s.studentName)} className="h-7 w-7 flex items-center justify-center text-red-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all" title="Hapus">
+                                    <button onClick={() => triggerDelete(s.id!, s.studentName)} className="h-7 w-7 flex items-center justify-center text-red-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all" title="Hapus Sesi">
                                       <Trash2 className="w-4 h-4" />
                                     </button>
                                   )}

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { collection, query, where, getDocs, doc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, updateDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Setting, Subject, Exam, StudentSession } from '../types';
 import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2 } from 'lucide-react';
@@ -254,6 +254,7 @@ export default function Home() {
     }
 
     // Validate credentials against active exams
+    const upperName = studentName.trim().toUpperCase();
     const matchingExamByToken = Array.isArray(activeExams) ? activeExams.find(ex => ex.activeToken === examToken) : undefined;
 
     if (!matchingExamByToken) {
@@ -277,7 +278,7 @@ export default function Home() {
       const sessionQuery = query(
         collection(db, 'student_sessions'),
         where('examId', '==', matchingExam.id),
-        where('studentName', '==', studentName),
+        where('studentName', '==', upperName),
         where('adminId', '==', matchingExam.adminId)
       );
       
@@ -309,20 +310,13 @@ export default function Home() {
       // Login to Firebase (Anonymous)
       const uid = await loginAsStudent();
       
-      // If we found an existing session but the current auth UID is different,
-      // we'll update the record to use the current UID or simply continue using the old document ID 
-      // if we want to preserve answers.
-      // Better: Use the name+exam as the basis. 
-      // For simplicity and preventing duplicates, we will write to the found targetUid if it exists.
-      const sessionDocId = isResume ? targetUid : uid;
-
       const sessionData: StudentSession = isResume ? {
         ...existingSessionData!,
         status: 'Aktif',
         lastActivity: Date.now(),
         token: examToken // update token in case it changed
       } : {
-        studentName,
+        studentName: upperName,
         className: matchingExam.targetClass || 'Tidak Diketahui',
         examId: matchingExam.id!,
         subjectId: matchingExam.subjectId,
@@ -334,7 +328,16 @@ export default function Home() {
         adminId: matchingExam.adminId
       };
 
-      await setDoc(doc(db, 'student_sessions', sessionDocId), sessionData);
+      // If resuming and the old session was under a different ID, cleanup old doc
+      if (isResume && targetUid && targetUid !== uid) {
+          try {
+              await deleteDoc(doc(db, 'student_sessions', targetUid));
+          } catch (e) {
+              console.warn("Cleanup old session doc failed", e);
+          }
+      }
+
+      await setDoc(doc(db, 'student_sessions', uid), sessionData);
 
       // Now it will redirect naturally via useEffect.
     } catch (err: any) {
@@ -445,7 +448,7 @@ export default function Home() {
                     <input 
                       type="text" 
                       value={studentName}
-                      onChange={(e) => setStudentName(e.target.value)}
+                      onChange={(e) => setStudentName(e.target.value.toUpperCase())}
                       placeholder="Tulis nama lengkap anda"
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all focus:bg-white text-sm"
                       required
