@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc, deleteDoc, getDoc, where } from 'firebase/firestore';
-import { StudentSession, Violation, Exam, Subject } from '../../types';
-import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2 } from 'lucide-react';
+import { StudentSession, Violation, Exam, Subject, Class } from '../../types';
+import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function ExamMonitor() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<StudentSession[]>([]);
   const [exams, setExams] = useState<Record<string, Exam>>({});
+  const [classesData, setClassesData] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject>>({});
   const [loading, setLoading] = useState(true);
   const [maxViolations, setMaxViolations] = useState<number>(3);
+
+  // Filters
+  const [filterClass, setFilterClass] = useState<string>('');
+  const [filterExam, setFilterExam] = useState<string>('');
+  const [showAllMode, setShowAllMode] = useState(false);
 
   // Detail Modal
   const [selectedSession, setSelectedSession] = useState<StudentSession | null>(null);
@@ -44,10 +51,11 @@ export default function ExamMonitor() {
     const fetchRefs = async () => {
       if (!user) return;
       try {
-        const [exSnap, subSnap, setSnap] = await Promise.all([
+        const [exSnap, subSnap, setSnap, clsSnap] = await Promise.all([
           getDocs(query(collection(db, 'exams'), where('adminId', '==', user.uid))),
           getDocs(query(collection(db, 'subjects'), where('adminId', '==', user.uid))),
-          getDoc(doc(db, 'settings', user.uid))
+          getDoc(doc(db, 'settings', user.uid)),
+          getDocs(query(collection(db, 'classes'), where('adminId', '==', user.uid)))
         ]);
         
         const exMap: Record<string, Exam> = {};
@@ -57,6 +65,10 @@ export default function ExamMonitor() {
         const subMap: Record<string, Subject> = {};
         subSnap.forEach(d => subMap[d.id] = d.data() as Subject);
         setSubjects(subMap);
+
+        const clsList = clsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Class));
+        clsList.sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+        setClassesData(clsList);
 
         if (setSnap && setSnap.exists()) {
           const sData = setSnap.data();
@@ -71,8 +83,10 @@ export default function ExamMonitor() {
     
     fetchRefs().then(() => {
       if (!user) return;
+      
       // Subscribe to active sessions
-      const q = query(collection(db, 'student_sessions'), where('adminId', '==', user.uid));
+      let q = query(collection(db, 'student_sessions'), where('adminId', '==', user.uid));
+      
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
         // Sort active first, then newest
@@ -95,6 +109,16 @@ export default function ExamMonitor() {
       return () => { if (unsubscribe) unsubscribe(); };
     });
   }, [user]);
+
+  const filteredSessions = sessions.filter(s => {
+    if (showAllMode) return true;
+    if (filterClass && s.className !== filterClass) return false;
+    if (filterExam && s.examId !== filterExam) return false;
+    // If not in showAllMode and no filters selected, we won't show the table anyway, 
+    // but this helps keep the state consistent
+    if (!filterClass && !filterExam) return false;
+    return true;
+  });
 
   const openMonitor = async (session: StudentSession) => {
     setSelectedSession(session);
@@ -214,97 +238,218 @@ export default function ExamMonitor() {
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>;
 
   return (
-    <div className="w-full flex flex-col h-full">
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col flex-1">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Real-time Student Monitoring</h3>
-          <div className="flex gap-2">
-            <div className="flex items-center text-[11px] text-slate-500 bg-slate-50 px-2 border border-slate-200 rounded">
-               Total Peserta: {sessions.length}
-            </div>
-            <button className="text-[11px] bg-slate-100 px-3 py-1 rounded font-semibold text-slate-600 border border-transparent hover:border-slate-300">Filter Status</button>
+    <div className="w-full flex flex-col h-full space-y-4">
+      {/* Refined Filter Bar */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+             <div className="w-9 h-9 bg-slate-900 rounded-lg flex items-center justify-center shrink-0">
+                <Activity className="w-5 h-5 text-indigo-400" />
+             </div>
+             <div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter">Live Monitoring</h3>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">System Active</p>
+                </div>
+             </div>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2">
+             {/* Integrated Show All Toggle */}
+             <button 
+               onClick={() => {
+                 setShowAllMode(!showAllMode);
+                 if (!showAllMode) {
+                    setFilterClass('');
+                    setFilterExam('');
+                 }
+               }}
+               className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase transition-all flex items-center gap-2 border ${
+                 showAllMode 
+                 ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-200' 
+                 : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+               }`}
+             >
+               <Users className="w-3.5 h-3.5" />
+               Semua Peserta
+             </button>
+
+             <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+
+             <div className="flex items-center gap-2">
+                <select 
+                  value={filterClass}
+                  onChange={(e) => {
+                    setFilterClass(e.target.value);
+                    setFilterExam('');
+                    setShowAllMode(false);
+                  }}
+                  className="bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-bold rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none min-w-[130px]"
+                >
+                  <option value="">Pilih Kelas</option>
+                  {classesData.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+
+                <select 
+                  value={filterExam}
+                  onChange={(e) => {
+                    setFilterExam(e.target.value);
+                    setShowAllMode(false);
+                  }}
+                  disabled={!filterClass}
+                  className="bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-bold rounded-lg px-3 py-1.5 disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none min-w-[160px]"
+                >
+                  <option value="">Pilih Ujian</option>
+                  {(Object.values(exams) as Exam[])
+                    .filter(ex => ex.targetClass === filterClass)
+                    .map(ex => (
+                      <option key={ex.id} value={ex.id}>{ex.title}</option>
+                    ))
+                  }
+                </select>
+             </div>
+
+             {(filterClass || filterExam || showAllMode) && (
+               <button 
+                 onClick={() => {
+                   setFilterClass('');
+                   setFilterExam('');
+                   setShowAllMode(false);
+                 }}
+                 className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                 title="Reset"
+               >
+                 <X className="w-4 h-4" />
+               </button>
+             )}
           </div>
         </div>
-        
-        <div className="overflow-auto flex-1">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100 sticky top-0 z-10">
-                <th className="px-4 py-2 w-10">#</th>
-                <th className="px-4 py-2">Siswa</th>
-                <th className="px-4 py-2">Ujian / Mapel</th>
-                <th className="px-4 py-2 text-center">Pelanggaran</th>
-                <th className="px-4 py-2">Status Live</th>
-                <th className="px-4 py-2 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="text-xs">
-              {sessions.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
-                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <MonitorOff className="w-6 h-6 text-slate-400" />
-                    </div>
-                    Tidak ada peserta aktif saat ini.
-                  </td>
-                </tr>
-              ) : (
-                sessions.map((s, idx) => {
-                  const isWarning = s.violationsCount > 0 && s.status === 'Aktif';
-                  return (
-                    <tr key={s.id} className={`border-b border-slate-50 hover:bg-slate-50 transition-colors ${isWarning ? 'bg-orange-50/50' : ''} ${s.status === 'Melanggar' ? 'bg-red-50/30' : ''}`}>
-                      <td className="px-4 py-3 text-slate-400">{idx + 1}</td>
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-slate-800">{s.studentName}</div>
-                        <div className="text-[10px] text-slate-500">Kelas {s.className}
-                          {(Date.now() - s.lastActivity) > 60000 && s.status === 'Aktif' && (
-                            <span className="ml-1 text-red-500 font-bold tracking-tight">/ OFFLINE</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                         <div className="font-medium text-slate-700">{exams[s.examId]?.title || 'Ujian'}</div>
-                         <div className="text-[10px] text-slate-500">{subjects[s.subjectId]?.name || 'Mapel'}</div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {s.violationsCount > 0 ? (
-                          <span className={`font-bold px-2 rounded ${s.violationsCount >= 3 ? 'text-red-600 bg-red-100 border border-red-200 animate-pulse' : 'text-orange-600 bg-orange-50 border border-orange-100'}`}>
-                            {s.violationsCount}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-bold bg-slate-100 border border-slate-200 px-2 rounded">0</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {getStatusBadge(s.status)}
-                      </td>
-                      <td className="px-4 py-3 text-right space-x-1 flex items-center justify-end">
-                          <button onClick={() => openMonitor(s)} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-white text-slate-800 border border-slate-200' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
-                            Monitor
-                          </button>
-                          {s.status !== 'Selesai' && s.status !== 'Didiskualifikasi' ? (
-                            <button onClick={() => triggerWarning(s)} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white border border-red-700' : 'bg-slate-50 text-slate-400 border border-slate-200 hover:text-slate-600'}`}>
-                              Tegur
-                            </button>
-                          ) : (
-                            <button onClick={() => triggerDelete(s.id!, s.studentName)} className="px-2 py-1 rounded text-[10px] font-bold transition-colors bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 flex items-center gap-1" title="Hapus Sesi Selesai">
-                              <Trash2 className="w-3 h-3" />
-                              <span>Hapus</span>
-                            </button>
-                          )}
+      </div>
+
+      <AnimatePresence mode="wait">
+        {(!showAllMode && (!filterClass || !filterExam)) ? (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="flex-1 flex flex-col items-center justify-center p-12 bg-white border border-slate-100 rounded-2xl text-center"
+          >
+            <div className="relative mb-6">
+               <div className="absolute inset-0 bg-indigo-100 blur-2xl rounded-full opacity-40 animate-pulse"></div>
+               <div className="relative w-20 h-20 bg-white border border-slate-100 shadow-xl rounded-2xl flex items-center justify-center">
+                  <MonitorOff className="w-10 h-10 text-slate-300" />
+               </div>
+            </div>
+            <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter mb-2">Monitor Peserta</h3>
+            <p className="text-slate-400 max-w-sm mx-auto text-[13px] leading-relaxed mb-6 font-medium">
+              Gunakan filter di atas untuk memilih <span className="text-slate-600 font-bold">Kelas & Ujian</span>, atau klik <span className="text-slate-600 font-bold">Semua Peserta</span> untuk memantau aktivitas.
+            </p>
+          </motion.div>
+        ) : (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col flex-1 overflow-hidden"
+          >
+            <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between sticky top-0 z-20">
+               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                 <LayoutGrid className="w-3 h-3" />
+                 {showAllMode ? 'Viewing ALL ACTIVE SESSIONS' : `${filterClass} Selection`}
+               </span>
+               <span className="text-[10px] font-bold text-indigo-600 bg-white px-2 py-0.5 rounded border border-indigo-100 shadow-sm">
+                 {filteredSessions.length} Terdeteksi
+               </span>
+            </div>
+            
+            <div className="overflow-auto flex-1">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-white text-slate-400 text-[10px] uppercase font-black tracking-widest border-b border-slate-100 sticky top-0 z-10">
+                    <th className="px-6 py-4 w-12 text-center">No</th>
+                    <th className="px-4 py-4">Peserta & Identitas</th>
+                    <th className="px-4 py-4">Data Ujian</th>
+                    <th className="px-4 py-4 text-center">Status Keamanan</th>
+                    <th className="px-4 py-4 text-center">Koneksi</th>
+                    <th className="px-6 py-4 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="text-xs">
+                  {filteredSessions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-24 text-center bg-slate-50/20">
+                        <p className="font-bold text-slate-300 uppercase tracking-widest text-[11px]">No active candidates in this scope</p>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-        
-        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-[11px] text-slate-500 shrink-0">
-          <div>Showing 1 - {sessions.length} students</div>
-        </div>
-      </div>
+                  ) : (
+                    filteredSessions.map((s, idx) => {
+                      const isWarning = s.violationsCount > 0 && s.status === 'Aktif';
+                      const isOffline = (Date.now() - s.lastActivity) > 60000 && s.status === 'Aktif';
+                      
+                      return (
+                        <tr key={s.id} className={`group border-b border-slate-50 hover:bg-slate-50 transition-colors ${isWarning ? 'bg-orange-50/50' : ''} ${s.status === 'Melanggar' ? 'bg-red-50/30' : ''}`}>
+                          <td className="px-6 py-4 text-center text-slate-300 font-mono text-[11px]">{idx + 1}</td>
+                          <td className="px-4 py-4">
+                            <div className="font-bold text-slate-800 text-sm mb-0.5">{s.studentName}</div>
+                            <div className="text-[10px] font-bold text-slate-400 bg-slate-100 inline-block px-1.5 rounded uppercase">Kelas {s.className}</div>
+                          </td>
+                          <td className="px-4 py-4">
+                             <div className="font-bold text-slate-600 text-[11px] line-clamp-1 mb-0.5">{exams[s.examId]?.title || 'Unknown Exam'}</div>
+                             <div className="text-[9px] text-slate-400 font-bold uppercase">{subjects[s.subjectId]?.name || 'Unknown Subject'}</div>
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            {s.violationsCount > 0 ? (
+                              <div className="inline-flex items-center gap-1.5">
+                                <ShieldAlert className={`w-3.5 h-3.5 ${s.violationsCount >= 3 ? 'text-red-600 animate-bounce' : 'text-orange-500'}`} />
+                                <span className={`font-black text-[11px] ${s.violationsCount >= 3 ? 'text-red-700' : 'text-orange-700'}`}>
+                                  {s.violationsCount} Pelanggaran
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-emerald-600 font-black bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-tight">Safe</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            {isOffline ? (
+                              <div className="flex flex-col items-center">
+                                <MonitorOff className="w-3.5 h-3.5 text-red-400 mb-0.5" />
+                                <span className="text-[8px] font-black text-red-500 uppercase tracking-tighter">Disconnected</span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center">
+                                <Activity className="w-3.5 h-3.5 text-emerald-500 mb-0.5" />
+                                <span className="text-[8px] font-black text-emerald-500 uppercase tracking-tighter">Connected</span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                             <div className="flex items-center justify-end gap-2">
+                                <button onClick={() => openMonitor(s)} className="h-8 w-8 flex items-center justify-center bg-white text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-lg transition-all shadow-sm" title="Monitoring Detail">
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                {s.status !== 'Selesai' && s.status !== 'Didiskualifikasi' ? (
+                                  <button onClick={() => triggerWarning(s)} className={`h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all border ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white border-red-700 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-800'}`}>
+                                    Tegur
+                                  </button>
+                                ) : (
+                                  <button onClick={() => triggerDelete(s.id!, s.studentName)} className="h-8 w-8 flex items-center justify-center bg-red-50 text-red-500 hover:bg-red-100 border border-red-100 rounded-lg transition-all" title="Hapus">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                             </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modal Detail */}
       {selectedSession && (
