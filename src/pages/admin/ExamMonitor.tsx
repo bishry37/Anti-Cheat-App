@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc, deleteDoc, getDoc, where } from 'firebase/firestore';
 import { StudentSession, Violation, Exam, Subject, Class } from '../../types';
-import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight, Play, CheckCircle2, Clock3 } from 'lucide-react';
+import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight, Play, CheckCircle2, Clock3, Ban } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -541,15 +541,27 @@ export default function ExamMonitor() {
                                     <Eye className="w-4 h-4" />
                                   </button>
                                   {s.status !== 'Selesai' && s.status !== 'Didiskualifikasi' ? (
-                                    <button 
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        triggerWarning(s);
-                                      }} 
-                                      className={`h-7 px-2.5 rounded-md text-[9px] font-black uppercase tracking-tight transition-all ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
-                                    >
-                                      Tegur
-                                    </button>
+                                    <>
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          triggerWarning(s);
+                                        }} 
+                                        className={`h-7 px-2.5 rounded-md text-[9px] font-black uppercase tracking-tight transition-all ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
+                                      >
+                                        Tegur
+                                      </button>
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          triggerEndExam(s);
+                                        }} 
+                                        className="h-7 w-7 flex items-center justify-center text-red-300 hover:text-red-600 hover:bg-red-50 rounded-md transition-all" 
+                                        title="Diskualifikasi Paksa"
+                                      >
+                                        <Ban className="w-3.5 h-3.5" />
+                                      </button>
+                                    </>
                                   ) : (
                                     <button 
                                       onClick={(e) => {
