@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { collection, query, where, getDocs, doc, setDoc, updateDoc, onSnapshot, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, updateDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Setting, Subject, Exam, StudentSession } from '../types';
 import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2 } from 'lucide-react';
@@ -275,59 +275,25 @@ export default function Home() {
       setLoading(true);
       setErrorMessage('');
 
-      // 1. MUST login anonymously first to be authenticated for Firestore list & update queries in production/Vercel
-      const uid = await loginAsStudent();
-
+      // Check for an existing session with exact same candidate name and exam
+      const sessionQuery = query(
+        collection(db, 'student_sessions'),
+        where('examId', '==', matchingExam.id),
+        where('studentName', '==', upperName),
+        where('adminId', '==', matchingExam.adminId)
+      );
+      
+      const sessionSnap = await getDocs(sessionQuery);
       let targetUid = '';
       let isResume = false;
       let existingSessionData: StudentSession | null = null;
 
-      // STRATEGY A: Direct document check (Public Get)
-      // Since 'allow get: if true' is fully public, we can fetch the candidate's exact current local UID directly.
-      // This is extremely robust and will never fail with "Akses Ditolak" even if they are an unauthenticated fallback client!
-      try {
-        const directDoc = await getDoc(doc(db, 'student_sessions', uid));
-        if (directDoc.exists()) {
-          const directData = directDoc.data() as StudentSession;
-          // Verify that this persistent local session matches the current student name and exam
-          if (directData.studentName === upperName && directData.examId === matchingExam.id) {
-            existingSessionData = directData;
-            targetUid = uid;
-            isResume = true;
-          }
-        }
-      } catch (err) {
-        console.warn("Direct document check failed:", err);
-      }
+      if (!sessionSnap.empty) {
+        const docSnap = sessionSnap.docs[0];
+        existingSessionData = docSnap.data() as StudentSession;
+        targetUid = docSnap.id;
+        isResume = true;
 
-      // STRATEGY B: Collection-wide lookup query
-      // If we haven't identified the existing session via direct document lookups, attempt to query the collection.
-      // We gracefully wrap this in a try-catch to prevent a "permission-denied" (Akses Ditolak) crash from blocking the student,
-      // in case Anonymous Auth isn't enabled in their Firebase Console, or rules haven't fully synchronized.
-      if (!isResume) {
-        try {
-          const sessionQuery = query(
-            collection(db, 'student_sessions'),
-            where('examId', '==', matchingExam.id),
-            where('studentName', '==', upperName),
-            where('adminId', '==', matchingExam.adminId)
-          );
-          
-          const sessionSnap = await getDocs(sessionQuery);
-          if (!sessionSnap.empty) {
-            const docSnap = sessionSnap.docs[0];
-            existingSessionData = docSnap.data() as StudentSession;
-            targetUid = docSnap.id;
-            isResume = true;
-          }
-        } catch (queryErr: any) {
-          console.warn("Collection query for existing session failed:", queryErr);
-          // If query fails, we allow them to continue as a new session (the setDoc below will succeed because 'create' rules are open).
-        }
-      }
-
-      // Verification if we successfully identified an existing session
-      if (existingSessionData) {
         // Validation for resuming
         if (existingSessionData.status === 'Selesai') {
           setErrorMessage('Anda sudah menyelesaikan ujian ini sebelumnya.');
@@ -342,6 +308,9 @@ export default function Home() {
         }
       }
 
+      // Login to Firebase (Anonymous)
+      const uid = await loginAsStudent();
+      
       const sessionData: StudentSession = isResume ? {
         ...existingSessionData!,
         status: 'Aktif',
@@ -360,18 +329,12 @@ export default function Home() {
         adminId: matchingExam.adminId
       };
 
-      // If resuming and the old session is under a different ID from current anonymous uid,
-      // update the old document name and status (soft cleanup) so it is no longer found or counted duplicate in any query,
-      // because students do not have permission to delete doc ('deleteDoc' requires admin) but they DO have 'update' permissions.
+      // If resuming and the old session was under a different ID, cleanup old doc
       if (isResume && targetUid && targetUid !== uid) {
           try {
-              await updateDoc(doc(db, 'student_sessions', targetUid), {
-                  ...existingSessionData!,
-                  status: 'Selesai',
-                  studentName: `RESUMED_${upperName}`
-              });
+              await deleteDoc(doc(db, 'student_sessions', targetUid));
           } catch (e) {
-              console.warn("Soft-cleaning old session doc failed:", e);
+              console.warn("Cleanup old session doc failed", e);
           }
       }
 
