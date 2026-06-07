@@ -209,8 +209,8 @@ export default function StudentExam() {
           // Calculate initial time left
           const activeDuration = typeof sessData.duration === 'number' ? sessData.duration : exData.duration;
           const elapsed = Math.floor((Date.now() - sessData.startTime) / 1000);
-          const totalSecs = activeDuration * 60;
-          const calculatedTimeLeft = totalSecs - elapsed;
+          const totalSecs = Math.round(activeDuration * 60);
+          const calculatedTimeLeft = Math.max(0, totalSecs - elapsed);
 
           // Fetch questions
           let qQuery;
@@ -340,8 +340,8 @@ export default function StudentExam() {
     if (!session?.startTime || !exam) return;
     const activeDuration = typeof session.duration === 'number' ? session.duration : exam.duration;
     const elapsed = Math.floor((Date.now() - session.startTime) / 1000);
-    const totalSecs = activeDuration * 60;
-    const calculatedTimeLeft = totalSecs - elapsed;
+    const totalSecs = Math.round(activeDuration * 60);
+    const calculatedTimeLeft = Math.max(0, totalSecs - elapsed);
     
     if (calculatedTimeLeft <= 0) {
       setTimeLeft(0);
@@ -573,9 +573,10 @@ export default function StudentExam() {
   };
 
   const formatTime = (secs: number) => {
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
+    const cleanSecs = Math.max(0, Math.floor(secs));
+    const h = Math.floor(cleanSecs / 3600);
+    const m = Math.floor((cleanSecs % 3600) / 60);
+    const s = cleanSecs % 60;
     if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
