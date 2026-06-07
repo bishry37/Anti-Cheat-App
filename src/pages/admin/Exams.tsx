@@ -69,7 +69,7 @@ export default function Exams() {
     const q = query(collection(db, 'exams'), where('adminId', '==', user.uid));
     const unsub = onSnapshot(q, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Exam));
-      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setExams(list);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'exams');

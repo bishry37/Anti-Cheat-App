@@ -556,10 +556,9 @@ export default function ExamMonitor() {
                         </thead>
                         <tbody className="text-xs divide-y divide-slate-100">
                            {(() => {
-                              const filteredExamsList = (Object.values(exams) as Exam[]).filter(ex => {
-                                 // Show only exams for the selected class
-                                 return ex.targetClass === selectedClassFilter;
-                              });
+                               const filteredExamsList = (Object.values(exams) as Exam[])
+                                 .filter(ex => ex.targetClass === selectedClassFilter)
+                                 .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
                               if (filteredExamsList.length === 0) {
                                  return (
