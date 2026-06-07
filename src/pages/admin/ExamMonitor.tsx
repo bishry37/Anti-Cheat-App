@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc, deleteDoc, getDoc, where } from 'firebase/firestore';
 import { StudentSession, Violation, Exam, Subject, Class } from '../../types';
-import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight } from 'lucide-react';
+import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight, Play, CheckCircle2, Clock3 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -36,7 +36,7 @@ export default function ExamMonitor() {
   // Custom Confirmation Dialog Modal state
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
-    type: 'warning' | 'end_exam' | 'delete';
+    type: 'warning' | 'end_exam' | 'delete' | 'restore';
     candidateId?: string;
     candidateName: string;
     session?: StudentSession;
@@ -160,6 +160,15 @@ export default function ExamMonitor() {
     });
   };
 
+  const triggerRestore = (session: StudentSession) => {
+    setConfirmDialog({
+      isOpen: true,
+      type: 'restore',
+      candidateName: session.studentName,
+      session
+    });
+  };
+
   const executeConfirmedAction = async () => {
     const { type, session, candidateId } = confirmDialog;
     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -175,6 +184,7 @@ export default function ExamMonitor() {
         await updateDoc(doc(db, 'student_sessions', session.id!), {
           violationsCount: newCount,
           status: willDisqualify ? 'Didiskualifikasi' : 'Melanggar',
+          wasDisqualified: willDisqualify ? true : (session.wasDisqualified || false),
           adminWarningMessage: msg,
           adminWarningTime: Date.now(),
           lastActivity: Date.now(),
@@ -207,10 +217,22 @@ export default function ExamMonitor() {
       try {
         await updateDoc(doc(db, 'student_sessions', session.id!), {
           status: 'Didiskualifikasi',
+          wasDisqualified: true,
           endTime: Date.now()
         });
         setSelectedSession(null);
         showToast('Ujian telah dihentikan paksa');
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
+      }
+    } else if (type === 'restore' && session) {
+      try {
+        await updateDoc(doc(db, 'student_sessions', session.id!), {
+          status: 'Aktif',
+          endTime: null,
+          wasDisqualified: true // Keep true to show they were previously disqualified
+        });
+        showToast('Murid diizinkan melanjutkan ujian');
       } catch (err) {
         handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
       }
@@ -372,7 +394,7 @@ export default function ExamMonitor() {
                     <th className="px-4 py-4">Peserta & Identitas</th>
                     <th className="px-4 py-4">Data Ujian</th>
                     <th className="px-4 py-4 text-center">Status Keamanan</th>
-                    <th className="px-4 py-4 text-center">Koneksi</th>
+                    <th className="px-4 py-4 text-center">Progres Status</th>
                     <th className="px-6 py-4 text-right">Aksi</th>
                   </tr>
                 </thead>
@@ -412,20 +434,51 @@ export default function ExamMonitor() {
                             )}
                           </td>
                           <td className="px-4 py-4 text-center">
-                            {isOffline ? (
-                              <div className="flex flex-col items-center">
-                                <MonitorOff className="w-3.5 h-3.5 text-red-400 mb-0.5" />
-                                <span className="text-[8px] font-black text-red-500 uppercase tracking-tighter">Disconnected</span>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-center">
-                                <Activity className="w-3.5 h-3.5 text-emerald-500 mb-0.5" />
-                                <span className="text-[8px] font-black text-emerald-500 uppercase tracking-tighter">Connected</span>
-                              </div>
-                            )}
+                            {(() => {
+                              if (s.status === 'Didiskualifikasi') {
+                                return (
+                                  <div className="flex flex-col items-center">
+                                    <ShieldAlert className="w-4 h-4 text-red-600 mb-0.5" />
+                                    <span className="text-[9px] font-black text-red-600 uppercase tracking-tighter">Diskualifikasi</span>
+                                  </div>
+                                );
+                              }
+                              
+                              if (s.status === 'Selesai') {
+                                const ansLen = Object.keys(s.answers || {}).length;
+                                const total = exams[s.examId]?.questionCount || 0;
+                                const isAll = ansLen >= total && total > 0;
+                                return (
+                                  <div className="flex flex-col items-center">
+                                    <CheckCircle2 className={`w-4 h-4 mb-0.5 ${isAll ? 'text-blue-500' : 'text-orange-400'}`} />
+                                    <span className={`text-[9px] font-black uppercase tracking-tighter ${isAll ? 'text-blue-600' : 'text-orange-600'}`}>
+                                      {isAll ? 'Selesai Semua' : 'Selesai (Parsial)'}
+                                    </span>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div className="flex flex-col items-center">
+                                  <Clock3 className="w-4 h-4 text-slate-400 mb-0.5" />
+                                  <div className="flex flex-col items-center">
+                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Mengerjakan</span>
+                                    {s.wasDisqualified && (
+                                      <span className="text-[7px] text-red-400 font-bold uppercase">(Pernah Diskualifikasi)</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="px-6 py-4 text-right">
                              <div className="flex items-center justify-end gap-2">
+                                {s.status === 'Didiskualifikasi' && (
+                                  <button onClick={() => triggerRestore(s)} className="h-8 px-3 flex items-center justify-center gap-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100 rounded-lg transition-all shadow-sm group" title="Izinkan Murid Melanjutkan">
+                                    <Play className="w-3.5 h-3.5" />
+                                    <span className="text-[10px] font-black uppercase tracking-tight">Teruskan</span>
+                                  </button>
+                                )}
                                 <button onClick={() => openMonitor(s)} className="h-8 w-8 flex items-center justify-center bg-white text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-lg transition-all shadow-sm" title="Monitoring Detail">
                                   <Eye className="w-4 h-4" />
                                 </button>
@@ -513,6 +566,11 @@ export default function ExamMonitor() {
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end space-x-3">
+              {selectedSession.status === 'Didiskualifikasi' && (
+                <button onClick={() => triggerRestore(selectedSession)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors text-sm shadow-sm flex items-center">
+                  <Play className="w-4 h-4 mr-2" /> Pulihkan & Lanjutkan Ujian
+                </button>
+              )}
               {selectedSession.status !== 'Selesai' && selectedSession.status !== 'Didiskualifikasi' && (
                 <>
                   <button onClick={() => triggerWarning(selectedSession)} className="px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 font-medium rounded-lg transition-colors text-sm">
@@ -542,22 +600,27 @@ export default function ExamMonitor() {
           <div className="bg-white rounded-xl shadow-xl max-w-sm w-full border border-slate-100 p-5 flex flex-col items-center text-center animate-in scale-in duration-200">
             <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
               confirmDialog.type === 'delete' ? 'bg-red-50 text-red-600' :
-              confirmDialog.type === 'end_exam' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'
+              confirmDialog.type === 'end_exam' ? 'bg-red-50 text-red-600' : 
+              confirmDialog.type === 'restore' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
             }`}>
               {confirmDialog.type === 'delete' || confirmDialog.type === 'end_exam' ? (
                 <ShieldAlert className="w-6 h-6" />
+              ) : confirmDialog.type === 'restore' ? (
+                <Play className="w-6 h-6" />
               ) : (
                 <AlertTriangle className="w-6 h-6" />
               )}
             </div>
             <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-1">
               {confirmDialog.type === 'delete' ? 'Hapus Sesi Ujian' :
-               confirmDialog.type === 'end_exam' ? 'Akhiri Paksa Ujian' : 'Kirim Teguran'}
+               confirmDialog.type === 'end_exam' ? 'Akhiri Paksa Ujian' : 
+               confirmDialog.type === 'restore' ? 'Pulihkan Sesi Ujian' : 'Kirim Teguran'}
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed mb-5">
               {confirmDialog.type === 'delete' && `Apakah Anda yakin ingin menghapus data sesi ujian untuk ${confirmDialog.candidateName}? Tindakan ini tidak dapat dibatalkan.`}
               {confirmDialog.type === 'end_exam' && `Apakah Anda yakin ingin mengakhiri paksa ujian untuk ${confirmDialog.candidateName}? Mereka akan didiskualifikasi.`}
               {confirmDialog.type === 'warning' && `Kirim peringatan/teguran kedisiplinan ke siswa ${confirmDialog.candidateName}?`}
+              {confirmDialog.type === 'restore' && `Izinkan ${confirmDialog.candidateName} untuk melanjutkan kembali ujian yang sebelumnya didiskualifikasi?`}
             </p>
             <div className="flex gap-2 w-full">
               <button 
@@ -571,11 +634,14 @@ export default function ExamMonitor() {
                 className={`flex-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-colors ${
                   confirmDialog.type === 'delete' || confirmDialog.type === 'end_exam' 
                     ? 'bg-red-600 hover:bg-red-700' 
-                    : 'bg-amber-500 hover:bg-amber-600'
+                    : confirmDialog.type === 'restore'
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-amber-500 hover:bg-amber-600'
                 }`}
               >
                 {confirmDialog.type === 'delete' ? 'Hapus' :
-                 confirmDialog.type === 'end_exam' ? 'Akhiri' : 'Kirim'}
+                 confirmDialog.type === 'end_exam' ? 'Akhiri' : 
+                 confirmDialog.type === 'restore' ? 'Izinkan' : 'Kirim'}
               </button>
             </div>
           </div>

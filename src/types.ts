@@ -88,6 +88,7 @@ export interface StudentSession {
   adminWarningMessage?: string;
   adminWarningTime?: number;
   lastQuestionIndex?: number;
+  wasDisqualified?: boolean;
 }
 
 export interface Violation {
