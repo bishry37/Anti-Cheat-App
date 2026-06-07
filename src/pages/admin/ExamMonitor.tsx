@@ -73,16 +73,18 @@ export default function ExamMonitor() {
 
     if (mode === 'individual' && studentSession) {
       try {
+        const elapsedMin = (Date.now() - studentSession.startTime) / 60000;
+        const targetDuration = newDuration + elapsedMin;
         await updateDoc(doc(db, 'student_sessions', studentSession.id!), {
-          duration: newDuration
+          duration: targetDuration
         });
-        showToast(`Durasi ujian ${studentSession.studentName} diubah menjadi ${newDuration} menit`);
+        showToast(`Sisa durasi ujian ${studentSession.studentName} diubah menjadi ${newDuration} menit`);
       } catch (err) {
         handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
       }
     } else if (mode === 'mass' && className) {
       try {
-        // Find all active student sessions for this target class and update their durations
+        // Find all active student sessions for this target class and update their durations to the exact same remaining time
         const activeSessionsInClass = sessions.filter(
           s => s.className === className && s.status !== 'Selesai' && s.status !== 'Didiskualifikasi'
         );
@@ -94,8 +96,10 @@ export default function ExamMonitor() {
         let successCount = 0;
         await Promise.all(activeSessionsInClass.map(async (s) => {
           try {
+            const elapsedMin = (Date.now() - s.startTime) / 60000;
+            const targetDuration = newDuration + elapsedMin;
             await updateDoc(doc(db, 'student_sessions', s.id!), {
-              duration: newDuration
+              duration: targetDuration
             });
             successCount++;
           } catch(e) {
@@ -103,7 +107,7 @@ export default function ExamMonitor() {
           }
         }));
         
-        showToast(`Berhasil mengubah durasi untuk ${successCount} siswa di kelas ${className} menjadi ${newDuration} menit`);
+        showToast(`Berhasil menyamakan sisa durasi ${successCount} siswa di kelas ${className} menjadi ${newDuration} menit`);
       } catch (err) {
         console.error(err);
         showToast('Ada kesalahan saat mengubah durasi massal');
@@ -396,7 +400,7 @@ export default function ExamMonitor() {
           <span className={`font-mono text-[11px] font-black tracking-tight ${isCrisis ? 'text-red-600 animate-pulse' : 'text-slate-700'}`}>
             {timeStr}
           </span>
-          <span className="text-[8.5px] text-slate-400 font-medium">dari {durationMin}m</span>
+          <span className="text-[8.5px] text-slate-400 font-medium">dari {Math.round(durationMin)}m</span>
         </div>
       </div>
     );
@@ -404,11 +408,13 @@ export default function ExamMonitor() {
 
   const openIndividualDurationModal = (s: StudentSession) => {
     const currentDur = typeof s.duration === 'number' ? s.duration : (exams[s.examId]?.duration || 90);
+    const elapsedMin = (Date.now() - s.startTime) / 60000;
+    const remainingMin = Math.max(0, Math.ceil(currentDur - elapsedMin));
     setDurationModal({
       isOpen: true,
       mode: 'individual',
       studentSession: s,
-      newDuration: currentDur
+      newDuration: remainingMin
     });
   };
 
@@ -494,14 +500,18 @@ export default function ExamMonitor() {
                       const activeSessionsInClass = sessions.filter(
                         s => s.className === filterClass && s.status !== 'Selesai' && s.status !== 'Didiskualifikasi'
                       );
-                      const defaultDur = activeSessionsInClass.length > 0 && typeof activeSessionsInClass[0].duration === 'number' 
-                        ? activeSessionsInClass[0].duration 
-                        : 90;
+                      let defaultDur = 90;
+                      if (activeSessionsInClass.length > 0) {
+                        const firstSession = activeSessionsInClass[0];
+                        const currentDur = typeof firstSession.duration === 'number' ? firstSession.duration : (exams[firstSession.examId]?.duration || 90);
+                        const elapsedMin = (Date.now() - firstSession.startTime) / 60000;
+                        defaultDur = Math.max(0, Math.ceil(currentDur - elapsedMin));
+                      }
                       setDurationModal({
                         isOpen: true,
                         mode: 'mass',
                         className: filterClass,
-                        newDuration: defaultDur
+                        newDuration: defaultDur || 20
                       });
                     }}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all text-[11px] font-extrabold uppercase shadow-sm cursor-pointer"
@@ -944,13 +954,13 @@ export default function ExamMonitor() {
             
             <p className="text-xs text-slate-500 text-left leading-relaxed mb-4 font-medium">
               {durationModal.mode === 'individual' 
-                ? `Atur total batas durasi pengerjaan ujian untuk murid ini dalam satuan menit. Perubahan akan langsung aktif secara real time.`
-                : `Atur total batas durasi ujian untuk seluruh siswa aktif di kelas ${durationModal.className}. Perubahan akan langsung aktif secara real time.`
+                ? `Atur sisa batas durasi pengerjaan ujian untuk murid ini dalam satuan menit. Perubahan akan langsung aktif secara real time.`
+                : `Atur sisa batas durasi ujian untuk seluruh siswa aktif di kelas ${durationModal.className}. Seluruh siswa aktif akan memiliki sisa durasi pengerjaan yang sama rata, secara real time.`
               }
             </p>
 
             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-5 text-center">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Total Durasi Ujian (Menit)</label>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Sisa Durasi Ujian Baru (Menit)</label>
               <div className="flex items-center justify-center space-x-4">
                 <button 
                   type="button"
