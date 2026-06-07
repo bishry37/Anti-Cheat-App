@@ -29,6 +29,20 @@
   display: block;
 }
 
+/* Ensure empty paragraphs have height and paragraphs have clear separation */
+.ql-editor p {
+  margin-bottom: 0.85em;
+}
+.ql-editor p:last-child {
+  margin-bottom: 0;
+}
+.prose p {
+  margin-bottom: 0.85em;
+}
+.prose p:last-child {
+  margin-bottom: 0;
+}
+
 @theme {
   @keyframes pulse-subtle {
     0%, 100% { opacity: 1; transform: scale(1); }

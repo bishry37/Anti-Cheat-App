@@ -6,6 +6,7 @@ import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Chec
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { formatHTML } from '../../utils/textFormat';
 
 export default function ResultReport() {
   const { user } = useAuth();
@@ -688,7 +689,7 @@ export default function ResultReport() {
                           </span>
                         </div>
 
-                        <p className="text-xs font-semibold text-slate-800 mb-3 whitespace-pre-wrap leading-relaxed">{q.question}</p>
+                        <div className="text-xs font-semibold text-slate-800 mb-3 whitespace-pre-wrap leading-relaxed ql-editor p-0" dangerouslySetInnerHTML={{ __html: formatHTML(q.question) }} />
 
                         {q.type === 'isian_singkat' ? (
                           <div className="space-y-2">
@@ -770,7 +771,7 @@ export default function ResultReport() {
                                 return (
                                   <div key={l} className={`flex items-start gap-1 p-1 rounded ${isSt ? (isKey ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800') : ''}`}>
                                     <span className="font-bold">{l}.</span>
-                                    <span>{optVal}</span>
+                                    <span className="ql-editor p-0 text-[11px]" dangerouslySetInnerHTML={{ __html: formatHTML(optVal) }} />
                                     {isSt && <span className="text-[9px] font-bold uppercase ml-1">(Pilihan Siswa)</span>}
                                   </div>
                                 );

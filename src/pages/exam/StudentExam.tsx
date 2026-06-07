@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ShieldAlert, Maximize, Clock, Save, AlertTriangle, LogOut, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
+import { formatHTML } from '../../utils/textFormat';
 
 export default function StudentExam() {
   const { user, logout } = useAuth();
@@ -820,7 +821,7 @@ export default function StudentExam() {
                      <span className="text-slate-400 text-[10px] font-bold uppercase">Bobot: {currentQ.weight}</span>
                   </div>
                   
-                  <div className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed" dangerouslySetInnerHTML={{ __html: currentQ.question }} />
+                  <div className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed ql-editor whitespace-pre-wrap p-0" dangerouslySetInnerHTML={{ __html: formatHTML(currentQ.question) }} />
 
                   {currentQ.type === 'essay' ? (
                      <div className="mt-4 flex flex-col flex-1">
@@ -888,10 +889,10 @@ export default function StudentExam() {
                               checked={isSelected}
                               onChange={() => handleAnswer(currentQ.id!, optItem.key)}
                             />
-                            <span className={`shrink-0 w-6 h-6 rounded-full border flex items-center justify-center font-bold text-[11px] mr-3 ${isSelected ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-300 text-slate-500'}`}>
+                            <span className={`shrink-0 w-6 h-6 rounded-full border flex items-center justify-center font-bold text-[11px] mr-3 mt-0.5 ${isSelected ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-300 text-slate-500'}`}>
                               {displayLabel}
                             </span>
-                            <div className="flex-1 pt-0 text-sm text-slate-700">{optItem.text}</div>
+                            <div className="flex-1 pt-0 text-sm text-slate-700 ql-editor p-0" dangerouslySetInnerHTML={{ __html: formatHTML(optItem.text) }} />
                           </label>
                         );
                       })}

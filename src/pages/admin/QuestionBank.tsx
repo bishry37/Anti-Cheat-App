@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useBlocker } from 'react-router-dom';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType, VerticalMergeType } from 'docx';
 import * as mammoth from 'mammoth';
+import { formatHTML } from '../../utils/textFormat';
 
 export default function QuestionBank() {
   const { user } = useAuth();
@@ -623,26 +624,27 @@ export default function QuestionBank() {
             if (rowCells.length === 0) continue;
 
             const cellNo = colMap.number !== -1 ? rowCells[colMap.number] : '';
-            const cellSoal = colMap.question !== -1 ? rowCells[colMap.question] : '';
+            const cellSoalHTML = colMap.question !== -1 && tds[colMap.question] ? tds[colMap.question].innerHTML : '';
+            const cellSoalText = colMap.question !== -1 ? rowCells[colMap.question] : '';
             
             // Logic for finding a new question Row
             // 1. Logic for STARTING A NEW QUESTION: Has a number or a question text in a full-length row
-            if (rowCells.length >= 4 && ((cellNo && !isNaN(Number(cellNo))) || cellSoal)) {
+            if (rowCells.length >= 4 && ((cellNo && !isNaN(Number(cellNo))) || cellSoalText)) {
               if (currentQ && currentQ.question.trim()) questionsToUpload.push(currentQ);
               
               currentQ = {
                 subjectId: selectedSubject,
                 packetName: templateName.trim(),
                 number: Number(cellNo) || (questionsToUpload.length + 1),
-                question: cellSoal,
+                question: cellSoalHTML,
                 optionA: '', optionB: '', optionC: '', optionD: '', optionE: '',
                 correctAnswer: colMap.correctAnswer !== -1 ? rowCells[colMap.correctAnswer]?.trim().toUpperCase() : '',
                 type: colMap.type !== -1 ? parseType(rowCells[colMap.type]) : 'pilihan_ganda',
                 adminId: user!.uid
               };
 
-              // Dummy check for the sample question
-              if (currentQ.question.toLowerCase().includes("presiden indonesia pada tahun 1999")) {
+              // Dummy check for the sample question comparing text
+              if (cellSoalText.toLowerCase().includes("presiden indonesia pada tahun 1999")) {
                  currentQ = null; continue;
               }
             }
@@ -652,25 +654,29 @@ export default function QuestionBank() {
               let label = '';
               let content = '';
 
+              let contentHTML = '';
+
               // Try mapping by index if columns exist
               if (colMap.optionLabel !== -1 && rowCells[colMap.optionLabel]) {
                 label = rowCells[colMap.optionLabel].trim().toUpperCase();
+                contentHTML = colMap.optionContent !== -1 && tds[colMap.optionContent] ? tds[colMap.optionContent].innerHTML : '';
                 content = colMap.optionContent !== -1 ? rowCells[colMap.optionContent]?.trim() : '';
               } 
               // Fallback for vertically merged rows where columns shift left
               else if (rowCells.length >= 2 && rowCells.length < 6) {
                 // Usually the first 2 columns in a merged sub-row are OPSI and JAWABAN
                 label = rowCells[0].trim().toUpperCase();
+                contentHTML = tds[1] ? tds[1].innerHTML : '';
                 content = rowCells[1].trim();
               }
 
               // Apply the option if valid label found
               if (['A', 'B', 'C', 'D', 'E'].includes(label)) {
-                if (label === 'A') currentQ.optionA = content;
-                else if (label === 'B') currentQ.optionB = content;
-                else if (label === 'C') currentQ.optionC = content;
-                else if (label === 'D') currentQ.optionD = content;
-                else if (label === 'E') currentQ.optionE = content;
+                if (label === 'A') currentQ.optionA = contentHTML || content;
+                else if (label === 'B') currentQ.optionB = contentHTML || content;
+                else if (label === 'C') currentQ.optionC = contentHTML || content;
+                else if (label === 'D') currentQ.optionD = contentHTML || content;
+                else if (label === 'E') currentQ.optionE = contentHTML || content;
               }
             }
           }
@@ -1524,7 +1530,7 @@ export default function QuestionBank() {
                            {questions.findIndex(item => item.id === q.id) + 1}
                         </div>
                         <div className="flex-1">
-                          <div className="font-semibold text-slate-800 text-sm leading-snug pr-20 ql-editor whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: q.question }} />
+                          <div className="font-semibold text-slate-800 text-sm leading-snug pr-20 py-0 pl-0 ql-editor whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatHTML(q.question) }} />
                           <div className="flex items-center space-x-2 mt-1.5">
                             {selectedTemplateFilter === 'all' && q.packetName && (
                               <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 font-bold uppercase rounded border border-slate-200">
