@@ -144,7 +144,7 @@ service cloud.firestore {
 
     match /student_sessions/{sessionId} {
       allow get: if true;
-      allow list: if isAdmin(); // Should be restricted by where('adminId', '==') in JS side
+      allow list: if isSignedIn(); // Allow authenticated students to query previous sessions
       allow create: if isValidId(sessionId) && isValidStudentSession(incoming());
       allow update: if isValidId(sessionId) && isValidStudentSession(incoming());
       allow delete: if isAdmin() && existing().adminId == request.auth.uid;

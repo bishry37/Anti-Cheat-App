@@ -241,8 +241,21 @@ export default function ExamMonitor() {
         await updateDoc(doc(db, 'student_sessions', session.id!), {
           status: 'Didiskualifikasi',
           wasDisqualified: true,
+          adminWarningMessage: 'Ujian dihentikan paksa oleh pengawas.',
+          adminWarningTime: Date.now(),
           endTime: Date.now()
         });
+        
+        // Also log it as a violation
+        await addDoc(collection(db, 'violations'), {
+          sessionId: session.id,
+          studentName: session.studentName,
+          subjectId: session.subjectId,
+          type: 'Diskualifikasi Paksa',
+          status: 'Dihentikan langsung oleh pengawas.',
+          timestamp: Date.now()
+        });
+        
         setSelectedSession(null);
         showToast('Ujian telah dihentikan paksa');
       } catch (err) {

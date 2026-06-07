@@ -312,7 +312,10 @@ export default function StudentExam() {
         }
 
         if (dat.status === 'Didiskualifikasi') {
-          alert('Ujian Anda dihentikan paksa oleh Admin karena pelanggaran.');
+          // Exit fullscreen immediately if disqualified
+          if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+          }
         }
       }
     });
@@ -567,9 +570,13 @@ export default function StudentExam() {
           <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6 ${session.status === 'Didiskualifikasi' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
             {session.status === 'Didiskualifikasi' ? <ShieldAlert className="w-10 h-10" /> : <Save className="w-10 h-10" />}
           </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Ujian Selesai</h2>
-          <p className="text-slate-500 mb-6">
-            {session.status === 'Didiskualifikasi' ? 'Ujian Anda telah dihentikan karena pelanggaran tata tertib.' : 'Jawaban Anda telah berhasil disimpan di sistem.'}
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">
+            {session.status === 'Didiskualifikasi' ? 'Diskualifikasi Peserta' : 'Ujian Selesai'}
+          </h2>
+          <p className="text-slate-500 mb-6 font-medium leading-relaxed">
+            {session.status === 'Didiskualifikasi' 
+              ? 'Sesi ujian Anda telah dihentikan oleh pengawas karena terdeteksi adanya pelanggaran tata tertib ujian.' 
+              : 'Terima kasih, pengerjaan ujian Anda telah selesai dan seluruh jawaban Anda telah berhasil disimpan secara aman di server.'}
           </p>
           <button onClick={async () => { await logout(); navigate('/'); }} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors w-full">
             Kembali ke Beranda

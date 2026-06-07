@@ -275,6 +275,9 @@ export default function Home() {
       setLoading(true);
       setErrorMessage('');
 
+      // 1. MUST login anonymously first to be authenticated for Firestore list & update queries in production/Vercel
+      const uid = await loginAsStudent();
+
       // Check for an existing session with exact same candidate name and exam
       const sessionQuery = query(
         collection(db, 'student_sessions'),
@@ -308,9 +311,6 @@ export default function Home() {
         }
       }
 
-      // Login to Firebase (Anonymous)
-      const uid = await loginAsStudent();
-      
       const sessionData: StudentSession = isResume ? {
         ...existingSessionData!,
         status: 'Aktif',
@@ -329,12 +329,18 @@ export default function Home() {
         adminId: matchingExam.adminId
       };
 
-      // If resuming and the old session was under a different ID, cleanup old doc
+      // If resuming and the old session is under a different ID from current anonymous uid,
+      // update the old document name and status (soft cleanup) so it is no longer found or counted duplicate in any query,
+      // because students do not have permission to delete doc ('deleteDoc' requires admin) but they DO have 'update' permissions.
       if (isResume && targetUid && targetUid !== uid) {
           try {
-              await deleteDoc(doc(db, 'student_sessions', targetUid));
+              await updateDoc(doc(db, 'student_sessions', targetUid), {
+                  ...existingSessionData!,
+                  status: 'Selesai',
+                  studentName: `RESUMED_${upperName}`
+              });
           } catch (e) {
-              console.warn("Cleanup old session doc failed", e);
+              console.warn("Soft-cleaning old session doc failed:", e);
           }
       }
 
