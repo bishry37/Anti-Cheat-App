@@ -600,7 +600,7 @@ export default function ExamMonitor() {
                                           </span>
                                        </td>
                                        <td className="px-5 py-4 text-center hidden md:table-cell font-medium text-slate-500">
-                                          <div className="truncate max-w-[150px]" title={ex.packetName || 'Default'}>
+                                          <div className="truncate max-w-[150px] mx-auto" title={ex.packetName || 'Default'}>
                                              {ex.packetName || 'Default'}
                                           </div>
                                           <span className="text-[9px] text-slate-400">
