@@ -32,6 +32,7 @@ export default function Home() {
   // Form State
   const [studentName, setStudentName] = useState('');
   const [examToken, setExamToken] = useState('');
+  const [isLoggingInStudent, setIsLoggingInStudent] = useState(false);
   
   // Admin Form State
   const [adminEmail, setAdminEmail] = useState('');
@@ -44,14 +45,14 @@ export default function Home() {
 
   useEffect(() => {
     // Only redirect if we haven't manually disabled auto-redirect in this tab
-    if (user && !sessionStorage.getItem('skip_auto_redirect')) {
+    if (user && !isLoggingInStudent && !sessionStorage.getItem('skip_auto_redirect')) {
       if (isAdmin) {
         navigate('/admin');
       } else {
         navigate('/exam');
       }
     }
-  }, [user, isAdmin, navigate]);
+  }, [user, isAdmin, navigate, isLoggingInStudent]);
 
   useEffect(() => {
     let unsubSettings: () => void;
@@ -273,6 +274,7 @@ export default function Home() {
 
     try {
       setLoading(true);
+      setIsLoggingInStudent(true);
       setErrorMessage('');
 
       // Check for an existing session with exact same candidate name and exam
@@ -289,7 +291,27 @@ export default function Home() {
       let existingSessionData: StudentSession | null = null;
 
       if (!sessionSnap.empty) {
-        const docSnap = sessionSnap.docs[0];
+        // Sort sessions to prioritize active status, then latest activity time,
+        // to handle duplicate records safely (which can happen on production deploys if deleteDoc was restricted)
+        const sortedDocs = [...sessionSnap.docs].sort((a, b) => {
+          const sa = a.data() as StudentSession;
+          const sb = b.data() as StudentSession;
+          
+          const getPriority = (status: string) => {
+            if (status === 'Aktif') return 3;
+            if (status === 'Melanggar') return 2;
+            if (status === 'Selesai') return 0;
+            return 1;
+          };
+          
+          const pA = getPriority(sa.status);
+          const pB = getPriority(sb.status);
+          if (pA !== pB) return pB - pA;
+          
+          return (sb.lastActivity || 0) - (sa.lastActivity || 0);
+        });
+
+        const docSnap = sortedDocs[0];
         existingSessionData = docSnap.data() as StudentSession;
         targetUid = docSnap.id;
         isResume = true;
@@ -298,12 +320,14 @@ export default function Home() {
         if (existingSessionData.status === 'Selesai') {
           setErrorMessage('Anda sudah menyelesaikan ujian ini sebelumnya.');
           setLoading(false);
+          setIsLoggingInStudent(false);
           return;
         }
 
         if (existingSessionData.status === 'Didiskualifikasi') {
           setErrorMessage('Akun Anda telah didiskualifikasi dari ujian ini.');
           setLoading(false);
+          setIsLoggingInStudent(false);
           return;
         }
       }
@@ -340,9 +364,11 @@ export default function Home() {
 
       await setDoc(doc(db, 'student_sessions', uid), sessionData);
 
-      // Now it will redirect naturally via useEffect.
+      setIsLoggingInStudent(false);
+      navigate('/exam');
     } catch (err: any) {
       setErrorMessage(err.message || 'Gagal memulai ujian.');
+      setIsLoggingInStudent(false);
       setLoading(false);
     }
   };
