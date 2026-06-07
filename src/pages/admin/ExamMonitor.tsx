@@ -19,6 +19,8 @@ export default function ExamMonitor() {
   const [filterClass, setFilterClass] = useState<string>('');
   const [filterExam, setFilterExam] = useState<string>('');
   const [showAllMode, setShowAllMode] = useState(false);
+  const [examSearch, setExamSearch] = useState<string>('');
+  const [selectedClassFilter, setSelectedClassFilter] = useState<string>('');
 
   // Detail Modal
   const [selectedSession, setSelectedSession] = useState<StudentSession | null>(null);
@@ -128,11 +130,15 @@ export default function ExamMonitor() {
         ]);
         
         const exMap: Record<string, Exam> = {};
-        exSnap.forEach(d => exMap[d.id] = d.data() as Exam);
+        exSnap.forEach(d => {
+          exMap[d.id] = { id: d.id, ...d.data() } as Exam;
+        });
         setExams(exMap);
 
         const subMap: Record<string, Subject> = {};
-        subSnap.forEach(d => subMap[d.id] = d.data() as Subject);
+        subSnap.forEach(d => {
+          subMap[d.id] = { id: d.id, ...d.data() } as Subject;
+        });
         setSubjects(subMap);
 
         const clsList = clsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Class));
@@ -439,125 +445,192 @@ export default function ExamMonitor() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
-             {/* Integrated Show All Toggle */}
-             <button 
-               onClick={() => {
-                 setShowAllMode(!showAllMode);
-                 if (!showAllMode) {
-                    setFilterClass('');
-                    setFilterExam('');
-                 }
-               }}
-               className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase transition-all flex items-center gap-2 border ${
-                 showAllMode 
-                 ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-200' 
-                 : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-               }`}
-             >
-               <Users className="w-3.5 h-3.5" />
-               Semua Peserta
-             </button>
-
-             <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
-
              <div className="flex items-center gap-2">
-                <select 
-                  value={filterClass}
-                  onChange={(e) => {
-                    setFilterClass(e.target.value);
-                    setFilterExam('');
-                    setShowAllMode(false);
-                  }}
-                  className="bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-bold rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none min-w-[130px]"
-                >
-                  <option value="">Pilih Kelas</option>
-                  {classesData.map(c => (
-                    <option key={c.id} value={c.name}>{c.name}</option>
-                  ))}
-                </select>
+                {filterClass && filterExam && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        setFilterClass('');
+                        setFilterExam('');
+                      }}
+                      className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-1 text-[11px] font-black transition-all cursor-pointer shadow-sm"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5 rotate-180 text-slate-400" />
+                      <span>KEMBALI KE DAFTAR UJIAN</span>
+                    </button>
 
-                <select 
-                  value={filterExam}
-                  onChange={(e) => {
-                    setFilterExam(e.target.value);
-                    setShowAllMode(false);
-                  }}
-                  disabled={!filterClass}
-                  className="bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-bold rounded-lg px-3 py-1.5 disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none min-w-[160px]"
-                >
-                  <option value="">Pilih Ujian</option>
-                  {(Object.values(exams) as Exam[])
-                    .filter(ex => ex.targetClass === filterClass)
-                    .map(ex => (
-                      <option key={ex.id} value={ex.id}>{ex.title}</option>
-                    ))
-                  }
-                </select>
+                    <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-slate-400 ml-1">
+                      <span className="font-extrabold uppercase">MONITORING:</span>
+                      <span className="bg-indigo-50 text-indigo-700 font-extrabold px-2.5 py-0.5 rounded border border-indigo-100 uppercase">{filterClass}</span>
+                      <span className="text-slate-350">/</span>
+                      <span className="font-extrabold text-slate-700 bg-slate-50 px-2.5 py-0.5 rounded border border-slate-100 uppercase">{exams[filterExam]?.title || 'Ujian'}</span>
+                    </div>
 
-                {filterClass && (
-                  <button 
-                    onClick={() => {
-                      const activeSessionsInClass = sessions.filter(
-                        s => s.className === filterClass && s.status !== 'Selesai' && s.status !== 'Didiskualifikasi'
-                      );
-                      let defaultDur = 90;
-                      if (activeSessionsInClass.length > 0) {
-                        const firstSession = activeSessionsInClass[0];
-                        const currentDur = typeof firstSession.duration === 'number' ? firstSession.duration : (exams[firstSession.examId]?.duration || 90);
-                        const elapsedMin = (Date.now() - firstSession.startTime) / 60000;
-                        defaultDur = Math.max(0, Math.ceil(currentDur - elapsedMin));
-                      }
-                      setDurationModal({
-                        isOpen: true,
-                        mode: 'mass',
-                        className: filterClass,
-                        newDuration: defaultDur || 20
-                      });
-                    }}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all text-[11px] font-extrabold uppercase shadow-sm cursor-pointer"
-                    title={`Sesuaikan durasi pengerjaan untuk semua siswa kelas ${filterClass}`}
-                  >
-                    <Clock3 className="w-3.5 h-3.5 text-indigo-200" />
-                    <span>Atur Durasi Kelas</span>
-                  </button>
+                    <button 
+                      onClick={() => {
+                        const activeSessionsInClass = sessions.filter(
+                          s => s.className === filterClass && s.status !== 'Selesai' && s.status !== 'Didiskualifikasi'
+                        );
+                        let defaultDur = 90;
+                        if (activeSessionsInClass.length > 0) {
+                          const firstSession = activeSessionsInClass[0];
+                          const currentDur = typeof firstSession.duration === 'number' ? firstSession.duration : (exams[firstSession.examId]?.duration || 90);
+                          const elapsedMin = (Date.now() - firstSession.startTime) / 60000;
+                          defaultDur = Math.max(0, Math.ceil(currentDur - elapsedMin));
+                        }
+                        setDurationModal({
+                          isOpen: true,
+                          mode: 'mass',
+                          className: filterClass,
+                          newDuration: defaultDur || 20
+                        });
+                      }}
+                      className="bg-indigo-600 hover:bg-indigo-750 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all text-[11px] font-extrabold uppercase shadow-sm cursor-pointer ml-2"
+                      title={`Sesuaikan durasi pengerjaan untuk semua siswa kelas ${filterClass}`}
+                    >
+                      <Clock3 className="w-3.5 h-3.5 text-indigo-200" />
+                      <span>Atur Durasi Kelas</span>
+                    </button>
+                  </div>
                 )}
              </div>
-
-             {(filterClass || filterExam || showAllMode) && (
-               <button 
-                 onClick={() => {
-                   setFilterClass('');
-                   setFilterExam('');
-                   setShowAllMode(false);
-                 }}
-                 className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                 title="Reset"
-               >
-                 <X className="w-4 h-4" />
-               </button>
-             )}
           </div>
         </div>
       </div>
 
-      <AnimatePresence mode="wait">
+       <AnimatePresence mode="wait">
         {(!showAllMode && (!filterClass || !filterExam)) ? (
           <motion.div 
-            initial={{ opacity: 0, y: 10 }}
+            key="exam-selection-portal"
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            className="flex-1 flex flex-col items-center justify-center p-12 bg-white border border-slate-100 rounded-2xl text-center"
+            exit={{ opacity: 0, scale: 0.99 }}
+            className="flex-1 flex flex-col space-y-5"
           >
-            <div className="relative mb-6">
-               <div className="absolute inset-0 bg-indigo-100 blur-2xl rounded-full opacity-40 animate-pulse"></div>
-               <div className="relative w-20 h-20 bg-white border border-slate-100 shadow-xl rounded-2xl flex items-center justify-center">
-                  <MonitorOff className="w-10 h-10 text-slate-300" />
+            {/* Header section */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-tight">PILIH JADWAL UJIAN</h2>
+               <p className="text-slate-500 text-[11px] mt-0.5">
+                  Pilihlah salah satu daftar jadwal ujian aktif di bawah untuk memantau status fokus peserta secara real-time.
+               </p>
+            </div>
+
+            {/* Quick Filter Bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+               {/* Class Selection Dropdown */}
+               <div className="flex items-center gap-2 select-none w-full">
+                  <select
+                     value={selectedClassFilter}
+                     onChange={(e) => {
+                        setSelectedClassFilter(e.target.value);
+                     }}
+                     className="bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-0 focus:border-slate-350 min-w-[150px] cursor-pointer"
+                  >
+                     <option value="">--Pilih Kelas--</option>
+                     {classesData.map(c => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                     ))}
+                  </select>
                </div>
             </div>
-            <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter mb-2">Monitor Peserta</h3>
-            <p className="text-slate-400 max-w-sm mx-auto text-[13px] leading-relaxed mb-6 font-medium">
-              Gunakan filter di atas untuk memilih <span className="text-slate-600 font-bold">Kelas & Ujian</span>, atau klik <span className="text-slate-600 font-bold">Semua Peserta</span> untuk memantau aktivitas.
-            </p>
+
+            {/* Conditional List Rendering */}
+            {!selectedClassFilter ? (
+               <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-450 font-bold text-xs shadow-sm py-20 flex flex-col items-center justify-center space-y-2">
+                  <Users className="w-8 h-8 text-slate-350" />
+                  <span>Silakan pilih kelas terlebih dahulu untuk menampilkan daftar jadwal ujian.</span>
+               </div>
+            ) : (
+               /* Exams Table List Selection */
+               <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden animate-fadeIn">
+                  <div className="overflow-x-auto">
+                     <table className="w-full text-left border-collapse">
+                        <thead>
+                           <tr className="bg-slate-50 text-slate-400 text-[10px] uppercase font-bold tracking-wider border-b border-slate-200 select-none">
+                              <th className="px-5 py-3 w-12 text-center">No</th>
+                              <th className="px-5 py-3">Ujian & Mata Pelajaran</th>
+                              <th className="px-5 py-3 text-center hidden md:table-cell">Paket Soal</th>
+                              <th className="px-5 py-3 text-center hidden sm:table-cell">Durasi</th>
+                              <th className="px-5 py-3 text-center">Siswa Aktif</th>
+                           </tr>
+                        </thead>
+                        <tbody className="text-xs divide-y divide-slate-100">
+                           {(() => {
+                              const filteredExamsList = (Object.values(exams) as Exam[]).filter(ex => {
+                                 // Show only exams for the selected class
+                                 return ex.targetClass === selectedClassFilter;
+                              });
+
+                              if (filteredExamsList.length === 0) {
+                                 return (
+                                    <tr>
+                                       <td colSpan={5} className="px-5 py-12 text-center text-slate-400 font-medium">
+                                          Tidak ada ujian yang aktif untuk Kelas {selectedClassFilter}.
+                                       </td>
+                                    </tr>
+                                 );
+                              }
+
+                              return filteredExamsList.map((ex, idx) => {
+                                 const examId = ex.id!;
+                                 const activeStudentsCount = sessions.filter(
+                                    s => s.examId === examId && s.status !== 'Selesai' && s.status !== 'Didiskualifikasi'
+                                 ).length;
+                                 const totalLoggedStudents = sessions.filter(s => s.examId === examId).length;
+                                 const targetSubject = subjects[ex.subjectId]?.name || 'Mata Pelajaran';
+
+                                 return (
+                                    <tr 
+                                       key={examId}
+                                       onClick={() => {
+                                          setFilterClass(ex.targetClass || '');
+                                          setFilterExam(examId);
+                                       }}
+                                       className="hover:bg-slate-50 cursor-pointer transition-colors group"
+                                    >
+                                       <td className="px-5 py-4 text-center font-bold text-slate-405">
+                                          {idx + 1}
+                                       </td>
+                                       <td className="px-5 py-4">
+                                          <div className="font-bold text-slate-800 group-hover:text-indigo-650 transition-colors uppercase tracking-tight">
+                                             {ex.title}
+                                          </div>
+                                          <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
+                                             {targetSubject.toUpperCase()} {ex.isActive ? `• TOKEN: ${ex.activeToken}` : ''}
+                                          </span>
+                                       </td>
+                                       <td className="px-5 py-4 text-center hidden md:table-cell font-medium text-slate-500">
+                                          <div className="truncate max-w-[150px]" title={ex.packetName || 'Default'}>
+                                             {ex.packetName || 'Default'}
+                                          </div>
+                                          <span className="text-[9px] text-slate-400">
+                                             {ex.questionCount || 0} Soal
+                                          </span>
+                                       </td>
+                                       <td className="px-5 py-4 text-center hidden sm:table-cell font-mono font-medium text-slate-600">
+                                          {ex.duration} menit
+                                       </td>
+                                       <td className="px-5 py-4 text-center">
+                                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black ${
+                                             activeStudentsCount > 0 
+                                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                                             : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                          }`}>
+                                             <span className={`w-1.5 h-1.5 rounded-full ${
+                                                activeStudentsCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                                             }`}></span>
+                                             {activeStudentsCount} / {totalLoggedStudents} Siswa
+                                          </span>
+                                       </td>
+                                    </tr>
+                                 );
+                              });
+                           })()}
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+            )}
           </motion.div>
         ) : (
           <motion.div 
@@ -568,7 +641,7 @@ export default function ExamMonitor() {
             <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between sticky top-0 z-20">
                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                  <LayoutGrid className="w-3 h-3" />
-                 {showAllMode ? 'Viewing ALL ACTIVE SESSIONS' : `${filterClass} Selection`}
+                 {`KELAS ${filterClass.toUpperCase()} - ${(exams[filterExam]?.title || 'UJIAN').toUpperCase()}`}
                </span>
                <span className="text-[10px] font-bold text-indigo-600 bg-white px-2 py-0.5 rounded border border-indigo-100 shadow-sm">
                  {filteredSessions.length} Terdeteksi
@@ -593,7 +666,13 @@ export default function ExamMonitor() {
                   {filteredSessions.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-4 py-24 text-center bg-slate-50/20">
-                        <p className="font-bold text-slate-300 uppercase tracking-widest text-[11px]">No active candidates in this scope</p>
+                        <div className="flex flex-col items-center justify-center space-y-2 py-6">
+                           <Users className="w-8 h-8 text-slate-350 animate-pulse" />
+                           <p className="font-extrabold text-slate-500 uppercase tracking-tight text-xs">Belum Ada Peserta</p>
+                           <p className="text-slate-400 text-[11px] max-w-sm mx-auto">
+                              Belum ada peserta yang masuk atau memulai pengerjaan untuk ujian ini. Silakan arahkan peserta untuk masuk dan memulai ujian.
+                           </p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
