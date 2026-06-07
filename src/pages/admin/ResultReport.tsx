@@ -16,6 +16,7 @@ export default function ResultReport() {
   const [loading, setLoading] = useState(true);
   const [filterClass, setFilterClass] = useState<string>('');
   const [filterExam, setFilterExam] = useState<string>('');
+  const [allClassSessions, setAllClassSessions] = useState<StudentSession[]>([]);
 
   // Toast & Custom Delete Confirmation Dialog
   const [toast, setToast] = useState<string | null>(null);
@@ -228,6 +229,19 @@ export default function ResultReport() {
     if (!user) return;
     setLoading(true);
     try {
+      if (filterClass) {
+        const baseQ = query(
+          collection(db, 'student_sessions'),
+          where('adminId', '==', user.uid),
+          where('className', '==', filterClass)
+        );
+        const baseSnap = await getDocs(baseQ);
+        const allClassSess = baseSnap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
+        setAllClassSessions(allClassSess);
+      } else {
+        setAllClassSessions([]);
+      }
+
       let q = query(
         collection(db, 'student_sessions'), 
         where('adminId', '==', user.uid),
@@ -306,7 +320,7 @@ export default function ResultReport() {
                }}
                className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-[11px] font-bold uppercase focus:ring-1 focus:ring-blue-500 outline-none"
              >
-               <option value="">Semua Kelas</option>
+               <option value="">--pilih kelas--</option>
                {classesData.map((c) => (
                  <option key={c.id} value={c.name}>{c.name}</option>
                ))}
@@ -400,12 +414,21 @@ export default function ResultReport() {
                               <h5 className="text-[11px] font-black text-slate-800 group-hover:text-blue-700 transition-colors uppercase leading-snug line-clamp-2 mb-2 tracking-tight">
                                 {ex.title}
                               </h5>
-                              <div className="flex items-center gap-1.5 mb-4">
-                                <div className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[9px] font-bold uppercase flex items-center gap-1">
-                                  <Clock className="w-2.5 h-2.5" />
-                                  <span>{ex.duration} Menit</span>
-                                </div>
-                              </div>
+                              {(() => {
+                                const participantCount = allClassSessions.filter(s => s.examId === id).length;
+                                return (
+                                  <div className="flex items-center gap-1.5 mb-4">
+                                    <div className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[9px] font-bold uppercase flex items-center gap-1">
+                                      <Clock className="w-2.5 h-2.5" />
+                                      <span>{ex.duration} Menit</span>
+                                    </div>
+                                    <div className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100/40 text-[9px] font-bold uppercase flex items-center gap-1" title="Jumlah peserta mengikuti ujian">
+                                      <Users className="w-2.5 h-2.5" />
+                                      <span>{participantCount} Siswa</span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                               <div className="mt-auto pt-3 border-t border-slate-50 w-full flex flex-col gap-2">
                                 <div className="flex items-center justify-between">
                                   <span className="text-[9px] font-extrabold text-blue-500 uppercase tracking-widest">
@@ -433,7 +456,7 @@ export default function ResultReport() {
                   <th className="px-4 py-2 text-center">Nilai</th>
                   <th className="px-4 py-2 text-center">Benar/Salah</th>
                   <th className="px-4 py-2 text-center">Status</th>
-                  <th className="px-4 py-2 text-right">Aksi</th>
+                  <th className="px-4 py-2 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="text-xs divide-y divide-slate-50">
@@ -476,14 +499,14 @@ export default function ResultReport() {
                           {s.status}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-right flex items-center justify-end gap-1.5 border-none">
+                      <td className="px-4 py-2.5 text-center flex items-center justify-center gap-1.5 border-none">
                         <button 
                           onClick={() => handleOpenGradingModal(s)}
                           className="px-2 py-1 rounded text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 flex items-center justify-center gap-1 transition-colors cursor-pointer" 
-                          title="Detail & Koreksi Jawaban"
+                          title="Detail & Koreksi"
                         >
                           <Award className="w-3.5 h-3.5" />
-                          <span>Detail & Koreksi Jawaban</span>
+                          <span>Detail & Koreksi</span>
                         </button>
                         <button 
                           onClick={() => triggerDelete(s.id!, s.studentName)} 

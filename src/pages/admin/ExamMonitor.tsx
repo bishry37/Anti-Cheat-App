@@ -485,7 +485,7 @@ export default function ExamMonitor() {
                             ) : (
                               <span className="text-[10px] text-emerald-600 font-black bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-tight">Normal</span>
                              )}
-                             {s.wasDisqualified && (
+                             {s.wasDisqualified && s.status === 'Selesai' && (
                                <span className="inline-flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded shadow-3xs" title="Siswa sempat didiskualifikasi, namun diizinkan melanjutkan pengerjaan kembali oleh pengawas.">
                                  <CheckCircle2 className="w-3 h-3 text-blue-500 shrink-0" />
                                  <span>Akses Dipulihkan</span>
@@ -525,9 +525,9 @@ export default function ExamMonitor() {
                                 const isAll = ansLen >= total && total > 0;
                                 return (
                                   <div className="flex flex-col items-center">
-                                    <CheckCircle2 className={`w-4 h-4 mb-0.5 ${isAll ? 'text-emerald-500' : 'text-amber-500'}`} />
-                                    <span className={`text-[9px] font-black uppercase tracking-tighter ${isAll ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                      {isAll ? 'Selesai' : 'Selesai (Parsial)'}
+                                    <CheckCircle2 className={`w-4 h-4 mb-0.5 ${isAll ? 'text-emerald-500' : 'text-blue-500'}`} />
+                                    <span className={`text-[9px] font-black uppercase tracking-tighter ${isAll ? 'text-emerald-600' : 'text-blue-600'}`}>
+                                      Selesai
                                     </span>
                                   </div>
                                 );
