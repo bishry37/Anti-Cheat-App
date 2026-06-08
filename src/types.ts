@@ -92,6 +92,7 @@ export interface StudentSession {
   lastQuestionIndex?: number;
   wasDisqualified?: boolean;
   duration?: number;
+  deviceId?: string;
 }
 
 export interface Violation {

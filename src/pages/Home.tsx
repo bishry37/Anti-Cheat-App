@@ -332,16 +332,26 @@ export default function Home() {
           return;
         }
 
+        let currentDeviceId = localStorage.getItem('cbt_device_id');
+        if (!currentDeviceId) {
+          currentDeviceId = Math.random().toString(36).substring(2, 15);
+          localStorage.setItem('cbt_device_id', currentDeviceId);
+        }
+
         if (existingSessionData.status === 'Aktif' || existingSessionData.status === 'Melanggar') {
-          const timeSinceLastActivity = Date.now() - (existingSessionData.lastActivity || 0);
-          // If heartbeat was received in the last 20 seconds, the exam is currently open in another browser
-          if (timeSinceLastActivity < 20000) {
-            setErrorMessage('Sesi ujian sedang berjalan. Harap tutup ujian di tab/browser sebelumnya, atau tunggu 30 detik jika browser tidak sengaja tertutup.');
+          if (existingSessionData.deviceId && existingSessionData.deviceId !== currentDeviceId) {
+            setErrorMessage('Akun Anda sedang digunakan di perangkat/browser lain.');
             setLoading(false);
             setIsLoggingInStudent(false);
             return;
           }
         }
+      }
+
+      let currentDeviceId = localStorage.getItem('cbt_device_id');
+      if (!currentDeviceId) {
+        currentDeviceId = Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('cbt_device_id', currentDeviceId);
       }
 
       // Login to Firebase (Anonymous)
@@ -351,7 +361,8 @@ export default function Home() {
         ...existingSessionData!,
         status: 'Aktif',
         lastActivity: Date.now(),
-        token: examToken // update token in case it changed
+        token: examToken, // update token in case it changed
+        deviceId: currentDeviceId
       } : {
         studentName: upperName,
         className: matchingExam.targetClass || 'Tidak Diketahui',
@@ -362,7 +373,8 @@ export default function Home() {
         violationsCount: 0,
         lastActivity: Date.now(),
         startTime: Date.now(),
-        adminId: matchingExam.adminId
+        adminId: matchingExam.adminId,
+        deviceId: currentDeviceId
       };
 
       // If resuming and the old session was under a different ID, cleanup old doc
