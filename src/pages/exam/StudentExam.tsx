@@ -669,7 +669,7 @@ export default function StudentExam() {
   const currentQ = questions[currentQuestionIndex];
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-slate-50 flex flex-col select-none">
+    <div ref={containerRef} className="h-screen overflow-hidden bg-slate-50 flex flex-col select-none">
 
       {/* Admin Warning Modal Overlay */}
       {session && session.adminWarningTime && session.adminWarningTime > acknowledgedWarningTime && (
