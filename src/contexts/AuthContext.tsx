@@ -128,6 +128,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     localStorage.removeItem('cbt_student_user');
+    sessionStorage.removeItem('just_logged_in_student');
+    sessionStorage.removeItem('just_logged_in_admin');
     await signOut(auth);
     setUser(null);
     setIsAdmin(false);

@@ -54,20 +54,6 @@ export default function Home() {
   const [linkedSubjectName, setLinkedSubjectName] = useState<string>('');
 
   useEffect(() => {
-    // Only navigate to admin if we just explicitly logged in during this session
-    if (user && isAdmin && sessionStorage.getItem('just_logged_in_admin') === 'true') {
-      sessionStorage.removeItem('just_logged_in_admin');
-      navigate('/admin');
-    }
-    
-    // Only navigate to exam if student explicitly logged in
-    if (user && !isAdmin && sessionStorage.getItem('just_logged_in_student') === 'true') {
-      sessionStorage.removeItem('just_logged_in_student');
-      navigate('/exam');
-    }
-  }, [user, isAdmin, navigate]);
-
-  useEffect(() => {
     let unsubSettings: () => void;
     let unsubExams: () => void;
     let unsubClasses: () => void;
@@ -224,8 +210,8 @@ export default function Home() {
     try {
       sessionStorage.setItem('just_logged_in_admin', 'true');
       await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
-      // Removed immediate navigate('/admin') to avoid race conditions. 
-      // The useEffect observing user + isAdmin state will handle navigation.
+      setLoading(false);
+      navigate('/admin');
     } catch (error: any) {
       console.error(error);
       setErrorMessage('Email atau Password salah.');
@@ -381,8 +367,8 @@ export default function Home() {
 
       sessionStorage.setItem('just_logged_in_student', 'true');
       setIsLoggingInStudent(false);
-      // Removed immediate navigate('/exam'); 
-      // The useEffect observing user will smoothly navigate to /exam safely.
+      setLoading(false);
+      navigate('/exam');
     } catch (err: any) {
       setErrorMessage(err.message || 'Gagal memulai ujian.');
       setIsLoggingInStudent(false);

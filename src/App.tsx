@@ -20,7 +20,10 @@ import StudentExam from './pages/exam/StudentExam';
 
 function ProtectedAdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isAdmin } = useAuth();
-  if (!user || !isAdmin) {
+  
+  const isJustLoggedInAdmin = sessionStorage.getItem('just_logged_in_admin') === 'true';
+
+  if ((!user && !isJustLoggedInAdmin) || (!isAdmin && !isJustLoggedInAdmin)) {
     return <Navigate to="/" replace />;
   }
   return children;
@@ -28,8 +31,11 @@ function ProtectedAdminRoute({ children }: { children: React.ReactNode }) {
 
 function ProtectedStudentRoute({ children }: { children: React.ReactNode }) {
   const { user, isAdmin } = useAuth();
-  // Students are anonymous users
-  if (!user || isAdmin) {
+  
+  // Prevent bouncing the user back to '/' if they just logged in and the context hasn't updated yet.
+  const isJustLoggedInStudent = sessionStorage.getItem('just_logged_in_student') === 'true';
+
+  if ((!user && !isJustLoggedInStudent) || isAdmin) {
     return <Navigate to="/" replace />;
   }
   return children;
