@@ -425,25 +425,44 @@ export default function ResultReport() {
                   </motion.div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {(Object.entries(exams) as [string, Exam][])
-                      .filter(([id, ex]) => ex.targetClass === filterClass)
-                      .length === 0 ? (
-                        <motion.div 
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="col-span-full py-16 text-center bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center p-8"
-                        >
-                          <div className="w-14 h-14 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-300">
-                            <Search className="w-7 h-7" />
-                          </div>
-                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">
-                            Tidak ditemukan jadwal ujian<br/>untuk kelas ini
-                          </p>
-                        </motion.div>
-                      ) : (
-                        (Object.entries(exams) as [string, Exam][])
-                          .filter(([id, ex]) => ex.targetClass === filterClass)
-                          .map(([id, ex], exIdx) => (
+                    {(() => {
+                        const classExams = (Object.entries(exams) as [string, Exam][]).filter(([id, ex]) => ex.targetClass === filterClass);
+                        const deletedExamIds = Array.from(new Set(allClassSessions.map(s => s.examId))).filter(id => !exams[id]);
+                        
+                        const mergedExams = [
+                          ...classExams,
+                          ...deletedExamIds.map(id => {
+                            const session = allClassSessions.find(s => s.examId === id);
+                            return [id, {
+                              id,
+                              title: 'Ujian Terhapus',
+                              targetClass: filterClass,
+                              duration: '-',
+                              subjectId: session?.subjectId || '',
+                              packetName: '',
+                              isDeleted: true
+                            }] as [string, any];
+                          })
+                        ];
+
+                        if (mergedExams.length === 0) {
+                          return (
+                            <motion.div 
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="col-span-full py-16 text-center bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center p-8"
+                            >
+                              <div className="w-14 h-14 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-300">
+                                <Search className="w-7 h-7" />
+                              </div>
+                              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">
+                                Tidak ditemukan jadwal ujian<br/>untuk kelas ini
+                              </p>
+                            </motion.div>
+                          );
+                        }
+
+                        return mergedExams.map(([id, ex], exIdx) => (
                             <motion.button
                               key={id}
                               initial={{ opacity: 0, y: 20 }}
@@ -470,6 +489,11 @@ export default function ResultReport() {
                                       <Users className="w-2.5 h-2.5" />
                                       <span>{participantCount} Siswa</span>
                                     </div>
+                                    {ex.isDeleted && (
+                                      <div className="px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-100/40 text-[9px] font-bold uppercase flex items-center gap-1">
+                                        <span>Terhapus</span>
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })()}
@@ -485,8 +509,8 @@ export default function ResultReport() {
                                 </div>
                               </div>
                             </motion.button>
-                          ))
-                      )}
+                          ));
+                    })()}
                   </div>
                 </div>
               </div>
@@ -527,7 +551,7 @@ export default function ResultReport() {
                         <div className="text-[10px] text-slate-500">Kelas {s.className}</div>
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="font-medium text-slate-700">{exams[s.examId]?.title || '-'}</div>
+                        <div className="font-medium text-slate-700">{exams[s.examId]?.title || 'Ujian Terhapus'}</div>
                         <div className="text-[10px] text-slate-500">{new Date(s.endTime || 0).toLocaleDateString()}</div>
                       </td>
                       <td className="px-4 py-2.5 text-center">
@@ -638,7 +662,7 @@ export default function ResultReport() {
               <div className="bg-white rounded-xl p-4 border border-slate-200 flex items-center justify-between shadow-xs shrink-0">
                 <div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Ujian</p>
-                  <p className="text-xs font-bold text-slate-700 uppercase tracking-tight">{exams[selectedSession.examId]?.title || '-'}</p>
+                  <p className="text-xs font-bold text-slate-700 uppercase tracking-tight">{exams[selectedSession.examId]?.title || 'Ujian Terhapus'}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Nilai Terkoreksi</p>
