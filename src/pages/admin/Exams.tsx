@@ -315,214 +315,227 @@ export default function Exams() {
     <div className="w-full h-full flex flex-col">
       <AnimatePresence>
         {isAdding && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="mb-5 bg-white p-5 rounded-lg border border-slate-200 shadow-sm shrink-0"
-          >
-            <h3 className="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 uppercase tracking-wider">
-              {editingId ? 'Edit Jadwal Ujian' : 'Buat Jadwal Ujian Baru'}
-            </h3>
-            
-            {errorMsg && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-xs font-semibold flex items-center justify-between">
-                <span>{errorMsg}</span>
-                <button type="button" onClick={() => setErrorMsg(null)} className="text-red-500 hover:text-red-700">
-                  <X className="w-3.5 h-3.5" />
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 transition-all duration-200">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-lg shadow-xl border border-slate-200 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  {editingId ? 'Edit Jadwal Ujian' : 'Buat Jadwal Ujian Baru'}
+                </h3>
+                <button 
+                  type="button" 
+                  onClick={() => setIsAdding(false)} 
+                  className="text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            )}
             
-            <form onSubmit={handleSave} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Nama Ujian *</label>
-                    <input 
-                      type="text" 
-                      required
-                      value={formData.title}
-                      onChange={e => setFormData({...formData, title: e.target.value})}
-                      className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
-                      placeholder="Contoh: Ujian Akhir Semester"
-                    />
+              <div className="p-5 overflow-y-auto flex-1 custom-scrollbar">
+                {errorMsg && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-xs font-semibold flex items-center justify-between">
+                    <span>{errorMsg}</span>
+                    <button type="button" onClick={() => setErrorMsg(null)} className="text-red-500 hover:text-red-700">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Kelas *</label>
-                    <select
-                      required
-                      value={formData.targetClass || ''}
-                      onChange={e => setFormData({...formData, targetClass: e.target.value})}
-                      className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none"
-                    >
-                      <option value="">-- Pilih Kelas --</option>
-                      {classesData.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Mata Pelajaran *</label>
-                    <select
-                      required
-                      value={formData.subjectId}
-                      onChange={e => setFormData({...formData, subjectId: e.target.value, packetName: ''})}
-                      className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none"
-                    >
-                      <option value="">-- Pilih Mata Pelajaran --</option>
-                      {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Pilih File Soal *</label>
-                    <select
-                      required
-                      value={formData.packetName}
-                      onChange={e => setFormData({...formData, packetName: e.target.value})}
-                      disabled={!formData.subjectId}
-                      className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none disabled:opacity-50"
-                    >
-                      <option value="">-- {formData.subjectId ? (availablePackets.length > 0 ? 'Pilih File' : 'Belum ada file soal') : 'Pilih Mapel Terlebih Dahulu'} --</option>
-                      {availablePackets.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                    {formData.subjectId && availablePackets.length === 0 && (
-                       <p className="text-[10px] text-red-500 font-bold mt-1 uppercase">* Upload soal di Bank Soal terlebih dahulu</p>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                     <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Tanggal *</label>
-                      <input 
-                        type="date" required
-                        value={formData.date}
-                        onChange={e => setFormData({...formData, date: e.target.value})}
-                        className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Durasi (Menit) *</label>
-                      <input 
-                        type="number" required min={5}
-                        value={formData.duration}
-                        onChange={e => setFormData({...formData, duration: Number(e.target.value)})}
-                        className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                     <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Jam Mulai *</label>
-                      <input 
-                        type="time" required
-                        value={formData.startTime}
-                        onChange={e => setFormData({...formData, startTime: e.target.value})}
-                        className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Jam Selesai *</label>
-                      <input 
-                        type="time" required
-                        value={formData.endTime}
-                        onChange={e => setFormData({...formData, endTime: e.target.value})}
-                        className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-2">
-                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
-                    <h4 className="text-[11px] font-bold text-slate-800 mb-2 uppercase flex items-center"><Key className="w-3 h-3 mr-1 text-slate-500" /> Pengaturan Token</h4>
-                    <div className="grid grid-cols-2 gap-3 mb-2">
+                )}
+              
+                <form id="exam-form" onSubmit={handleSave} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Token Aktif</label>
-                        <div className="flex">
-                           <input 
-                            type="text" required readOnly
-                            value={formData.activeToken}
-                            className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded-l font-mono font-bold tracking-widest outline-none"
-                          />
-                          <button type="button" onClick={handleCreateToken} className="bg-slate-200 hover:bg-slate-300 px-2 py-1 rounded-r border border-l-0 border-slate-300 transition-colors">
-                            <Key className="w-3 h-3 text-slate-600" />
-                          </button>
-                        </div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Nama Ujian *</label>
+                        <input 
+                          type="text" 
+                          required
+                          value={formData.title}
+                          onChange={e => setFormData({...formData, title: e.target.value})}
+                          className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
+                          placeholder="Contoh: Ujian Akhir Semester"
+                        />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Reset Otomatis</label>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Kelas *</label>
                         <select
-                          value={formData.autoResetInterval}
-                          onChange={e => setFormData({...formData, autoResetInterval: e.target.value as any})}
-                          className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
+                          required
+                          value={formData.targetClass || ''}
+                          onChange={e => setFormData({...formData, targetClass: e.target.value})}
+                          className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none"
                         >
-                          <option value="manual">Manual</option>
-                          <option value="5">5 Menit</option>
-                          <option value="10">10 Menit</option>
-                          <option value="15">15 Menit</option>
-                          <option value="30">30 Menit</option>
-                          <option value="60">60 Menit</option>
+                          <option value="">-- Pilih Kelas --</option>
+                          {classesData.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                         </select>
                       </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Mata Pelajaran *</label>
+                        <select
+                          required
+                          value={formData.subjectId}
+                          onChange={e => setFormData({...formData, subjectId: e.target.value, packetName: ''})}
+                          className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none"
+                        >
+                          <option value="">-- Pilih Mata Pelajaran --</option>
+                          {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Pilih File Soal *</label>
+                        <select
+                          required
+                          value={formData.packetName}
+                          onChange={e => setFormData({...formData, packetName: e.target.value})}
+                          disabled={!formData.subjectId}
+                          className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none disabled:opacity-50"
+                        >
+                          <option value="">-- {formData.subjectId ? (availablePackets.length > 0 ? 'Pilih File' : 'Belum ada file soal') : 'Pilih Mapel Terlebih Dahulu'} --</option>
+                          {availablePackets.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                        {formData.subjectId && availablePackets.length === 0 && (
+                           <p className="text-[10px] text-red-500 font-bold mt-1 uppercase">* Upload soal di Bank Soal terlebih dahulu</p>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                         <div>
+                          <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Tanggal *</label>
+                          <input 
+                            type="date" required
+                            value={formData.date}
+                            onChange={e => setFormData({...formData, date: e.target.value})}
+                            className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Durasi (Menit) *</label>
+                          <input 
+                            type="number" required min={5}
+                            value={formData.duration}
+                            onChange={e => setFormData({...formData, duration: Number(e.target.value)})}
+                            className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                         <div>
+                          <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Jam Mulai *</label>
+                          <input 
+                            type="time" required
+                            value={formData.startTime}
+                            onChange={e => setFormData({...formData, startTime: e.target.value})}
+                            className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Jam Selesai *</label>
+                          <input 
+                            type="time" required
+                            value={formData.endTime}
+                            onChange={e => setFormData({...formData, endTime: e.target.value})}
+                            className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 pt-2">
+                      <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                        <h4 className="text-[11px] font-bold text-slate-800 mb-2 uppercase flex items-center"><Key className="w-3 h-3 mr-1 text-slate-500" /> Pengaturan Token</h4>
+                        <div className="grid grid-cols-2 gap-3 mb-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Token Aktif</label>
+                            <div className="flex">
+                               <input 
+                                type="text" required readOnly
+                                value={formData.activeToken}
+                                className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded-l font-mono font-bold tracking-widest outline-none"
+                              />
+                              <button type="button" onClick={handleCreateToken} className="bg-slate-200 hover:bg-slate-300 px-2 py-1 rounded-r border border-l-0 border-slate-300 transition-colors">
+                                <Key className="w-3 h-3 text-slate-600" />
+                              </button>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Reset Otomatis</label>
+                            <select
+                              value={formData.autoResetInterval}
+                              onChange={e => setFormData({...formData, autoResetInterval: e.target.value as any})}
+                              className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
+                            >
+                              <option value="manual">Manual</option>
+                              <option value="5">5 Menit</option>
+                              <option value="10">10 Menit</option>
+                              <option value="15">15 Menit</option>
+                              <option value="30">30 Menit</option>
+                              <option value="60">60 Menit</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100/50 mt-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Batas Maksimal Pelanggaran *</label>
+                        <div className="flex items-center space-x-3">
+                          <input 
+                            type="number" required min={0}
+                            value={formData.maxViolations !== undefined ? formData.maxViolations : 3}
+                            onChange={e => setFormData({...formData, maxViolations: Number(e.target.value)})}
+                            className="w-20 px-2 py-1 text-xs bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 text-center font-bold"
+                          />
+                          <span className="text-[10px] text-slate-500 font-semibold leading-tight">Ujian dihentikan otomatis bila batas tercapai (gunakan 0 untuk tanpa batas)</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col space-y-3 pt-2">
+                        <div className="flex items-center space-x-2">
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" className="sr-only peer" checked={formData.isActive} onChange={e => setFormData({...formData, isActive: e.target.checked})} />
+                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                            <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Status Aktif (Siswa)</span>
+                          </label>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <label className="relative inline-flex items-center cursor-pointer font-sans select-none">
+                            <input type="checkbox" className="sr-only peer" checked={formData.randomizeQuestions || false} onChange={e => setFormData({...formData, randomizeQuestions: e.target.checked})} />
+                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                            <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Acak Urutan Soal</span>
+                          </label>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <label className="relative inline-flex items-center cursor-pointer font-sans select-none">
+                            <input type="checkbox" className="sr-only peer" checked={formData.showScoreToStudent || false} onChange={e => setFormData({...formData, showScoreToStudent: e.target.checked})} />
+                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                            <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Izinkan Siswa Melihat Skor Akhir</span>
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="pt-2 border-t border-slate-100/50 mt-1">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Batas Maksimal Pelanggaran *</label>
-                    <div className="flex items-center space-x-3">
-                      <input 
-                        type="number" required min={0}
-                        value={formData.maxViolations !== undefined ? formData.maxViolations : 3}
-                        onChange={e => setFormData({...formData, maxViolations: Number(e.target.value)})}
-                        className="w-20 px-2 py-1 text-xs bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 text-center font-bold"
-                      />
-                      <span className="text-[10px] text-slate-500 font-semibold leading-tight">Ujian dihentikan otomatis bila batas tercapai (gunakan 0 untuk tanpa batas)</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col space-y-3 pt-2">
-                    <div className="flex items-center space-x-2">
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" className="sr-only peer" checked={formData.isActive} onChange={e => setFormData({...formData, isActive: e.target.checked})} />
-                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                        <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Status Aktif (Siswa)</span>
-                      </label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <label className="relative inline-flex items-center cursor-pointer font-sans select-none">
-                        <input type="checkbox" className="sr-only peer" checked={formData.randomizeQuestions || false} onChange={e => setFormData({...formData, randomizeQuestions: e.target.checked})} />
-                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
-                        <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Acak Urutan Soal</span>
-                      </label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <label className="relative inline-flex items-center cursor-pointer font-sans select-none">
-                        <input type="checkbox" className="sr-only peer" checked={formData.showScoreToStudent || false} onChange={e => setFormData({...formData, showScoreToStudent: e.target.checked})} />
-                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                        <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Izinkan Siswa Melihat Skor Akhir</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
+                </form>
               </div>
-
-              <div className="flex justify-end space-x-2 pt-4 border-t border-slate-100">
+              
+              <div className="flex items-center justify-end space-x-2 px-5 py-3 border-t border-slate-100 bg-slate-50 shrink-0">
                 <button 
                   type="button" onClick={() => setIsAdding(false)}
-                  className="px-4 py-1.5 border border-slate-300 text-slate-700 text-xs font-bold uppercase rounded hover:bg-slate-50 transition-colors"
+                  className="px-4 py-1.5 border border-slate-300 text-slate-700 text-xs font-bold uppercase rounded hover:bg-slate-50 transition-colors bg-white shadow-xs"
                 >
                   Batal
                 </button>
                 <button 
-                  type="submit" disabled={processing}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase rounded flex items-center justify-center space-x-1 transition-colors disabled:opacity-50"
+                  type="submit" form="exam-form" disabled={processing}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase rounded flex items-center justify-center space-x-1 transition-colors disabled:opacity-50 shadow-xs"
                 >
                   {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
                   <span>Simpan</span>
                 </button>
               </div>
-            </form>
-          </motion.div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
