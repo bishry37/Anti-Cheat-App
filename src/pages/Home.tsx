@@ -331,6 +331,17 @@ export default function Home() {
           setIsLoggingInStudent(false);
           return;
         }
+
+        if (existingSessionData.status === 'Aktif' || existingSessionData.status === 'Melanggar') {
+          const timeSinceLastActivity = Date.now() - (existingSessionData.lastActivity || 0);
+          // If heartbeat was received in the last 20 seconds, the exam is currently open in another browser
+          if (timeSinceLastActivity < 20000) {
+            setErrorMessage('Sesi ujian sedang berjalan. Harap tutup ujian di tab/browser sebelumnya, atau tunggu 30 detik jika browser tidak sengaja tertutup.');
+            setLoading(false);
+            setIsLoggingInStudent(false);
+            return;
+          }
+        }
       }
 
       // Login to Firebase (Anonymous)
