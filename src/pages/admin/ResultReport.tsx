@@ -38,6 +38,14 @@ export default function ResultReport() {
     studentName: ''
   });
 
+  const [confirmDeleteExam, setConfirmDeleteExam] = useState<{
+    isOpen: boolean;
+    examId: string;
+  }>({
+    isOpen: false,
+    examId: ''
+  });
+
   // Grading Modal States
   const [selectedSession, setSelectedSession] = useState<StudentSession | null>(null);
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
@@ -350,6 +358,27 @@ export default function ResultReport() {
     }
   };
 
+  const executeDeleteExamResults = async () => {
+    const { examId } = confirmDeleteExam;
+    if (!examId) return;
+    setConfirmDeleteExam(prev => ({ ...prev, isOpen: false }));
+    setLoading(true);
+    try {
+      const q = query(collection(db, 'student_sessions'), where('examId', '==', examId));
+      const snap = await getDocs(q);
+      const deletePromises = snap.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(deletePromises);
+      
+      showToast('Seluruh hasil ujian terkait berhasil dihapus');
+      if (filterExam === examId) setFilterExam('');
+      fetchResults();
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menghapus hasil ujian');
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="w-full flex-1 flex flex-col h-full min-h-0">
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col flex-1 min-h-0">
@@ -463,24 +492,37 @@ export default function ResultReport() {
                         }
 
                         return mergedExams.map(([id, ex], exIdx) => (
-                            <motion.button
+                            <motion.div
                               key={id}
                               initial={{ opacity: 0, y: 20 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: exIdx * 0.05 }}
                               onClick={() => setFilterExam(id)}
-                              className="flex flex-col items-start p-5 bg-white border border-slate-200 rounded-[1.5rem] hover:border-blue-500 hover:shadow-2xl hover:shadow-blue-100 transition-all group text-left cursor-pointer group"
+                              className="relative flex flex-col items-start p-5 bg-white border border-slate-200 rounded-[1.5rem] hover:border-blue-500 hover:shadow-2xl hover:shadow-blue-100 transition-all group text-left cursor-pointer"
                             >
+                              {ex.isDeleted && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConfirmDeleteExam({ isOpen: true, examId: id });
+                                  }}
+                                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors z-10"
+                                  title="Hapus seluruh hasil ujian"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
                               <div className="w-11 h-11 rounded-2xl bg-slate-50 text-slate-400 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center mb-4 transition-all duration-300 transform group-hover:scale-110 shadow-sm">
                                 <FileSpreadsheet className="w-5.5 h-5.5" />
                               </div>
-                              <h5 className="text-[11px] font-black text-slate-800 group-hover:text-blue-700 transition-colors uppercase leading-snug line-clamp-2 mb-2 tracking-tight">
+                              <h5 className="text-[11px] font-black text-slate-800 group-hover:text-blue-700 transition-colors uppercase leading-snug line-clamp-2 mb-2 tracking-tight pr-6">
                                 {ex.title}
                               </h5>
                               {(() => {
                                 const participantCount = allClassSessions.filter(s => s.examId === id).length;
                                 return (
-                                  <div className="flex items-center gap-1.5 mb-4">
+                                  <div className="flex flex-wrap items-center gap-1.5 mb-4">
                                     <div className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[9px] font-bold uppercase flex items-center gap-1">
                                       <Clock className="w-2.5 h-2.5" />
                                       <span>{ex.duration} Menit</span>
@@ -508,7 +550,7 @@ export default function ResultReport() {
                                   </div>
                                 </div>
                               </div>
-                            </motion.button>
+                            </motion.div>
                           ));
                     })()}
                   </div>
@@ -631,6 +673,39 @@ export default function ResultReport() {
                 className="flex-1 px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm"
               >
                 Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Confirmation for Delete Exam Results */}
+      {confirmDeleteExam.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full border border-slate-100 p-5 flex flex-col items-center text-center animate-in scale-in duration-200">
+            <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mb-3">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-1">
+              Hapus Seluruh Hasil
+            </h4>
+            <p className="text-xs text-slate-500 leading-relaxed mb-5">
+              Apakah Anda yakin ingin menghapus <strong>semua hasil ujian</strong> untuk jadwal ini? Tindakan ini tidak dapat dibatalkan.
+            </p>
+            <div className="flex gap-2 w-full">
+              <button 
+                onClick={() => setConfirmDeleteExam({ isOpen: false, examId: '' })} 
+                className="flex-1 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 hover:bg-slate-200 rounded-lg transition-colors"
+                disabled={loading}
+              >
+                Batal
+              </button>
+              <button 
+                onClick={executeDeleteExamResults} 
+                className="flex-1 px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                disabled={loading}
+              >
+                Hapus Semua
               </button>
             </div>
           </div>
