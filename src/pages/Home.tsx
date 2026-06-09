@@ -479,7 +479,7 @@ export default function Home() {
                       type="text" 
                       value={studentName}
                       onChange={(e) => setStudentName(e.target.value.toUpperCase())}
-                      placeholder="CONTOH: BUDI SETIAWAN"
+                      placeholder="CONTOH: IMAM BISHRY NURYAYI"
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all focus:bg-white text-sm font-bold placeholder:font-normal"
                       required
                     />
