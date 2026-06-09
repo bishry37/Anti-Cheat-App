@@ -446,11 +446,12 @@ export default function ExamMonitor() {
           
           <div className="flex flex-wrap items-center gap-2">
              <div className="flex items-center gap-2">
-                {filterClass && filterExam && (
+                {((filterClass && filterExam) || showAllMode) && (
                   <div className="flex flex-wrap items-center gap-2">
                     <button 
                       onClick={() => {
                         setFilterClass('');
+                        setShowAllMode(false);
                         setFilterExam('');
                       }}
                       className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-1 text-[11px] font-black transition-all cursor-pointer shadow-sm"
@@ -461,9 +462,13 @@ export default function ExamMonitor() {
 
                     <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-slate-400 ml-1">
                       <span className="font-extrabold uppercase">MONITORING:</span>
-                      <span className="bg-indigo-50 text-indigo-700 font-extrabold px-2.5 py-0.5 rounded border border-indigo-100 uppercase">{filterClass}</span>
-                      <span className="text-slate-350">/</span>
-                      <span className="font-extrabold text-slate-700 bg-slate-50 px-2.5 py-0.5 rounded border border-slate-100 uppercase">{exams[filterExam]?.title || 'Ujian'}</span>
+                      {showAllMode ? (
+                        <span className="bg-indigo-50 text-indigo-700 font-extrabold px-2.5 py-0.5 rounded border border-indigo-100 uppercase font-bold text-[10px]">SEMUA KELAS & UJIAN</span>
+                      ) : (
+                        <span className="bg-indigo-50 text-indigo-700 font-extrabold px-2.5 py-0.5 rounded border border-indigo-100 uppercase">{filterClass}</span>
+                      )}
+                      {!showAllMode && <span className="text-slate-350">/</span>}
+                      {!showAllMode && <span className="font-extrabold text-slate-700 bg-slate-50 px-2.5 py-0.5 rounded border border-slate-100 uppercase">{exams[filterExam]?.title || 'Ujian'}</span>}
                     </div>
 
                     <button 
@@ -485,7 +490,7 @@ export default function ExamMonitor() {
                           newDuration: defaultDur || 20
                         });
                       }}
-                      className="bg-indigo-600 hover:bg-indigo-750 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all text-[11px] font-extrabold uppercase shadow-sm cursor-pointer ml-2"
+                      className={`bg-indigo-600 hover:bg-indigo-750 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all text-[11px] font-extrabold uppercase shadow-sm cursor-pointer ml-2 ${showAllMode ? 'hidden' : ''}`}
                       title={`Sesuaikan durasi pengerjaan untuk semua siswa kelas ${filterClass}`}
                     >
                       <Clock3 className="w-3.5 h-3.5 text-indigo-200" />
@@ -502,9 +507,10 @@ export default function ExamMonitor() {
         {(!showAllMode && (!filterClass || !filterExam)) ? (
           <motion.div 
             key="exam-selection-portal"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.99 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.08, ease: "linear" }}
             className="flex-1 flex flex-col space-y-5"
           >
             {/* Header section */}
@@ -518,19 +524,30 @@ export default function ExamMonitor() {
             {/* Quick Filter Bar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                {/* Class Selection Dropdown */}
-               <div className="flex items-center gap-2 select-none w-full">
+               <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 select-none w-full">
                   <select
                      value={selectedClassFilter}
                      onChange={(e) => {
                         setSelectedClassFilter(e.target.value);
                      }}
-                     className="bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-0 focus:border-slate-350 min-w-[150px] cursor-pointer"
+                     className="bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-0 focus:border-slate-350 min-w-[150px] cursor-pointer h-9"
                   >
                      <option value="">--Pilih Kelas--</option>
                      {classesData.map(c => (
                         <option key={c.id} value={c.name}>{c.name}</option>
                      ))}
                   </select>
+
+                  <button
+                     type="button"
+                     onClick={() => {
+                        setShowAllMode(true);
+                     }}
+                     className="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-200 text-xs font-black rounded-lg px-4 py-1.5 h-9 transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5 uppercase tracking-wider shrink-0"
+                  >
+                     <Eye className="w-4 h-4 shrink-0" />
+                     <span>Lihat Semua</span>
+                  </button>
                </div>
             </div>
 
@@ -633,14 +650,17 @@ export default function ExamMonitor() {
           </motion.div>
         ) : (
           <motion.div 
+            key="exam-monitoring-portal"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.08, ease: "linear" }}
             className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col flex-1 overflow-hidden"
           >
             <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between sticky top-0 z-20">
                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                  <LayoutGrid className="w-3 h-3" />
-                 {`KELAS ${filterClass.toUpperCase()} - ${(exams[filterExam]?.title || 'UJIAN').toUpperCase()}`}
+                 {showAllMode ? 'MONITORING SELURUH KELAS & UJIAN' : `KELAS ${filterClass.toUpperCase()} - ${(exams[filterExam]?.title || 'UJIAN').toUpperCase()}`}
                </span>
                <span className="text-[10px] font-bold text-indigo-600 bg-white px-2 py-0.5 rounded border border-indigo-100 shadow-sm">
                  {filteredSessions.length} Terdeteksi

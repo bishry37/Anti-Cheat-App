@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, orderBy, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { StudentSession, Exam, Question, Class, Subject } from '../../types';
+import { collection, query, getDocs, getDoc, orderBy, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { StudentSession, Exam, Question, Class, Subject, Setting } from '../../types';
 import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Check, Clock, Users, Search, LayoutGrid } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
@@ -18,6 +18,7 @@ export default function ResultReport() {
   const [filterClass, setFilterClass] = useState<string>('');
   const [filterExam, setFilterExam] = useState<string>('');
   const [allClassSessions, setAllClassSessions] = useState<StudentSession[]>([]);
+  const [setting, setSetting] = useState<Setting | null>(null);
 
   // Toast & Custom Delete Confirmation Dialog
   const [toast, setToast] = useState<string | null>(null);
@@ -186,8 +187,28 @@ export default function ResultReport() {
       fetchExams();
       fetchClasses();
       fetchSubjects();
+      fetchSettings();
     }
   }, [user]);
+
+  const fetchSettings = async () => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'settings', user.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setSetting(docSnap.data() as Setting);
+      } else {
+        const fallbackRef = doc(db, 'settings', 'school');
+        const fallbackSnap = await getDoc(fallbackRef);
+        if (fallbackSnap.exists()) {
+          setSetting(fallbackSnap.data() as Setting);
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching settings:', e);
+    }
+  };
 
   const fetchSubjects = async () => {
     if (!user) return;
@@ -297,25 +318,112 @@ export default function ResultReport() {
       return `${sPart} detik`;
     };
 
-    const data = sessions.map((s, i) => ({
-      No: i + 1,
-      NamaSiswa: s.studentName,
-      Kelas: s.className,
-      Ujian: exams[s.examId]?.title || 'Ujian Terhapus',
-      Status: s.status,
-      Nilai: s.score?.toFixed(2) || '0',
-      Benar: s.correctCount || 0,
-      Salah: s.wrongCount || 0,
-      Pelanggaran: s.violationsCount,
-      DurasiKerja: getDurationText(s),
-      WaktuMulai: format24hInput(s.startTime),
-      WaktuSelesai: s.endTime ? format24hInput(s.endTime) : '-'
-    }));
+    const schoolName = setting?.schoolName || 'NAMA SEKOLAH BELUM DIKONFIGURASI';
+    const schoolAddress = setting?.schoolAddress || 'Alamat sekolah tidak ditentukan';
+    const schoolSlogan = setting?.schoolSlogan || '';
+    const teacherName = setting?.teacherName || user?.displayName || 'GURU PENGAMPU';
+    const teacherRole = setting?.teacherRole || 'Guru Pengajar';
 
-    const ws = XLSX.utils.json_to_sheet(data);
+    let subjectName = 'Semua Mata Pelajaran';
+    if (filterExam && exams[filterExam]) {
+      const examObj = exams[filterExam];
+      if (examObj.subjectId && subjectsMap[examObj.subjectId]) {
+        subjectName = subjectsMap[examObj.subjectId];
+      }
+    } else if (sessions.length > 0) {
+      const firstSess = sessions[0];
+      if (firstSess.subjectId && subjectsMap[firstSess.subjectId]) {
+        subjectName = subjectsMap[firstSess.subjectId];
+      }
+    }
+
+    const aoa: any[][] = [];
+
+    // Header info (simple, clean and matching screenshot exactly)
+    aoa.push([]); // Row 0 spacer
+    aoa.push(['', 'REKAPITULASI DAFTAR NILAI EVALUASI BELAJAR SISWA']); // Row 1
+    aoa.push([]); // Row 2 spacer
+
+    aoa.push(['', 'INFORMASI AKADEMIK', '', '', 'DETAIL REKAPITULASI']); // Row 3
+    aoa.push(['', 'Nama Guru Pengampu', `: ${teacherName}`, '', 'Mata Pelajaran', `: ${subjectName}`]); // Row 4
+    aoa.push(['', 'Jabatan / Peran', `: ${teacherRole}`, '', 'Kelas', `: ${filterClass || 'Semua Kelas'}`]); // Row 5
+    aoa.push(['', 'Jadwal Ujian', filterExam && exams[filterExam] ? `: ${exams[filterExam].title}` : ': Semua Ujian', '', 'Total Peserta', `: ${sessions.length} Siswa`]); // Row 6
+    aoa.push(['', 'Tanggal Unduh Laporan', `: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`]); // Row 7
+    aoa.push([]); // Row 8 spacer
+    aoa.push([]); // Row 9 spacer
+
+    // Table Headers
+    aoa.push([
+      'NO',
+      'NAMA LENGKAP SISWA',
+      'KELAS',
+      'UJIAN / JADWAL',
+      'STATUS KEIKUTSERTAAN',
+      'NILAI (SKOR)',
+      'JAWABAN BENAR',
+      'JAWABAN SALAH',
+      'PELANGGARAN',
+      'DURASI PENGERJAAN',
+      'WAKTU MULAI',
+      'WAKTU SELESAI'
+    ]);
+
+    // Records
+    sessions.forEach((s, idx) => {
+      aoa.push([
+        idx + 1,
+        s.studentName.toUpperCase(),
+        s.className,
+        exams[s.examId]?.title || 'Ujian Terhapus',
+        s.status === 'Didiskualifikasi' ? 'DIDISKUALIFIKASI' : s.status.toUpperCase(),
+        s.score !== undefined ? Number(s.score.toFixed(2)) : 0,
+        s.correctCount || 0,
+        s.wrongCount || 0,
+        s.violationsCount || 0,
+        getDurationText(s),
+        format24hInput(s.startTime),
+        s.endTime ? format24hInput(s.endTime) : '-'
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    // Apply merges to look like the screenshot layout
+    ws['!merges'] = [
+      { s: { r: 1, c: 1 }, e: { r: 1, c: 11 } },
+      { s: { r: 3, c: 1 }, e: { r: 3, c: 2 } },
+      { s: { r: 3, c: 4 }, e: { r: 3, c: 6 } },
+      { s: { r: 4, c: 2 }, e: { r: 4, c: 3 } },
+      { s: { r: 4, c: 5 }, e: { r: 4, c: 11 } },
+      { s: { r: 5, c: 2 }, e: { r: 5, c: 3 } },
+      { s: { r: 5, c: 5 }, e: { r: 5, c: 11 } },
+      { s: { r: 6, c: 2 }, e: { r: 6, c: 3 } },
+      { s: { r: 6, c: 5 }, e: { r: 6, c: 11 } },
+      { s: { r: 7, c: 2 }, e: { r: 7, c: 5 } }
+    ];
+
+    // Align column widths beautifully
+    ws['!cols'] = [
+      { wch: 6 },   // NO
+      { wch: 32 },  // NAMA LENGKAP SISWA
+      { wch: 12 },  // KELAS
+      { wch: 28 },  // UJIAN / JADWAL
+      { wch: 22 },  // STATUS KEIKUTSERTAAN
+      { wch: 14 },  // Nilai (Skor)
+      { wch: 16 },  // Jawaban Benar
+      { wch: 16 },  // Jawaban Salah
+      { wch: 14 },  // Pelanggaran
+      { wch: 24 },  // Durasi Kerja
+      { wch: 22 },  // Waktu Mulai
+      { wch: 22 }   // Waktu Selesai
+    ];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Hasil Ujian');
-    XLSX.writeFile(wb, `Hasil_Ujian_${new Date().getTime()}.xlsx`);
+    
+    // Nice descriptive filename
+    const cleanSchoolName = schoolName.replace(/[^a-zA-Z0-9]/g, '_');
+    XLSX.writeFile(wb, `Laporan_Ujian_${cleanSchoolName}_${new Date().getTime()}.xlsx`);
   };
 
   const getDurationDisplay = (s: StudentSession) => {
