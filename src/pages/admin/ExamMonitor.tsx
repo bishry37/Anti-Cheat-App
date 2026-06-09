@@ -48,6 +48,8 @@ export default function ExamMonitor() {
     candidateName: ''
   });
 
+  const [customWarningText, setCustomWarningText] = useState('');
+
   // A global timer ticker to update remaining time on display dynamically every second
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -232,6 +234,7 @@ export default function ExamMonitor() {
   };
 
   const triggerWarning = (session: StudentSession) => {
+    setCustomWarningText('');
     setConfirmDialog({
       isOpen: true,
       type: 'warning',
@@ -272,7 +275,8 @@ export default function ExamMonitor() {
     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
 
     if (type === 'warning' && session) {
-      const msg = "Perhatian! Sistem mendeteksi aktivitas yang tidak sesuai aturan ujian. Mohon tetap fokus dan mengerjakan ujian dengan jujur. Pelanggaran berikutnya dapat menyebabkan ujian dihentikan.";
+      const defaultMsg = "Perhatian! Sistem mendeteksi aktivitas yang tidak sesuai aturan ujian. Mohon tetap fokus dan mengerjakan ujian dengan jujur. Pelanggaran berikutnya dapat menyebabkan ujian dihentikan.";
+      const msg = customWarningText.trim() !== '' ? customWarningText.trim() : defaultMsg;
       try {
         const currentViolations = session.violationsCount || 0;
         const newCount = currentViolations + 1;
@@ -981,12 +985,14 @@ export default function ExamMonitor() {
       {/* Custom Confirmation Modal */}
       {confirmDialog.isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full border border-slate-100 p-5 flex flex-col items-center text-center animate-in scale-in duration-200">
+          <div className={`bg-white rounded-xl shadow-xl w-full border border-slate-100 p-5 flex flex-col items-center animate-in scale-in duration-200 ${
+            confirmDialog.type === 'warning' ? 'max-w-md text-left' : 'max-w-sm text-center'
+          }`}>
             <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
               confirmDialog.type === 'delete' ? 'bg-red-50 text-red-600' :
               confirmDialog.type === 'end_exam' ? 'bg-red-50 text-red-600' : 
               confirmDialog.type === 'restore' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-            }`}>
+            } ${confirmDialog.type === 'warning' ? 'self-start' : 'mx-auto'}`}>
               {confirmDialog.type === 'delete' || confirmDialog.type === 'end_exam' ? (
                 <ShieldAlert className="w-6 h-6" />
               ) : confirmDialog.type === 'restore' ? (
@@ -995,27 +1001,56 @@ export default function ExamMonitor() {
                 <AlertTriangle className="w-6 h-6" />
               )}
             </div>
-            <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-1">
+            <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-1 w-full">
               {confirmDialog.type === 'delete' ? 'Hapus Sesi Ujian' :
                confirmDialog.type === 'end_exam' ? 'Akhiri Paksa Ujian' : 
                confirmDialog.type === 'restore' ? 'Pulihkan Sesi Ujian' : 'Kirim Teguran'}
             </h4>
-            <p className="text-xs text-slate-500 leading-relaxed mb-5">
-              {confirmDialog.type === 'delete' && `Apakah Anda yakin ingin menghapus data sesi ujian untuk ${confirmDialog.candidateName}? Tindakan ini tidak dapat dibatalkan.`}
-              {confirmDialog.type === 'end_exam' && `Apakah Anda yakin ingin mengakhiri paksa ujian untuk ${confirmDialog.candidateName}? Mereka akan didiskualifikasi.`}
-              {confirmDialog.type === 'warning' && `Kirim peringatan/teguran kedisiplinan ke siswa ${confirmDialog.candidateName}?`}
-              {confirmDialog.type === 'restore' && `Izinkan ${confirmDialog.candidateName} untuk melanjutkan kembali ujian yang sebelumnya didiskualifikasi?`}
-            </p>
+            
+            {confirmDialog.type !== 'warning' ? (
+              <p className="text-xs text-slate-500 leading-relaxed mb-5">
+                {confirmDialog.type === 'delete' && `Apakah Anda yakin ingin menghapus data sesi ujian untuk ${confirmDialog.candidateName}? Tindakan ini tidak dapat dibatalkan.`}
+                {confirmDialog.type === 'end_exam' && `Apakah Anda yakin ingin mengakhiri paksa ujian untuk ${confirmDialog.candidateName}? Mereka akan didiskualifikasi.`}
+                {confirmDialog.type === 'restore' && `Izinkan ${confirmDialog.candidateName} untuk melanjutkan kembali ujian yang sebelumnya didiskualifikasi?`}
+              </p>
+            ) : (
+              <div className="w-full flex flex-col space-y-3.5 mb-5 text-left">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Kirim peringatan/teguran kedisiplinan ke siswa <strong className="text-slate-800">{confirmDialog.candidateName}</strong>? Teguran ini akan muncul seketika di layar ujian siswa.
+                </p>
+
+                <div className="bg-slate-50 border border-slate-200/60 p-3 rounded-lg">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Kalimat Teguran Bawaan:</span>
+                  <p className="text-[11px] text-slate-600 leading-normal italic text-left">
+                    "Perhatian! Sistem mendeteksi aktivitas yang tidak sesuai aturan ujian. Mohon tetap fokus dan mengerjakan ujian dengan jujur. Pelanggaran berikutnya dapat menyebabkan ujian dihentikan."
+                  </p>
+                </div>
+
+                <div className="flex flex-col space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Tulis Kalimat Teguran Manual (Opsional):</label>
+                  <textarea
+                    value={customWarningText}
+                    onChange={(e) => setCustomWarningText(e.target.value)}
+                    placeholder="Contoh: Tolong fokus pada monitor, dilarang menengok ke samping..."
+                    className="w-full h-20 px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all placeholder:text-slate-400 leading-normal resize-none font-medium text-slate-800"
+                  />
+                  <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                    *Kosongkan kolom di atas jika ingin menggunakan kalimat bawaan otomatis.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2 w-full">
               <button 
                 onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} 
-                className="flex-1 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 hover:bg-slate-200 rounded-lg transition-colors"
+                className="flex-1 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer text-center"
               >
                 Batal
               </button>
               <button 
                 onClick={executeConfirmedAction} 
-                className={`flex-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-colors ${
+                className={`flex-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-colors cursor-pointer text-center ${
                   confirmDialog.type === 'delete' || confirmDialog.type === 'end_exam' 
                     ? 'bg-red-600 hover:bg-red-700' 
                     : confirmDialog.type === 'restore'
