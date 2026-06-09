@@ -892,7 +892,7 @@ export default function StudentExam() {
                             <span className={`shrink-0 w-6 h-6 rounded-full border flex items-center justify-center font-bold text-[11px] mr-3 mt-0.5 ${isSelected ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-300 text-slate-500'}`}>
                               {displayLabel}
                             </span>
-                            <div className="flex-1 pt-0 text-sm text-slate-700 ql-editor p-0" dangerouslySetInnerHTML={{ __html: formatHTML(optItem.text) }} />
+                            <div className="flex-1 pt-0.5 text-sm text-slate-700 ql-editor p-0 [&_p]:m-0 [&_p]:p-0" dangerouslySetInnerHTML={{ __html: formatHTML(optItem.text) }} />
                           </label>
                         );
                       })}

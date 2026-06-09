@@ -36,6 +36,19 @@
 .ql-editor p:last-child {
   margin-bottom: 0;
 }
+
+/* Inline ql-editor styling for multiple choices and compact displays */
+.ql-editor.p-0, .ql-editor.\!p-0 {
+  padding: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+.ql-editor.p-0 p, .ql-editor.\!p-0 p {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: inline;
+}
 .prose p {
   margin-bottom: 0.85em;
 }

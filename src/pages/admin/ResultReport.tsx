@@ -976,10 +976,10 @@ export default function ResultReport() {
                                 const isKey = q.correctAnswer === l;
                                 const isSt = studentAns === l;
                                 return (
-                                  <div key={l} className={`flex items-start gap-1 p-1 rounded ${isSt ? (isKey ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800') : ''}`}>
-                                    <span className="font-bold">{l}.</span>
-                                    <span className="ql-editor p-0 text-[11px]" dangerouslySetInnerHTML={{ __html: formatHTML(optVal) }} />
-                                    {isSt && <span className="text-[9px] font-bold uppercase ml-1">(Pilihan Siswa)</span>}
+                                  <div key={l} className={`flex items-baseline gap-2 p-1.5 rounded transition-all ${isSt ? (isKey ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800') : ''}`}>
+                                    <span className="font-bold select-none text-[11px]">{l}.</span>
+                                    <div className="ql-editor p-0 text-[11px] flex-1 [&_p]:m-0 [&_p]:p-0" dangerouslySetInnerHTML={{ __html: formatHTML(optVal) }} />
+                                    {isSt && <span className="text-[9px] font-bold uppercase ml-1 self-baseline">(Pilihan Siswa)</span>}
                                   </div>
                                 );
                               })}

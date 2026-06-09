@@ -11,6 +11,58 @@ import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Width
 import * as mammoth from 'mammoth';
 import { formatHTML } from '../../utils/textFormat';
 
+const stripSimpleHTML = (val: string | undefined | null): string => {
+  if (!val) return '';
+  let str = String(val).trim();
+  
+  let stripped = true;
+  while (stripped) {
+    stripped = false;
+    
+    // 1. If it's wrapped in a single <p...> ... </p>
+    if (/^<p[^>]*>([\s\S]*?)<\/p>$/i.test(str)) {
+      const match = str.match(/^<p[^>]*>([\s\S]*?)<\/p>$/i);
+      if (match) {
+        str = match[1].trim();
+        stripped = true;
+      }
+    }
+    
+    // 2. If it's wrapped in a single <span...> ... </span>
+    if (/^<span[^>]*>([\s\S]*?)<\/span>$/i.test(str)) {
+      const match = str.match(/^<span[^>]*>([\s\S]*?)<\/span>$/i);
+      if (match) {
+        str = match[1].trim();
+        stripped = true;
+      }
+    }
+  }
+
+  // 3. Check if there are any remaining interactive/rich HTML tags (like img, table, math, etc.)
+  // If not, we can safely decode html entities or extract plain text using DOMParser
+  if (!/<(img|table|tr|td|math|audio|video|iframe|svg)/i.test(str)) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(str, 'text/html');
+      if (!doc.querySelector('img, table, math, audio, video, iframe, svg')) {
+        str = doc.body.textContent || doc.body.innerText || str;
+      }
+    } catch (e) {
+      // fallback
+    }
+    
+    str = str
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+  }
+  
+  return str.trim();
+};
+
 export default function QuestionBank() {
   const { user } = useAuth();
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -850,8 +902,16 @@ export default function QuestionBank() {
 
   const startEditing = (q: Question) => {
     setEditingQuestionId(q.id || null);
-    setEditingData({ ...q });
-    setOriginalEditingData({ ...q });
+    const cleanedQ = {
+      ...q,
+      optionA: stripSimpleHTML(q.optionA),
+      optionB: stripSimpleHTML(q.optionB),
+      optionC: stripSimpleHTML(q.optionC),
+      optionD: stripSimpleHTML(q.optionD),
+      optionE: stripSimpleHTML(q.optionE),
+    };
+    setEditingData(cleanedQ);
+    setOriginalEditingData({ ...cleanedQ });
   };
 
   const cancelEditing = () => {
@@ -1575,11 +1635,21 @@ export default function QuestionBank() {
                             const isCorrect = q.correctAnswer === opt;
                             
                             return (
-                              <div key={opt} className={`flex items-start space-x-2 py-1 ${isCorrect ? 'font-bold text-green-700' : 'text-slate-600'}`}>
-                                <span className={`shrink-0 ${isCorrect ? 'text-green-600 font-bold' : 'text-slate-400'}`}>
-                                  {q.type === 'menjodohkan' ? `Sandi ${opt}` : `${opt}`}.
+                              <div 
+                                key={opt} 
+                                className={`flex items-baseline gap-2 px-2 py-1.5 rounded-lg border transition-all ${
+                                  isCorrect 
+                                    ? 'bg-green-50/70 border-green-200/80 font-bold text-green-700 shadow-3xs' 
+                                    : 'border-transparent text-slate-600 hover:bg-slate-50/50'
+                                }`}
+                              >
+                                <span className={`shrink-0 select-none font-bold text-[11px] ${isCorrect ? 'text-green-600' : 'text-slate-400'}`}>
+                                  {q.type === 'menjodohkan' ? `Sandi ${opt}:` : `${opt}.`}
                                 </span>
-                                <span className={`${isCorrect ? 'bg-green-50 px-1 rounded border border-green-100' : ''}`}>{val as React.ReactNode}</span>
+                                <div 
+                                  className="ql-editor p-0 text-[11px] flex-1 leading-normal text-left [&_p]:m-0 [&_p]:p-0" 
+                                  dangerouslySetInnerHTML={{ __html: formatHTML(String(val)) }} 
+                                />
                               </div>
                             );
                           })}
