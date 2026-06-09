@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot } from 'firebase/firestore';
 import { Exam, Subject, Class } from '../../types';
-import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Calendar, Clock, Copy, CheckCircle2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Calendar, Clock, Copy, CheckCircle2, Search, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
@@ -43,6 +43,12 @@ export default function Exams() {
     idToDelete: string;
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [filterClass, setFilterClass] = useState('');
+  const [filterSubject, setFilterSubject] = useState('');
 
   // Form State
   const [formData, setFormData] = useState<Partial<Exam>>({
@@ -311,6 +317,20 @@ export default function Exams() {
     });
   };
 
+  const filteredExams = exams.filter(exam => {
+    const matchesSearch = exam.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (exam.packetName || '').toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = filterStatus === 'all' ? true :
+      filterStatus === 'active' ? exam.isActive : !exam.isActive;
+      
+    const matchesClass = !filterClass ? true : exam.targetClass === filterClass;
+    
+    const matchesSubject = !filterSubject ? true : exam.subjectId === filterSubject;
+    
+    return matchesSearch && matchesStatus && matchesClass && matchesSubject;
+  });
+
   return (
     <div className="w-full h-full flex flex-col">
       <AnimatePresence>
@@ -552,6 +572,71 @@ export default function Exams() {
             </button>
           )}
         </div>
+
+        {/* Filter & Search Bar */}
+        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200/60 flex flex-wrap gap-2.5 items-center justify-between shrink-0">
+          <div className="flex flex-wrap gap-2.5 items-center flex-1">
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input 
+                type="text"
+                placeholder="Cari nama ujian atau file soal..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-400 font-medium text-slate-800"
+              />
+            </div>
+
+            <div className="flex items-center space-x-1">
+              <Filter className="w-3 h-3 text-slate-400" />
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as any)}
+                className="text-xs bg-white border border-slate-300 rounded px-2.5 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer font-medium text-slate-600 bg-[image:none] pr-2.5"
+              >
+                <option value="all">Semua Status</option>
+                <option value="active">Aktif</option>
+                <option value="inactive">Nonaktif</option>
+              </select>
+            </div>
+
+            <select
+              value={filterClass}
+              onChange={(e) => setFilterClass(e.target.value)}
+              className="text-xs bg-white border border-slate-300 rounded px-2.5 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer font-medium text-slate-600 bg-[image:none] pr-2.5"
+            >
+              <option value="">Semua Kelas</option>
+              {classesData.map(c => (
+                <option key={c.id} value={c.name}>{c.name}</option>
+              ))}
+            </select>
+
+            <select
+              value={filterSubject}
+              onChange={(e) => setFilterSubject(e.target.value)}
+              className="text-xs bg-white border border-slate-300 rounded px-2.5 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer font-medium text-slate-600 bg-[image:none] pr-2.5"
+            >
+              <option value="">Semua Mapel</option>
+              {subjects.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {(searchQuery || filterStatus !== 'all' || filterClass || filterSubject) && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setFilterStatus('all');
+                setFilterClass('');
+                setFilterSubject('');
+              }}
+              className="text-[10px] font-bold uppercase tracking-wider text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded transition-all border border-red-200 cursor-pointer"
+            >
+              Reset Filter
+            </button>
+          )}
+        </div>
         <div className="overflow-auto flex-1">
           <table className="w-full text-left">
             <thead>
@@ -577,12 +662,18 @@ export default function Exams() {
                 </tr>
               ) : exams.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-slate-500 font-bold">
+                  <td colSpan={9} className="px-4 py-12 text-center text-slate-500 font-bold uppercase tracking-wider text-[11px]">
                     Belum ada ujian yang dibuat.
                   </td>
                 </tr>
+              ) : filteredExams.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-12 text-center text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+                    Tidak ada ujian yang cocok dengan pencarian / filter.
+                  </td>
+                </tr>
               ) : (
-                exams.map((exam) => (
+                filteredExams.map((exam) => (
                   <tr key={exam.id} className="hover:bg-slate-50/80 transition-colors group">
                     <td className="px-4 py-4">
                       <div className="text-sm font-semibold text-slate-800 leading-snug">
