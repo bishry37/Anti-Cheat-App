@@ -447,12 +447,51 @@ export default function Home() {
         
         {/* Top Branding Section */}
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-28 h-28 bg-white border border-slate-200 shadow-xl rounded-[1.75rem] p-1 flex items-center justify-center mb-5 overflow-hidden">
-            <img 
+          <div className="w-28 h-28 bg-white border border-slate-200 shadow-xl rounded-[1.75rem] p-1 flex items-center justify-center mb-5 overflow-hidden relative">
+            {/* Shimmer / Beacon Beam Sweep Overlay */}
+            <motion.div
+              className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/70 to-transparent z-10 pointer-events-none"
+              initial={{ left: '-100%', skewX: -20 }}
+              animate={{ left: '200%', skewX: -20 }}
+              transition={{
+                repeat: Infinity,
+                repeatType: "loop",
+                duration: 2.5,
+                ease: "easeInOut",
+                repeatDelay: 1.2
+              }}
+            />
+            {/* Continuous subtle inner laser pulse/beacon */}
+            <motion.div
+              className="absolute inset-0 bg-blue-500/10 z-0 pointer-events-none"
+              animate={{ opacity: [0.1, 0.35, 0.1] }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            />
+            <motion.img 
               src={brandLogo} 
               alt="ANTI CHEAT APP" 
-              className="w-full h-full object-contain scale-125" 
+              className="w-full h-full object-contain scale-125 relative z-5" 
               referrerPolicy="no-referrer"
+              animate={{
+                scale: [1.25, 1.29, 1.25],
+                rotate: [0, 1, 0, -1, 0]
+              }}
+              transition={{
+                scale: {
+                  duration: 4,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                },
+                rotate: {
+                  duration: 6,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }
+              }}
             />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tighter text-slate-900 uppercase">
