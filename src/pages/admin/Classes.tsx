@@ -334,14 +334,14 @@ export default function Classes() {
                       }`}
                     >
                       <div className="flex items-center space-x-3">
-                        <div className={`w-6 h-6 rounded flex items-center justify-center font-bold text-[10px] shrink-0 border ${
+                        <div className={`w-6 h-6 rounded flex items-center justify-center font-semibold text-[10px] shrink-0 border ${
                           isSelected 
                             ? 'bg-blue-600 text-white border-blue-600' 
                             : 'bg-slate-100 text-slate-500 border-slate-200'
                         }`}>
                           {index + 1}
                         </div>
-                        <span className={`text-sm font-bold ${isSelected ? 'text-blue-700 font-extrabold' : 'text-slate-800'}`}>
+                        <span className={`text-sm font-semibold ${isSelected ? 'text-blue-700 font-bold' : 'text-slate-800'}`}>
                           {classData.name}
                         </span>
                       </div>
@@ -503,7 +503,7 @@ export default function Classes() {
                       return (
                         <div className="text-center py-16 text-slate-400">
                           <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                          <span className="font-extrabold uppercase text-[10px] tracking-wider leading-relaxed block text-slate-400">
+                          <span className="font-semibold uppercase text-[10px] tracking-wider leading-relaxed block text-slate-400">
                             Belum ada data siswa<br />Input di atas untuk menambah siswa
                           </span>
                         </div>
@@ -563,10 +563,10 @@ export default function Classes() {
                               ) : (
                                 <>
                                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    <span className="text-[9px] text-slate-400 group-hover/item:text-blue-500 font-bold bg-slate-50 w-5 h-5 rounded-full flex items-center justify-center border border-slate-100/50 shrink-0">
+                                    <span className="text-[9px] text-slate-400 group-hover/item:text-blue-500 font-semibold bg-slate-50 w-5 h-5 rounded-full flex items-center justify-center border border-slate-100/50 shrink-0">
                                       {originalIndex + 1}
                                     </span>
-                                    <span className="text-xs text-slate-700 font-extrabold uppercase tracking-tight truncate">
+                                    <span className="text-xs text-slate-700 font-semibold uppercase tracking-tight truncate">
                                       {studentName}
                                     </span>
                                   </div>
