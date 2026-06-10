@@ -424,52 +424,16 @@ export default function Classes() {
                     </button>
                   </div>
 
-                  {/* Bulk Import Toggle & Area */}
+                  {/* Bulk Import Toggle */}
                   <div>
-                    {!showBulk ? (
-                      <button
-                        onClick={() => setShowBulk(true)}
-                        className="text-blue-600 hover:text-blue-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:underline"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Atau Impor banyak siswa sekaligus (Bulk Import)</span>
-                      </button>
-                    ) : (
-                      <motion.div
-                        initial={{ opacity: 0, y: -5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-slate-50/55 border border-slate-200 rounded-lg p-3 flex flex-col gap-2.5"
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">Impor Masal (1 Nama per Baris)</span>
-                          <button onClick={() => setShowBulk(false)} className="text-slate-450 hover:text-slate-650">
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        <textarea
-                          value={bulkInput}
-                          onChange={(e) => setBulkInput(e.target.value)}
-                          placeholder={"BUDI SETIAWAN\nANI SETYAWATI\nIMAM BISHRY NURYAYI"}
-                          rows={3}
-                          className="w-full p-2 text-xs bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 outline-none uppercase font-semibold text-slate-755 leading-relaxed placeholder-slate-400"
-                        />
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => setShowBulk(false)}
-                            className="px-2.5 py-1 text-[9px] font-bold uppercase text-slate-500 border border-slate-300 rounded hover:bg-slate-100 transition cursor-pointer"
-                          >
-                            Batal
-                          </button>
-                          <button
-                            onClick={handleBulkImport}
-                            disabled={processing || !bulkInput.trim()}
-                            className="px-2.5 py-1 text-[9px] font-bold uppercase bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition cursor-pointer"
-                          >
-                            Proses Impor
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowBulk(true)}
+                      className="text-blue-600 hover:text-blue-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:underline"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Atau Impor banyak siswa sekaligus (Bulk Import)</span>
+                    </button>
                   </div>
                 </div>
 
@@ -675,6 +639,63 @@ export default function Classes() {
               >
                 {processing && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
                 <span>Hapus</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBulk && (
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden transform animate-in scale-in-95 duration-200 flex flex-col h-[480px]">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                  Impor Banyak Siswa Sekaligus
+                </h3>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mt-0.5">
+                  1 Nama per Baris (Copy-Paste Massal)
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowBulk(false)} 
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-50 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 flex-1 flex flex-col min-h-0 bg-slate-50/30">
+              <p className="text-[11px] text-slate-500 uppercase font-semibold tracking-wide mb-2.5">
+                Masukkan nama-nama siswa di dalam kotak di bawah ini:
+              </p>
+              <textarea
+                value={bulkInput}
+                onChange={(e) => setBulkInput(e.target.value)}
+                placeholder={"BUDI SETIAWAN\nANI SETYAWATI\nIMAM BISHRY NURYAYI"}
+                className="flex-1 w-full p-3 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 outline-none uppercase font-semibold text-slate-700 leading-relaxed placeholder-slate-400 resize-none font-mono"
+                autoFocus
+              />
+            </div>
+
+            <div className="bg-slate-50 px-5 py-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBulk(false);
+                  setBulkInput('');
+                }}
+                className="px-4 py-2 hover:bg-slate-200 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkImport}
+                disabled={processing || !bulkInput.trim()}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center space-x-2 disabled:opacity-50 shadow-sm"
+              >
+                <span>Proses Impor</span>
               </button>
             </div>
           </div>
