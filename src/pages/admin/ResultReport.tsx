@@ -20,9 +20,14 @@ export default function ResultReport() {
   const [allClassSessions, setAllClassSessions] = useState<StudentSession[]>([]);
   const [setting, setSetting] = useState<Setting | null>(null);
   const [sortBy, setSortBy] = useState<string>('waktu_terbaru');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const sortedSessions = useMemo(() => {
-    const list = [...sessions];
+    let list = [...sessions];
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(s => (s.studentName || '').toLowerCase().includes(q));
+    }
     if (sortBy === 'waktu_terbaru') {
       list.sort((a, b) => (b.endTime || 0) - (a.endTime || 0));
     } else if (sortBy === 'waktu_terlama') {
@@ -37,7 +42,7 @@ export default function ResultReport() {
       list.sort((a, b) => (b.studentName || '').toLowerCase().localeCompare((a.studentName || '').toLowerCase()));
     }
     return list;
-  }, [sessions, sortBy]);
+  }, [sessions, sortBy, searchQuery]);
 
   // Toast & Custom Delete Confirmation Dialog
   const [toast, setToast] = useState<string | null>(null);
@@ -665,7 +670,42 @@ export default function ResultReport() {
                 </div>
               </div>
            ) : (
-            <table className="w-full text-left">
+             <div className="flex flex-col h-full min-h-0 bg-white">
+               {/* Search Panel */}
+               <div id="results-search-toolbar" className="px-4 py-3 bg-slate-50/50 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                 <div className="relative w-full sm:max-w-xs">
+                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                     <Search className="h-4 w-4 text-slate-400" />
+                   </div>
+                   <input
+                     id="candidate-search-input"
+                     type="text"
+                     value={searchQuery}
+                     onChange={(e) => setSearchQuery(e.target.value)}
+                     placeholder="Cari nama peserta..."
+                     className="block w-full pl-9 pr-8 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                   />
+                   {searchQuery && (
+                     <button
+                       onClick={() => setSearchQuery('')}
+                       className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                     >
+                       <X className="h-3 w-3" />
+                     </button>
+                   )}
+                 </div>
+                 
+                 <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                   <span>Menampilkan: </span>
+                   <span className="text-blue-600 font-extrabold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100/40">{sortedSessions.length}</span>
+                   <span>dari</span>
+                   <span className="text-slate-705 font-extrabold">{sessions.length}</span>
+                   <span>Siswa</span>
+                 </div>
+               </div>
+
+               <div className="overflow-auto flex-1">
+                 <table className="w-full text-left">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100 sticky top-0 z-10">
                   <th className="px-4 py-2 w-10">No</th>
@@ -744,6 +784,8 @@ export default function ResultReport() {
                 )}
               </tbody>
             </table>
+               </div>
+             </div>
            )}
          </div>
       </div>

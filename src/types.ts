@@ -24,6 +24,7 @@ export interface Class {
   id?: string;
   adminId?: string;
   name: string;
+  students?: string[];
   createdAt: number;
 }
 

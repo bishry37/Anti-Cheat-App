@@ -44,6 +44,11 @@ export default function Home() {
   const [examToken, setExamToken] = useState('');
   const [isLoggingInStudent, setIsLoggingInStudent] = useState(false);
   
+  // Student selection dropdown state
+  const [availableStudents, setAvailableStudents] = useState<string[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchDropdownQuery, setSearchDropdownQuery] = useState('');
+  
   // Admin Form State
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -198,6 +203,40 @@ export default function Home() {
 
     return () => clearInterval(interval);
   }, [activeExams]);
+
+  // Fetch student lists based on valid token or linked active exam
+  useEffect(() => {
+    let currentExam: Exam | null = null;
+    if (linkedExam) {
+      currentExam = linkedExam;
+    } else if (examToken.trim().length >= 4) {
+      const match = Array.isArray(activeExams) 
+        ? activeExams.find(ex => ex.activeToken.toUpperCase() === examToken.trim().toUpperCase() && ex.isActive) 
+        : undefined;
+      if (match) {
+        currentExam = match;
+      }
+    }
+
+    if (currentExam && currentExam.targetClass) {
+      const q = query(collection(db, 'classes'), where('name', '==', currentExam.targetClass));
+      getDocs(q).then((snap) => {
+        if (!snap.empty) {
+          const classData = snap.docs[0].data();
+          const students = (classData.students || []) as string[];
+          setAvailableStudents(students.sort());
+        } else {
+          setAvailableStudents([]);
+        }
+      }).catch((err) => {
+        console.error("Gagal mengambil siswa:", err);
+        setAvailableStudents([]);
+      });
+    } else {
+      setAvailableStudents([]);
+      setStudentName('');
+    }
+  }, [examToken, linkedExam, activeExams]);
 
   const handleAdminEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -470,20 +509,8 @@ export default function Home() {
                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Informasi</p>
                      <p className="text-sm font-medium text-slate-600">Masukkan Token Ujian dari Guru Anda untuk mengakses ruangan.</p>
                   </div>
-                )}
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Nama Lengkap</label>
-                    <input 
-                      type="text" 
-                      value={studentName}
-                      onChange={(e) => setStudentName(e.target.value.toUpperCase())}
-                      placeholder="CONTOH: IMAM BISHRY NURYAYI"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all focus:bg-white text-sm font-bold placeholder:font-normal"
-                      required
-                    />
-                  </div>
+                )}                <div className="space-y-4">
+                  {/* Token Ujian / Password Input */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Token Ujian</label>
                     <div className="relative">
@@ -497,6 +524,101 @@ export default function Home() {
                         maxLength={6}
                       />
                     </div>
+                  </div>
+
+                  {/* Nama Lengkap - Dropdown/Searchable Select */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Nama Lengkap Anda</label>
+                    {availableStudents.length > 0 ? (
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                          className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-left text-sm font-bold text-slate-800 flex justify-between items-center cursor-pointer shadow-xs whitespace-nowrap overflow-hidden text-ellipsis"
+                        >
+                          <span className="truncate">
+                            {studentName ? (
+                              studentName
+                            ) : (
+                              <span className="text-xs font-semibold text-slate-400">CARI & PILIH NAMA ANDA...</span>
+                            )}
+                          </span>
+                          <svg className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+
+                        <AnimatePresence>
+                          {isDropdownOpen && (
+                            <motion.div 
+                              initial={{ opacity: 0, y: 5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: 5 }}
+                              className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 flex flex-col gap-2 max-h-60 overflow-hidden"
+                            >
+                              <div className="relative">
+                                <svg className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                <input
+                                  type="text"
+                                  value={searchDropdownQuery}
+                                  onChange={(e) => setSearchDropdownQuery(e.target.value)}
+                                  placeholder="MASUKKAN NAMA UNTUK MENCARI..."
+                                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none uppercase focus:bg-white text-slate-800"
+                                  onClick={(e) => { e.stopPropagation(); }}
+                                />
+                              </div>
+                              
+                              <div className="flex-1 overflow-auto divide-y divide-slate-100 max-h-44 pr-1">
+                                {(() => {
+                                  const filtered = availableStudents.filter(name => name.toLowerCase().includes(searchDropdownQuery.toLowerCase()));
+                                  if (filtered.length === 0) {
+                                    return (
+                                      <div className="p-3 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Nama tidak ditemukan
+                                      </div>
+                                    );
+                                  }
+                                  return filtered.map((name) => (
+                                    <button
+                                      key={name}
+                                      type="button"
+                                      onClick={() => {
+                                        setStudentName(name);
+                                        setIsDropdownOpen(false);
+                                        setSearchDropdownQuery('');
+                                      }}
+                                      className={`w-full px-3 py-2 text-left text-xs font-semibold uppercase text-slate-700 hover:bg-blue-50 hover:text-blue-600 rounded-md transition cursor-pointer flex items-center justify-between ${
+                                        studentName === name ? 'bg-blue-50 text-blue-600' : ''
+                                      }`}
+                                    >
+                                      <span>{name}</span>
+                                      {studentName === name && (
+                                        <svg className="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  ));
+                                })()}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <UserCircle className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2" />
+                        <input 
+                          type="text" 
+                          value=""
+                          disabled
+                          placeholder="MASUKKAN TOKEN UNTUK MEMILIH NAMA..."
+                          className="w-full pl-11 pr-4 py-3.5 bg-slate-100 border border-slate-200 text-slate-400 rounded-xl cursor-not-allowed outline-none select-none text-[10px] font-extrabold uppercase tracking-widest placeholder-slate-405"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
