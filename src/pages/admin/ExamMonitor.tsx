@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc, deleteDoc, getDoc, where } from 'firebase/firestore';
 import { StudentSession, Violation, Exam, Subject, Class } from '../../types';
-import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight, Play, CheckCircle2, Clock3, Ban, Unlock } from 'lucide-react';
+import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight, Play, CheckCircle2, Clock3, Ban, Unlock, Radio } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -436,8 +436,12 @@ export default function ExamMonitor() {
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-             <div className="w-9 h-9 bg-slate-900 rounded-lg flex items-center justify-center shrink-0">
-                <Activity className="w-5 h-5 text-indigo-400" />
+             <div className="w-10 h-10 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0 relative overflow-hidden">
+                {/* Radar outer expansion ripples to represent continuous live streaming */}
+                <span className="absolute inset-0 bg-blue-500/20 rounded-full scale-75 animate-ping opacity-60"></span>
+                <span className="absolute inset-0 bg-indigo-500/10 rounded-full scale-100 animate-pulse"></span>
+                {/* Centered Radio Signal Icon */}
+                <Radio className="w-5 h-5 text-blue-600 relative z-10 animate-pulse" />
              </div>
              <div>
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter">Live Monitoring</h3>

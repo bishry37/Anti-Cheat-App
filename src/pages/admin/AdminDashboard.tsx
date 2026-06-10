@@ -1,92 +1,478 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../lib/firebase';
-import { collection, query, getDocs, where } from 'firebase/firestore';
-import { Users, FileText, CheckCircle, AlertTriangle, FileSpreadsheet } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { collection, query, getDocs, where, doc, getDoc } from 'firebase/firestore';
+import { 
+  Users, 
+  FileText, 
+  CheckCircle, 
+  AlertTriangle, 
+  FileSpreadsheet,
+  MonitorPlay,
+  BookOpen,
+  Plus,
+  Settings,
+  ArrowRight,
+  Sparkles,
+  Search,
+  Activity,
+  Award
+} from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { StudentSession, Violation, Setting } from '../../types';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<Setting | null>(null);
+  
   const [stats, setStats] = useState({
     activeStudents: 0,
     totalExams: 0,
     completedExams: 0,
-    totalViolations: 0
+    totalViolations: 0,
+    totalSubjects: 0,
+    totalClasses: 0
   });
 
+  const [recentViolations, setRecentViolations] = useState<Violation[]>([]);
+  const [activeSessions, setActiveSessions] = useState<StudentSession[]>([]);
+
+  // Function to determine greeting based on Indonesian time
+  const getGreeting = () => {
+    const hrs = new Date().getHours();
+    if (hrs < 11) return 'Selamat Pagi';
+    if (hrs < 15) return 'Selamat Siang';
+    if (hrs < 19) return 'Selamat Sore';
+    return 'Selamat Malam';
+  };
+
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchDashboardData = async () => {
       if (!user) return;
       try {
-        const [activeSnap, examSnap, completedSnap, volSnap] = await Promise.all([
-          getDocs(query(collection(db, 'student_sessions'), where('adminId', '==', user.uid), where('status', '==', 'Aktif'))),
+        // Fetch Settings Profile
+        const profileSnap = await getDoc(doc(db, 'settings', user.uid));
+        if (profileSnap.exists()) {
+          setProfile(profileSnap.data() as Setting);
+        }
+
+        // Fetch Stats
+        const [
+          activeSnap, 
+          examSnap, 
+          completedSnap, 
+          volSnap,
+          subjSnap,
+          classSnap
+        ] = await Promise.all([
+          getDocs(query(collection(db, 'student_sessions'), where('adminId', '==', user.uid), where('status', 'in', ['Aktif', 'Tidak Fokus', 'Melanggar']))),
           getDocs(query(collection(db, 'exams'), where('adminId', '==', user.uid))),
           getDocs(query(collection(db, 'student_sessions'), where('adminId', '==', user.uid), where('status', 'in', ['Selesai', 'Didiskualifikasi']))),
-          getDocs(query(collection(db, 'violations'), where('adminId', '==', user.uid)))
+          getDocs(query(collection(db, 'violations'), where('adminId', '==', user.uid))),
+          getDocs(query(collection(db, 'subjects'), where('adminId', '==', user.uid))),
+          getDocs(query(collection(db, 'classes'), where('adminId', '==', user.uid)))
         ]);
 
         setStats({
           activeStudents: activeSnap.size,
           totalExams: examSnap.size,
           completedExams: completedSnap.size,
-          totalViolations: volSnap.size
+          totalViolations: volSnap.size,
+          totalSubjects: subjSnap.size,
+          totalClasses: classSnap.size
         });
+
+        // Safe Client-side sorting for Recent Violations to avoid indexing requirements
+        const violationsList = volSnap.docs.map(d => ({ id: d.id, ...d.data() } as Violation));
+        violationsList.sort((a, b) => b.timestamp - a.timestamp);
+        setRecentViolations(violationsList.slice(0, 5));
+
+        // Safe Client-side sorting for Active Sessions
+        const activeList = activeSnap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
+        activeList.sort((a, b) => b.lastActivity - a.lastActivity);
+        setActiveSessions(activeList.slice(0, 5));
+
       } catch (e) {
-        console.error(e);
+        console.error("Dashboard statistics loading issue:", e);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchStats();
+
+    fetchDashboardData();
   }, [user]);
 
+  // Format Helper for relative time
+  const formatTime = (timestamp: number) => {
+    try {
+      const elapsed = Date.now() - timestamp;
+      const secs = Math.floor(elapsed / 1000);
+      if (secs < 60) return 'Baru saja';
+      const mins = Math.floor(secs / 60);
+      if (mins < 60) return `${mins}m lalu`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}j lalu`;
+      return new Date(timestamp).toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '';
+    }
+  };
+
   return (
-    <div className="w-full space-y-5">
+    <div className="w-full space-y-6">
+      {/* Dynamic Header Greeting panel */}
+      <div className="bg-white p-6 border border-slate-200 rounded-xl shadow-xs relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1 z-10">
+          <div className="flex items-center gap-1.5 text-blue-600 font-extrabold text-[10px] uppercase tracking-widest">
+            <Sparkles className="w-4 h-4" />
+            <span>EXAM MONITOR HUB</span>
+          </div>
+          <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">
+            {getGreeting()}, {profile?.teacherName || user?.email?.split('@')[0] || 'Proktor'}
+          </h2>
+          <p className="text-xs text-slate-500 font-medium max-w-xl leading-relaxed">
+            Selamat datang di panel kontrol ujian digital. Anda mengawasi <span className="font-bold text-slate-800">{profile?.schoolName || 'Institusi Anda'}</span>. Pantau kejujuran, kelola jadwal kelas, dan evaluasi hasil secara real-time.
+          </p>
+        </div>
+        <div className="shrink-0 flex items-center md:justify-end gap-3 z-10">
+          <div className="text-right hidden sm:block">
+            <div className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Hari & Tanggal</div>
+            <div className="text-xs font-extrabold text-slate-700 capitalize">
+              {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </div>
+          </div>
+          <Link
+            to="/admin/monitor"
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors shadow-xs"
+          >
+            <MonitorPlay className="w-4 h-4 animate-pulse" />
+            <span>Mulai Monitor</span>
+          </Link>
+        </div>
+        <div className="absolute top-0 right-0 w-32 h-full bg-gradient-to-l from-blue-50/20 to-transparent pointer-events-none" />
+      </div>
+
+      {/* Primary Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
-          <div className="text-xs text-slate-500 font-medium">Siswa Aktif</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">{stats.activeStudents}</div>
-          <div className="text-[10px] text-slate-400 font-bold mt-1 uppercase hover:text-blue-600"><Link to="/admin/monitor">Lihat Monitor &rarr;</Link></div>
+        {/* Siswa Aktif */}
+        <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-xs relative overflow-hidden transition-all hover:border-blue-300">
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Siswa Aktif</span>
+              <div className="text-2xl font-black text-slate-800 flex items-center gap-2">
+                {stats.activeStudents}
+                {stats.activeStudents > 0 && (
+                  <span className="flex h-2.5 w-2.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-65"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg">
+              <Users className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3.5 pt-2 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+            <span>Daftar Kelas: {stats.totalClasses}</span>
+            <Link to="/admin/monitor" className="text-blue-600 hover:underline flex items-center">
+              Pantau <ArrowRight className="w-3 h-3 ml-0.5" />
+            </Link>
+          </div>
         </div>
 
-        <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
-          <div className="text-xs text-slate-500 font-medium">Total Ujian</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">{stats.totalExams}</div>
-          <div className="text-[10px] text-slate-400 font-bold mt-1 uppercase hover:text-blue-600"><Link to="/admin/exams">Kelola Ujian &rarr;</Link></div>
+        {/* Total Ujian */}
+        <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-xs relative overflow-hidden transition-all hover:border-blue-300">
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Total Ujian</span>
+              <div className="text-2xl font-black text-slate-800">{stats.totalExams}</div>
+            </div>
+            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg">
+              <FileText className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3.5 pt-2 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+            <span>Mapel: {stats.totalSubjects} Terdaftar</span>
+            <Link to="/admin/exams" className="text-blue-600 hover:underline flex items-center">
+              Kelola <ArrowRight className="w-3 h-3 ml-0.5" />
+            </Link>
+          </div>
         </div>
 
-        <div className="bg-white p-4 border border-red-100 rounded-lg shadow-sm relative overflow-hidden">
-          <div className="text-xs text-red-500 font-medium">Pelanggaran</div>
-          <div className="text-2xl font-bold text-red-600 mt-1">{stats.totalViolations}</div>
-          <div className="text-[10px] text-red-400 font-bold mt-1 uppercase hover:text-red-600"><Link to="/admin/monitor">Pantau Kasus &rarr;</Link></div>
+        {/* Pelanggaran */}
+        <div className={`p-4 border rounded-xl shadow-xs relative overflow-hidden transition-all hover:border-red-300 ${stats.totalViolations > 0 ? 'bg-red-50/10 border-red-200' : 'bg-white border-slate-200'}`}>
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <span className="text-[10px] text-red-500 font-bold uppercase tracking-wider block">Pelanggaran</span>
+              <div className="text-2xl font-black text-red-600">{stats.totalViolations}</div>
+            </div>
+            <div className="p-2.5 bg-red-100 text-red-600 rounded-lg animate-pulse">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3.5 pt-2 border-t border-slate-100 flex justify-between items-center text-[10px] text-red-400 font-bold uppercase tracking-wider">
+            <span>Siswa Curang Tercatat</span>
+            <Link to="/admin/monitor" className="text-red-600 hover:underline flex items-center">
+              Selidiki <ArrowRight className="w-3 h-3 ml-0.5" />
+            </Link>
+          </div>
         </div>
 
-        <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
-          <div className="text-xs text-slate-500 font-medium">Ujian Selesai</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">{stats.completedExams}</div>
-          <div className="text-[10px] text-slate-400 font-bold mt-1 uppercase hover:text-blue-600"><Link to="/admin/results">Lihat Laporan &rarr;</Link></div>
+        {/* Ujian Selesai */}
+        <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-xs relative overflow-hidden transition-all hover:border-blue-300">
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Selesai Dikerjakan</span>
+              <div className="text-2xl font-black text-slate-800">{stats.completedExams}</div>
+            </div>
+            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg">
+              <CheckCircle className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3.5 pt-2 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+            <span>Nilai Terkalkulasi</span>
+            <Link to="/admin/results" className="text-indigo-600 hover:underline flex items-center">
+              Laporan <ArrowRight className="w-3 h-3 ml-0.5" />
+            </Link>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5 flex flex-col items-center justify-center text-center min-h-[200px]">
-          <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mb-3">
-            <Users className="w-6 h-6 text-blue-600" />
+      {/* Main Grid: Data feed on left, actions guidelines on right */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column (List of Active & Violations) */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Recent Violations Panel */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 text-red-600" />
+                <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-widest">
+                  Log Kasus Pelanggaran Terbaru
+                </h3>
+              </div>
+              <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[9px] font-black uppercase tracking-wider rounded">
+                TERBARU
+              </span>
+            </div>
+            
+            <div className="divide-y divide-slate-150 max-h-[290px] overflow-y-auto">
+              {loading ? (
+                <div className="p-8 text-center text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                  Memuat data pelanggaran...
+                </div>
+              ) : recentViolations.length === 0 ? (
+                <div className="p-8 text-center text-slate-400">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2.5 text-slate-400">
+                    <CheckCircle className="w-5 h-5" />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider block text-slate-500">
+                    Semua Berjalan Tertib & Aman
+                  </span>
+                  <span className="text-[9px] text-slate-400 block mt-0.5">
+                    Tidak terdeteksi adanya indikasi siswa berpindah tab/keluar aplikasi
+                  </span>
+                </div>
+              ) : (
+                recentViolations.map((v, i) => (
+                  <div key={v.id || i} className="p-3.5 hover:bg-slate-50/50 transition flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-red-55/65 text-red-600 shrink-0 mt-0.5">
+                      <AlertTriangle className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-tight block truncate">
+                          {v.studentName}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-semibold uppercase shrink-0">
+                          {formatTime(v.timestamp)}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-semibold leading-normal mt-1 uppercase text-slate-500">
+                        {v.type || "Meninggalkan lembar ujian"}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-          <h3 className="text-sm font-bold text-slate-800 mb-1">Panduan Pengawas</h3>
-          <p className="text-[11px] text-slate-500 mb-4 max-w-sm">
-            Gunakan Live Monitor untuk memantau aktivitas secara real-time. Anda dapat menegur atau mendiskualifikasi siswa yang ketahuan bertindak curang.
-          </p>
-          <Link to="/admin/monitor" className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded text-[11px] font-bold uppercase tracking-wide transition-colors">Buka Live Monitor</Link>
+
+          {/* Active Sessions Monitor Grid */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Activity className="w-4 h-4 text-emerald-600" />
+                <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-widest">
+                  Siswa Sedang Ujian (Real-time Hub)
+                </h3>
+              </div>
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </div>
+
+            <div className="p-4">
+              {loading ? (
+                <div className="text-center py-8 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                  Memuat aktivitas siswa...
+                </div>
+              ) : activeSessions.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">
+                  <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider block text-slate-500">
+                    Belum Ada Siswa Menjalani Ujian
+                  </span>
+                  <span className="text-[9px] text-slate-400 block mt-0.5">
+                    Aktifkan ujian dan berikan token ke siswa agar mereka bisa masuk
+                  </span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {activeSessions.map((s, idx) => (
+                    <div 
+                      key={s.id || idx} 
+                      className="p-3 border border-slate-150/80 rounded-lg shadow-2xs hover:border-blue-200 transition bg-slate-50/20"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-slate-800 uppercase tracking-tight block truncate">
+                            {s.studentName}
+                          </span>
+                          <span className="text-[9.5px] font-bold text-slate-450 uppercase mt-0.5 block">
+                            Kelas {s.className}
+                          </span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider border shrink-0 ${
+                          s.status === 'Aktif' 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50' 
+                            : s.status === 'Tidak Fokus' 
+                            ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                            : 'bg-red-50 text-red-700 border-red-200'
+                        }`}>
+                          {s.status}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-slate-400 border-t border-slate-100/60 pt-2">
+                        <span>Pelanggaran: <span className={s.violationsCount > 0 ? 'text-red-550 font-extrabold' : ''}>{s.violationsCount}</span></span>
+                        <span>Aktif {formatTime(s.lastActivity)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5 flex flex-col items-center justify-center text-center min-h-[200px]">
-          <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center mb-3">
-            <FileSpreadsheet className="w-6 h-6 text-green-600" />
+        {/* Right column: Quick shortcuts / Admin guidelines */}
+        <div className="space-y-6">
+          {/* Quick Shortcuts */}
+          <div className="bg-white p-5 border border-slate-200 rounded-xl shadow-xs">
+            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-4">
+              Akses Cepat Pengelola
+            </h3>
+            <div className="grid grid-cols-2 gap-2.5">
+              <Link 
+                to="/admin/exams" 
+                className="p-3.5 bg-slate-50 hover:bg-blue-50/40 hover:text-blue-700 border border-slate-200/80 rounded-xl flex flex-col items-center justify-center text-center transition group cursor-pointer"
+              >
+                <div className="p-2 bg-white rounded-lg border border-slate-150 group-hover:bg-blue-600 group-hover:text-white transition">
+                  <Plus className="w-4 h-4 text-slate-650 group-hover:text-white" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider mt-2.5 block text-slate-700 group-hover:text-blue-700">
+                  Ujian Baru
+                </span>
+              </Link>
+              
+              <Link 
+                to="/admin/classes" 
+                className="p-3.5 bg-slate-50 hover:bg-blue-50/40 hover:text-blue-700 border border-slate-200/80 rounded-xl flex flex-col items-center justify-center text-center transition group cursor-pointer"
+              >
+                <div className="p-2 bg-white rounded-lg border border-slate-150 group-hover:bg-blue-600 group-hover:text-white transition">
+                  <Users className="w-4 h-4 text-slate-650 group-hover:text-white" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider mt-2.5 block text-slate-700 group-hover:text-blue-700">
+                  Kelola Kelas
+                </span>
+              </Link>
+
+              <Link 
+                to="/admin/subjects" 
+                className="p-3.5 bg-slate-50 hover:bg-blue-50/40 hover:text-blue-700 border border-slate-200/80 rounded-xl flex flex-col items-center justify-center text-center transition group cursor-pointer"
+              >
+                <div className="p-2 bg-white rounded-lg border border-slate-150 group-hover:bg-blue-600 group-hover:text-white transition">
+                  <BookOpen className="w-4 h-4 text-slate-650 group-hover:text-white" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider mt-2.5 block text-slate-700 group-hover:text-blue-700">
+                  Mata Pelajaran
+                </span>
+              </Link>
+
+              <Link 
+                to="/admin/settings" 
+                className="p-3.5 bg-slate-50 hover:bg-blue-50/40 hover:text-blue-700 border border-slate-200/80 rounded-xl flex flex-col items-center justify-center text-center transition group cursor-pointer"
+              >
+                <div className="p-2 bg-white rounded-lg border border-slate-150 group-hover:bg-blue-600 group-hover:text-white transition">
+                  <Settings className="w-4 h-4 text-slate-650 group-hover:text-white" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider mt-2.5 block text-slate-700 group-hover:text-blue-700">
+                  Pengaturan
+                </span>
+              </Link>
+            </div>
           </div>
-          <h3 className="text-sm font-bold text-slate-800 mb-1">Export ke Excel</h3>
-          <p className="text-[11px] text-slate-500 mb-4 max-w-sm">
-            Sistem secara otomatis akan menggrading semua soal pilihan ganda. Anda bisa langsung mendownload rekap nilainya di halaman laporan.
-          </p>
-          <Link to="/admin/results" className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded text-[11px] font-bold uppercase tracking-wide transition-colors">Buka Laporan</Link>
+
+          {/* Quick Guide Card */}
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-5 rounded-xl shadow-md border border-slate-800">
+            <div className="flex items-center space-x-2 text-blue-400 mb-3">
+              <Award className="w-5 h-5" />
+              <h4 className="text-xs font-black uppercase tracking-wider">Panduan Keamanan CBT</h4>
+            </div>
+            
+            <ul className="space-y-3">
+              <li className="flex items-start gap-2.5">
+                <span className="text-[11px] font-extrabold text-blue-400 bg-blue-950 px-1.5 py-0.5 rounded border border-blue-900/40 shrink-0 mt-0.5">1</span>
+                <div>
+                  <span className="text-xs font-bold uppercase block tracking-tight">Kunci Layar Siswa</span>
+                  <span className="text-[10px] text-slate-350 font-medium leading-relaxed mt-0.5 block">Siswa wajib menjalankan ujian dalam mode layar penuh (fullscreen). Peringatan otomatis akan muncul jika sistem mendeteksi upaya keluar dari halaman ujian.</span>
+                </div>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="text-[11px] font-extrabold text-blue-400 bg-blue-950 px-1.5 py-0.5 rounded border border-blue-900/40 shrink-0 mt-0.5">2</span>
+                <div>
+                  <span className="text-xs font-bold uppercase block tracking-tight">Cegah Sesi Ganda</span>
+                  <span className="text-[10px] text-slate-350 font-medium leading-relaxed mt-0.5 block">Sesi ujian dikunci secara khusus per perangkat untuk membatasi aktivitas masuk ganda (double login) pada peramban, tab, atau profil browser lain.</span>
+                </div>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="text-[11px] font-extrabold text-blue-400 bg-blue-950 px-1.5 py-0.5 rounded border border-blue-900/40 shrink-0 mt-0.5">3</span>
+                <div>
+                  <span className="text-xs font-bold uppercase block tracking-tight">Diskualifikasi oleh Pengawas</span>
+                  <span className="text-[10px] text-slate-350 font-medium leading-relaxed mt-0.5 block">Pengawas memiliki wewenang penuh untuk menggunakan fitur keluarkan (kick) atau diskualifikasi langsung dari halaman Monitoring Aktivitas peserta jika terbukti melanggar tata tertib.</span>
+                </div>
+              </li>
+            </ul>
+
+            <div className="mt-5 pt-3.5 border-t border-slate-700/60 flex justify-end">
+              <Link 
+                to="/admin/results" 
+                className="text-white hover:text-blue-400 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1 transition"
+              >
+                <span>Lihat Laporan Rekap</span>
+                <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </div>
