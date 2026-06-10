@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, getDoc, orderBy, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { StudentSession, Exam, Question, Class, Subject, Setting } from '../../types';
@@ -19,6 +19,25 @@ export default function ResultReport() {
   const [filterExam, setFilterExam] = useState<string>('');
   const [allClassSessions, setAllClassSessions] = useState<StudentSession[]>([]);
   const [setting, setSetting] = useState<Setting | null>(null);
+  const [sortBy, setSortBy] = useState<string>('waktu_terbaru');
+
+  const sortedSessions = useMemo(() => {
+    const list = [...sessions];
+    if (sortBy === 'waktu_terbaru') {
+      list.sort((a, b) => (b.endTime || 0) - (a.endTime || 0));
+    } else if (sortBy === 'waktu_terlama') {
+      list.sort((a, b) => (a.endTime || 0) - (b.endTime || 0));
+    } else if (sortBy === 'skor_tertinggi') {
+      list.sort((a, b) => (b.score || 0) - (a.score || 0));
+    } else if (sortBy === 'skor_terendah') {
+      list.sort((a, b) => (a.score || 0) - (b.score || 0));
+    } else if (sortBy === 'nama_asc') {
+      list.sort((a, b) => (a.studentName || '').toLowerCase().localeCompare((b.studentName || '').toLowerCase()));
+    } else if (sortBy === 'nama_desc') {
+      list.sort((a, b) => (b.studentName || '').toLowerCase().localeCompare((a.studentName || '').toLowerCase()));
+    }
+    return list;
+  }, [sessions, sortBy]);
 
   // Toast & Custom Delete Confirmation Dialog
   const [toast, setToast] = useState<string | null>(null);
@@ -296,8 +315,8 @@ export default function ResultReport() {
       if (examObj.subjectId && subjectsMap[examObj.subjectId]) {
         subjectName = subjectsMap[examObj.subjectId];
       }
-    } else if (sessions.length > 0) {
-      const firstSess = sessions[0];
+    } else if (sortedSessions.length > 0) {
+      const firstSess = sortedSessions[0];
       if (firstSess.subjectId && subjectsMap[firstSess.subjectId]) {
         subjectName = subjectsMap[firstSess.subjectId];
       }
@@ -313,7 +332,7 @@ export default function ResultReport() {
     aoa.push(['', 'INFORMASI AKADEMIK', '', '', 'DETAIL REKAPITULASI']); // Row 3
     aoa.push(['', 'Nama Guru Pengampu', `: ${teacherName}`, '', 'Mata Pelajaran', `: ${subjectName}`]); // Row 4
     aoa.push(['', 'Jabatan / Peran', `: ${teacherRole}`, '', 'Kelas', `: ${filterClass || 'Semua Kelas'}`]); // Row 5
-    aoa.push(['', 'Jadwal Ujian', filterExam && exams[filterExam] ? `: ${exams[filterExam].title}` : ': Semua Ujian', '', 'Total Peserta', `: ${sessions.length} Siswa`]); // Row 6
+    aoa.push(['', 'Jadwal Ujian', filterExam && exams[filterExam] ? `: ${exams[filterExam].title}` : ': Semua Ujian', '', 'Total Peserta', `: ${sortedSessions.length} Siswa`]); // Row 6
     aoa.push(['', 'Tanggal Unduh Laporan', `: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`]); // Row 7
     aoa.push([]); // Row 8 spacer
     aoa.push([]); // Row 9 spacer
@@ -335,7 +354,7 @@ export default function ResultReport() {
     ]);
 
     // Records
-    sessions.forEach((s, idx) => {
+    sortedSessions.forEach((s, idx) => {
       aoa.push([
         idx + 1,
         s.studentName.toUpperCase(),
@@ -482,8 +501,23 @@ export default function ResultReport() {
                  <span>Ganti File Soal</span>
                </button>
              )}
+
+             {filterClass && filterExam && (
+               <select
+                 value={sortBy}
+                 onChange={e => setSortBy(e.target.value)}
+                 className="px-2 py-1.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[11px] font-bold uppercase focus:ring-1 focus:ring-blue-500 outline-none hover:bg-blue-100 transition-all cursor-pointer"
+               >
+                 <option value="waktu_terbaru">⚡ Terbaru</option>
+                 <option value="waktu_terlama">⏳ Terlama</option>
+                 <option value="skor_tertinggi">📈 Skor Tertinggi</option>
+                 <option value="skor_terendah">📉 Skor Terendah</option>
+                 <option value="nama_asc">🔤 Nama A-Z</option>
+                 <option value="nama_desc">🔤 Nama Z-A</option>
+               </select>
+             )}
              <button 
-               disabled={sessions.length === 0 || !filterClass || !filterExam}
+               disabled={sortedSessions.length === 0 || !filterClass || !filterExam}
                onClick={handleExportExcel}
                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded flex items-center space-x-1.5 transition-colors text-[10px] font-bold uppercase shadow-sm disabled:opacity-50"
              >
@@ -652,14 +686,14 @@ export default function ResultReport() {
                       Memuat data...
                     </td>
                   </tr>
-                ) : sessions.length === 0 ? (
+                ) : sortedSessions.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center text-slate-500 font-bold">
                       Belum ada hasil ujian untuk filter ini.
                     </td>
                   </tr>
                 ) : (
-                  sessions.map((s, idx) => (
+                  sortedSessions.map((s, idx) => (
                     <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
                       <td className="px-4 py-2.5">
