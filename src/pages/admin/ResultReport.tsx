@@ -6,7 +6,7 @@ import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Chec
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { formatHTML } from '../../utils/textFormat';
+import { formatHTML, calculateSmartPoints, normalizeTextForGrading } from '../../utils/textFormat';
 
 export default function ResultReport() {
   const { user } = useAuth();
@@ -95,40 +95,6 @@ export default function ResultReport() {
   const handleSaveEssayGrades = async () => {
     if (!selectedSession) return;
     setSavingGrades(true);
-
-    const calculateSmartPoints = (studentAns: string, correctAns: string, weight: number): number => {
-      if (!studentAns || !studentAns.trim()) return 0;
-      const normalize = (text: string) => {
-        return text
-          .toLowerCase()
-          .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, " ")
-          .replace(/\s+/g, ' ')
-          .split(' ')
-          .filter(w => !['a', 'an', 'the'].includes(w))
-          .join(' ')
-          .trim();
-      };
-      const s = normalize(studentAns);
-      const c = normalize(correctAns);
-      if (s === c) return weight;
-      if (!s) return 0;
-      const sWords = s.split(' ');
-      const cWords = c.split(' ');
-      const maxLen = Math.max(sWords.length, cWords.length);
-      let matches = 0;
-      const tempCWords = [...cWords];
-      sWords.forEach(w => {
-        const idx = tempCWords.indexOf(w);
-        if (idx !== -1) {
-          matches++;
-          tempCWords.splice(idx, 1);
-        }
-      });
-      const missingOrWrongCount = maxLen - matches;
-      if (missingOrWrongCount === 1) return weight * 0.9;
-      if (missingOrWrongCount > 1 && matches >= maxLen / 2) return weight * 0.5;
-      return 0;
-    };
 
     try {
       let pointsEarned = 0;
@@ -909,7 +875,7 @@ export default function ResultReport() {
                               <p className="text-sm font-bold text-emerald-800 mt-0.5">{q.correctAnswer || '-'}</p>
                             </div>
                             <div className="flex items-center gap-2 mt-3 mb-4">
-                              {(studentAns || '').toLowerCase().trim() === (q.correctAnswer || '').toLowerCase().trim() ? (
+                              {normalizeTextForGrading(studentAns) === normalizeTextForGrading(q.correctAnswer) ? (
                                 <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
                                   <Check className="w-3.5 h-3.5" />
                                   <span>Automatis: Benar (+{weight} Poin)</span>
@@ -932,7 +898,7 @@ export default function ResultReport() {
                                   max={weight}
                                   step={0.5}
                                   value={editingScores[q.id!] !== undefined ? editingScores[q.id!] : 
-                                    ((studentAns || '').toLowerCase().trim() === (q.correctAnswer || '').toLowerCase().trim() ? weight : 0)
+                                    (normalizeTextForGrading(studentAns) === normalizeTextForGrading(q.correctAnswer) ? weight : 0)
                                   }
                                   onChange={(e) => {
                                     const val = Math.min(weight, Math.max(0, parseFloat(e.target.value) || 0));

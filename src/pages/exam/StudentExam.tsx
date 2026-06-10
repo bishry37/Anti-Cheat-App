@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ShieldAlert, Maximize, Clock, Save, AlertTriangle, LogOut, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { formatHTML } from '../../utils/textFormat';
+import { formatHTML, calculateSmartPoints } from '../../utils/textFormat';
 
 export default function StudentExam() {
   const { user, logout } = useAuth();
@@ -45,53 +45,6 @@ export default function StudentExam() {
       setIsSubmittingOrFinished(false);
       return;
     }
-
-    // Smart Grading Helper
-    const calculateSmartPoints = (studentAns: string, correctAns: string, weight: number): number => {
-      if (!studentAns || !studentAns.trim()) return 0;
-      
-      const normalize = (text: string) => {
-        return text
-          .toLowerCase()
-          .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, " ") // remove punctuation
-          .replace(/\s+/g, ' ') // compact whitespace
-          .split(' ')
-          .filter(w => !['a', 'an', 'the'].includes(w)) // remove articles
-          .join(' ')
-          .trim();
-      };
-
-      const s = normalize(studentAns);
-      const c = normalize(correctAns);
-
-      if (s === c) return weight;
-      if (!s) return 0;
-
-      const sWords = s.split(' ');
-      const cWords = c.split(' ');
-      const maxLen = Math.max(sWords.length, cWords.length);
-
-      // Word-level matching
-      let matches = 0;
-      const tempCWords = [...cWords];
-      sWords.forEach(w => {
-        const idx = tempCWords.indexOf(w);
-        if (idx !== -1) {
-          matches++;
-          tempCWords.splice(idx, 1);
-        }
-      });
-
-      const missingOrWrongCount = maxLen - matches;
-
-      // Rule 1: Just missing dots/articles handled by normalize (s === c)
-      // Rule 2: 1 word typo/difference
-      if (missingOrWrongCount === 1) return weight * 0.9;
-      // Rule 3: > 1 word typo/difference but still has significant overlap
-      if (missingOrWrongCount > 1 && matches >= maxLen / 2) return weight * 0.5;
-      
-      return 0;
-    };
 
     // Calculate weight-based score
     let pointsEarned = 0;
