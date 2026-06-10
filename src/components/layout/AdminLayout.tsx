@@ -63,7 +63,7 @@ export default function AdminLayout() {
             <div className="w-12 h-12 flex items-center justify-center shrink-0 overflow-hidden bg-white/10 rounded-xl p-1.5">
               <img src={setting?.schoolLogo || brandLogo} alt={setting?.schoolName || "SYSTEM"} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
             </div>
-            <h1 className="text-sm font-black text-white tracking-widest uppercase leading-tight">
+            <h1 className="text-sm font-bold text-white tracking-widest uppercase leading-tight">
               {setting?.schoolName || 'ANTI CHEATING APP'}
             </h1>
           </div>
@@ -130,7 +130,7 @@ export default function AdminLayout() {
           <div className="w-16 h-16 flex items-center justify-center shrink-0 overflow-hidden bg-white/10 rounded-2xl p-2">
             <img src={setting?.schoolLogo || brandLogo} alt={setting?.schoolName || "SYSTEM"} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
           </div>
-          <h1 className="text-sm font-black text-white tracking-widest leading-tight uppercase">
+          <h1 className="text-sm font-bold text-white tracking-widest leading-tight uppercase">
             {setting?.schoolName || 'ANTI CHEATING APP'}
           </h1>
         </div>
@@ -202,7 +202,7 @@ export default function AdminLayout() {
                <div className="w-11 h-11 flex items-center justify-center mr-3 shrink-0 bg-slate-100 rounded-xl p-1.5">
                   <img src={setting?.schoolLogo || brandLogo} alt={setting?.schoolName || "SYSTEM"} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                </div>
-               <span className="font-black text-slate-800 tracking-widest text-[10px] uppercase leading-tight">
+               <span className="font-bold text-slate-800 tracking-widest text-[10px] uppercase leading-tight">
                  {setting?.schoolName || 'ANTI CHEATING APP'}
                </span>
             </div>

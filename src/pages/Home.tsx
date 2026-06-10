@@ -456,7 +456,7 @@ export default function Home() {
               damping: 14, 
               delay: 0.1 
             }}
-            className="w-28 h-28 bg-white border border-slate-200 shadow-xl rounded-[1.75rem] p-1 flex items-center justify-center mb-5 overflow-hidden relative"
+            className="w-24 h-24 bg-white border border-slate-200 shadow-xl rounded-2xl p-1 flex items-center justify-center mb-5 overflow-hidden relative"
           >
             {/* Glow Menyapu (Glow Sweep overlay) */}
             <motion.div
