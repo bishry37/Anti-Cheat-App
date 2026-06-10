@@ -447,24 +447,34 @@ export default function Home() {
         
         {/* Top Branding Section */}
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-28 h-28 bg-white border border-slate-200 shadow-xl rounded-[1.75rem] p-1 flex items-center justify-center mb-5 overflow-hidden relative">
-            {/* Shimmer / Beacon Beam Sweep Overlay */}
+          <motion.div 
+            initial={{ scale: 0.45, opacity: 0, rotate: -12 }}
+            animate={{ scale: 1, opacity: 1, rotate: 0 }}
+            transition={{ 
+              type: "spring", 
+              stiffness: 150, 
+              damping: 14, 
+              delay: 0.1 
+            }}
+            className="w-28 h-28 bg-white border border-slate-200 shadow-xl rounded-[1.75rem] p-1 flex items-center justify-center mb-5 overflow-hidden relative"
+          >
+            {/* Glow Menyapu (Glow Sweep overlay) */}
             <motion.div
-              className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/70 to-transparent z-10 pointer-events-none"
+              className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-blue-400/25 via-white/80 via-blue-400/25 to-transparent z-10 pointer-events-none"
               initial={{ left: '-100%', skewX: -20 }}
               animate={{ left: '200%', skewX: -20 }}
               transition={{
                 repeat: Infinity,
                 repeatType: "loop",
-                duration: 2.5,
+                duration: 2.2,
                 ease: "easeInOut",
-                repeatDelay: 1.2
+                repeatDelay: 1.5
               }}
             />
-            {/* Continuous subtle inner laser pulse/beacon */}
+            {/* Continuous subtle inner glow pulse */}
             <motion.div
-              className="absolute inset-0 bg-blue-500/10 z-0 pointer-events-none"
-              animate={{ opacity: [0.1, 0.35, 0.1] }}
+              className="absolute inset-0 bg-blue-500/5 z-0 pointer-events-none"
+              animate={{ opacity: [0.08, 0.28, 0.08] }}
               transition={{
                 duration: 3,
                 repeat: Infinity,
@@ -478,7 +488,7 @@ export default function Home() {
               referrerPolicy="no-referrer"
               animate={{
                 scale: [1.25, 1.29, 1.25],
-                rotate: [0, 1, 0, -1, 0]
+                rotate: [0, 0.8, 0, -0.8, 0]
               }}
               transition={{
                 scale: {
@@ -493,7 +503,7 @@ export default function Home() {
                 }
               }}
             />
-          </div>
+          </motion.div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tighter text-slate-900 uppercase">
             ANTI CHEAT APP
           </h1>
