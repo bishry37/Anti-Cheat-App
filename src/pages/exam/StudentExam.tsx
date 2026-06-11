@@ -35,8 +35,21 @@ export default function StudentExam() {
   const [acknowledgedWarningTime, setAcknowledgedWarningTime] = useState<number>(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSubmittingOrFinished, setIsSubmittingOrFinished] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Connection Status Monitor
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Submit Exam Function (Declared Early for full accessibility and auto-timeouts)
   const submitExam = useCallback(async () => {
@@ -134,128 +147,132 @@ export default function StudentExam() {
     return () => unsub();
   }, [session?.adminId]);
 
-  // Load Initial Data
+  // Load Initial Data with real-time listeners for better resiliency
   useEffect(() => {
     if (!user) return;
-    async function loadData() {
+    
+    // Listen to Student Session
+    const unsubSession = onSnapshot(doc(db, 'student_sessions', user.uid), async (sessSnap) => {
       try {
-        const sessSnap = await getDoc(doc(db, 'student_sessions', user!.uid));
         if (!sessSnap.exists()) {
           setLoadError("Sesi ujian tidak valid atau Anda bukan siswa yang terdaftar. Mohon logout lalu login sebagai Admin.");
           return;
         }
-        const sessData = { id: sessSnap.id, ...sessSnap.data() } as StudentSession;
-        setSession(sessData);
-        setAnswers(sessData.answers || {});
-        if (sessData.lastQuestionIndex !== undefined) {
-          setCurrentQuestionIndex(sessData.lastQuestionIndex);
-        }
 
-        const exSnap = await getDoc(doc(db, 'exams', sessData.examId));
-        if (exSnap.exists()) {
+        const sessData = { id: sessSnap.id, ...sessSnap.data() } as StudentSession;
+        
+        // Only set session if it hasn't been set or if the status changed
+        setSession(prev => {
+          if (!prev) {
+            setAnswers(sessData.answers || {});
+            if (sessData.lastQuestionIndex !== undefined) {
+              setCurrentQuestionIndex(sessData.lastQuestionIndex);
+            }
+          }
+          return sessData;
+        });
+
+        // Listen to Exam (only once or if ID changes)
+        const unsubExam = onSnapshot(doc(db, 'exams', sessData.examId), async (exSnap) => {
+          if (!exSnap.exists()) return;
           const exData = exSnap.data() as Exam;
           setExam(exData);
 
-          try {
-            const subSnap = await getDoc(doc(db, 'subjects', exData.subjectId));
-            if (subSnap.exists()) {
-              setSubjectName(subSnap.data().name);
-            } else {
-              setSubjectName('Mata Pelajaran Tidak Diketahui');
-            }
-          } catch (e) {
-            console.error("Gagal load subject name", e);
-            setSubjectName('Mata Pelajaran Tidak Diketahui');
-          }
-          
-          // Calculate initial time left
-          const activeDuration = typeof sessData.duration === 'number' ? sessData.duration : exData.duration;
-          const elapsed = Math.floor((Date.now() - sessData.startTime) / 1000);
-          const totalSecs = Math.round(activeDuration * 60);
-          const calculatedTimeLeft = Math.max(0, totalSecs - elapsed);
+          // One-time fetch for questions and subject (if questions not loaded yet)
+          if (questions.length === 0) {
+            try {
+              // Fetch Subject Name
+              getDoc(doc(db, 'subjects', exData.subjectId)).then(subSnap => {
+                if (subSnap.exists()) setSubjectName(subSnap.data().name);
+              }).catch(err => console.error("Subject load error:", err));
 
-          // Fetch questions
-          let qQuery;
-          if (exData.packetName) {
-            qQuery = query(collection(db, 'questions'), 
-              where('subjectId', '==', sessData.subjectId),
-              where('packetName', '==', exData.packetName)
-            );
-          } else {
-            qQuery = query(collection(db, 'questions'), where('subjectId', '==', sessData.subjectId));
-          }
-          
-          const qSnap = await getDocs(qQuery);
-          let qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
-          
-          const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
-          
-          if (exData.randomizeQuestions) {
-            // Group by type and shuffle within each group
-            const groups: Record<number, Question[]> = { 1: [], 2: [], 3: [] };
-            qs.forEach(q => {
-              const order = typeOrder[q.type || 'pilihan_ganda'] || 1;
-              groups[order].push(q);
-            });
-            
-            // Shuffle each group
-            Object.values(groups).forEach(group => {
-              group.sort(() => Math.random() - 0.5);
-            });
-            
-            // Combine in order: 1 (PG), 2 (IS), 3 (Essay)
-            qs = [...groups[1], ...groups[2], ...groups[3]];
-          } else {
-            // Respect the question sequence but grouped by type
-            qs = qs.sort((a, b) => {
-              const aType = a.type || 'pilihan_ganda';
-              const bType = b.type || 'pilihan_ganda';
-              if (typeOrder[aType] !== typeOrder[bType]) {
-                return typeOrder[aType] - typeOrder[bType];
+              // Fetch questions
+              let qQuery;
+              if (exData.packetName) {
+                qQuery = query(collection(db, 'questions'), 
+                  where('subjectId', '==', sessData.subjectId),
+                  where('packetName', '==', exData.packetName)
+                );
+              } else {
+                qQuery = query(collection(db, 'questions'), where('subjectId', '==', sessData.subjectId));
               }
-              return (a.number || 0) - (b.number || 0);
-            });
-          }
+              
+              const qSnap = await getDocs(qQuery);
+              let qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
+              
+              const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
+              
+              if (exData.randomizeQuestions) {
+                const groups: Record<number, Question[]> = { 1: [], 2: [], 3: [] };
+                qs.forEach(q => {
+                  const order = typeOrder[q.type || 'pilihan_ganda'] || 1;
+                  groups[order].push(q);
+                });
+                Object.values(groups).forEach(group => group.sort(() => Math.random() - 0.5));
+                qs = [...groups[1], ...groups[2], ...groups[3]];
+              } else {
+                qs = qs.sort((a, b) => {
+                  const aType = a.type || 'pilihan_ganda';
+                  const bType = b.type || 'pilihan_ganda';
+                  if (typeOrder[aType] !== typeOrder[bType]) return typeOrder[aType] - typeOrder[bType];
+                  return (a.number || 0) - (b.number || 0);
+                });
+              }
 
-          // Pre-populate shuffled options for all multiple choice questions
-          qs = qs.map(q => {
-            const validOptions = (['A', 'B', 'C', 'D', 'E'] as const)
-              .map(opt => ({
-                key: opt,
-                text: q[`option${opt}` as keyof Question] as string | undefined
-              }))
-              .filter(item => item.text !== undefined && item.text !== null && String(item.text).trim() !== '');
+              qs = qs.map(q => {
+                const validOptions = (['A', 'B', 'C', 'D', 'E'] as const)
+                  .map(opt => ({
+                    key: opt,
+                    text: q[`option${opt}` as keyof Question] as string | undefined
+                  }))
+                  .filter(item => item.text !== undefined && item.text !== null && String(item.text).trim() !== '');
 
-            if (exData.randomizeQuestions) {
-              // Shuffling choices
-              validOptions.sort(() => Math.random() - 0.5);
+                if (exData.randomizeQuestions) validOptions.sort(() => Math.random() - 0.5);
+                return { ...q, shuffledOptions: validOptions } as any;
+              });
+
+              setQuestions(qs);
+            } catch (err) {
+              console.error("Failed to load secondary data:", err);
             }
-            
-            return {
-              ...q,
-              shuffledOptions: validOptions
-            } as any;
-          });
-
-          setQuestions(qs);
-
-          if (calculatedTimeLeft <= 0) {
-            setTimeLeft(0);
-            setTimeout(() => {
-              submitExam();
-            }, 500);
-          } else {
-            setTimeLeft(calculatedTimeLeft);
           }
-        }
+        }, (err) => {
+          console.error("Exam stream error:", err);
+          if (err.message.includes('unavailable')) setLoadError("Masalah koneksi terdeteksi (Backend Offline). Sila cek jaringan Anda.");
+        });
+
+        return () => unsubExam();
 
       } catch (err) {
-        console.error("Gagal load data", err);
-        setLoadError("Terjadi kesalahan saat memuat ujian. Pastikan koneksi internet stabil.");
+        console.error("Fatal load error:", err);
+        setLoadError("Terjadi kesalahan sistem saat memuat data ujian. Silakan segarkan halaman.");
       }
-    }
-    loadData();
+    }, (err) => {
+      console.error("Session stream error:", err);
+      if (err.message.includes('unavailable') || err.message.includes('Backend didn\'t respond')) {
+        setLoadError("Server ujian tidak dapat dijangkau. Sila pastikan internet sekolah stabil dan tidak memblokir akses ke database (Firebase).");
+      } else {
+        setLoadError("Akses ditolak atau kesalahan otorisasi sesi.");
+      }
+    });
+
+    return () => unsubSession();
   }, [user]);
+
+  // Sync session and exam data changes to current clock for absolute time
+  useEffect(() => {
+    if (!session?.startTime || !exam) return;
+    const activeDuration = typeof session.duration === 'number' ? session.duration : exam.duration;
+    const elapsed = Math.floor((Date.now() - session.startTime) / 1000);
+    const totalSecs = Math.round(activeDuration * 60);
+    const calculatedTimeLeft = Math.max(0, totalSecs - elapsed);
+    
+    setTimeLeft(calculatedTimeLeft);
+    
+    if (calculatedTimeLeft <= 0 && !isSubmittingOrFinished && session.status === 'Aktif') {
+      submitExam();
+    }
+  }, [session?.duration, exam?.duration, session?.startTime, exam, isSubmittingOrFinished, submitExam]);
 
   // Listen to remote changes on session (for admin warnings/kicks)
   useEffect(() => {
@@ -551,15 +568,26 @@ export default function StudentExam() {
 
   if (loadError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border">
-          <div className="w-20 h-20 mx-auto rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-6">
-            <ShieldAlert className="w-10 h-10" />
-          </div>
-          <h2 className="text-xl font-bold text-slate-800 mb-2">Akses Ditolak</h2>
-          <p className="text-slate-500 mb-6 text-sm">{loadError}</p>
-          <button onClick={async () => { await logout(); navigate('/'); }} className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-lg font-medium transition-colors w-full">
-            Kembali ke Beranda
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
+        <div className="w-16 h-16 bg-red-500/20 border border-red-500 rounded-2xl flex items-center justify-center mb-6">
+          <AlertTriangle className="w-8 h-8 text-red-500" />
+        </div>
+        <h1 className="text-xl font-black mb-3 tracking-tighter uppercase text-slate-100">Gagal Memuat Data</h1>
+        <p className="max-w-md text-slate-400 mb-8 leading-relaxed text-xs font-medium">
+          {loadError}
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase cursor-pointer transition-all shadow-lg active:scale-95"
+          >
+            Muat Ulang Halaman
+          </button>
+          <button 
+            onClick={async () => { await logout(); navigate('/'); }} 
+            className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase cursor-pointer transition-all"
+          >
+            Kembali & Logout
           </button>
         </div>
       </div>
@@ -768,6 +796,19 @@ export default function StudentExam() {
           </div>
         </div>
         <div className="flex items-center space-x-3 text-slate-700">
+          {/* Connection Status Indicator */}
+          {!isOnline ? (
+            <div className="flex items-center px-2 py-1 rounded bg-red-600 text-white text-[10px] font-black uppercase tracking-widest animate-pulse border border-red-700 shadow-sm">
+              <ShieldAlert className="w-3.5 h-3.5 mr-1.5" />
+              <span>Offline - Cek Internet</span>
+            </div>
+          ) : (
+            <div className="flex items-center px-2 py-1 rounded bg-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest border border-slate-200">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 shadow-sm animate-pulse"></div>
+              <span>Terhubung</span>
+            </div>
+          )}
+
           <div className="font-mono text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full font-medium">
             {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>

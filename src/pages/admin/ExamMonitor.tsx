@@ -711,14 +711,20 @@ export default function ExamMonitor() {
                   ) : (
                     filteredSessions.map((s, idx) => {
                       const isWarning = s.violationsCount > 0 && s.status === 'Aktif';
-                      const isOffline = (Date.now() - s.lastActivity) > 60000 && s.status === 'Aktif' && s.lastActivity > 0;
+                      const isOffline = (Date.now() - s.lastActivity) > 30000 && s.status === 'Aktif' && s.lastActivity > 0;
+                      const isStale = (Date.now() - s.lastActivity) > 120000 && s.status === 'Aktif' && s.lastActivity > 0;
                       const isWaitingLogin = s.status === 'Aktif' && s.lastActivity === 0;
                       
                       return (
-                        <tr key={s.id} className={`group border-b border-slate-50 hover:bg-slate-50 transition-colors ${isWarning ? 'bg-orange-50/50' : ''} ${s.status === 'Melanggar' ? 'bg-red-50/30' : ''}`}>
+                        <tr key={s.id} className={`group border-b border-slate-50 hover:bg-slate-50 transition-colors ${isWarning ? 'bg-orange-50/50' : ''} ${s.status === 'Melanggar' ? 'bg-red-50/30' : ''} ${isStale ? 'opacity-60 bg-slate-100/50' : ''}`}>
                           <td className="px-6 py-4 text-center text-slate-300 font-mono text-[11px]">{idx + 1}</td>
                           <td className="px-4 py-4">
-                            <div className="font-bold text-slate-800 text-sm">{s.studentName}</div>
+                            <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                              {s.studentName}
+                              {isOffline && (
+                                <AlertTriangle className="w-3 h-3 text-red-500 animate-pulse" title="Siswa terputus dari jaringan" />
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-4 text-center">
                             <div className="text-[10px] font-bold text-slate-500 bg-slate-100 inline-block px-1.5 rounded uppercase">{s.className}</div>
