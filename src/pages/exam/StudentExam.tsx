@@ -38,6 +38,8 @@ export default function StudentExam() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   const containerRef = useRef<HTMLDivElement>(null);
+  const loadedExamIdRef = useRef<string | null>(null);
+  const initializedRef = useRef<boolean>(false);
 
   // Connection Status Monitor
   useEffect(() => {
@@ -147,12 +149,11 @@ export default function StudentExam() {
     return () => unsub();
   }, [session?.adminId]);
 
-  // Load Initial Data with real-time listeners for better resiliency
+  // Consolidate authorative Real-time Session Monitoring (warnings, disqualifications, status, and dynamic durations)
   useEffect(() => {
     if (!user) return;
-    
-    // Listen to Student Session
-    const unsubSession = onSnapshot(doc(db, 'student_sessions', user.uid), async (sessSnap) => {
+
+    const unsubSession = onSnapshot(doc(db, 'student_sessions', user.uid), (sessSnap) => {
       try {
         if (!sessSnap.exists()) {
           setLoadError("Sesi ujian tidak valid atau Anda bukan siswa yang terdaftar. Mohon logout lalu login sebagai Admin.");
@@ -160,8 +161,8 @@ export default function StudentExam() {
         }
 
         const sessData = { id: sessSnap.id, ...sessSnap.data() } as StudentSession;
-        
-        // Only set session if it hasn't been set or if the status changed
+
+        // Initialize state fields precisely once upon the very first session configuration load
         setSession(prev => {
           if (!prev) {
             setAnswers(sessData.answers || {});
@@ -172,80 +173,21 @@ export default function StudentExam() {
           return sessData;
         });
 
-        // Listen to Exam (only once or if ID changes)
-        const unsubExam = onSnapshot(doc(db, 'exams', sessData.examId), async (exSnap) => {
-          if (!exSnap.exists()) return;
-          const exData = exSnap.data() as Exam;
-          setExam(exData);
-
-          // One-time fetch for questions and subject (if questions not loaded yet)
-          if (questions.length === 0) {
-            try {
-              // Fetch Subject Name
-              getDoc(doc(db, 'subjects', exData.subjectId)).then(subSnap => {
-                if (subSnap.exists()) setSubjectName(subSnap.data().name);
-              }).catch(err => console.error("Subject load error:", err));
-
-              // Fetch questions
-              let qQuery;
-              if (exData.packetName) {
-                qQuery = query(collection(db, 'questions'), 
-                  where('subjectId', '==', sessData.subjectId),
-                  where('packetName', '==', exData.packetName)
-                );
-              } else {
-                qQuery = query(collection(db, 'questions'), where('subjectId', '==', sessData.subjectId));
-              }
-              
-              const qSnap = await getDocs(qQuery);
-              let qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
-              
-              const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
-              
-              if (exData.randomizeQuestions) {
-                const groups: Record<number, Question[]> = { 1: [], 2: [], 3: [] };
-                qs.forEach(q => {
-                  const order = typeOrder[q.type || 'pilihan_ganda'] || 1;
-                  groups[order].push(q);
-                });
-                Object.values(groups).forEach(group => group.sort(() => Math.random() - 0.5));
-                qs = [...groups[1], ...groups[2], ...groups[3]];
-              } else {
-                qs = qs.sort((a, b) => {
-                  const aType = a.type || 'pilihan_ganda';
-                  const bType = b.type || 'pilihan_ganda';
-                  if (typeOrder[aType] !== typeOrder[bType]) return typeOrder[aType] - typeOrder[bType];
-                  return (a.number || 0) - (b.number || 0);
-                });
-              }
-
-              qs = qs.map(q => {
-                const validOptions = (['A', 'B', 'C', 'D', 'E'] as const)
-                  .map(opt => ({
-                    key: opt,
-                    text: q[`option${opt}` as keyof Question] as string | undefined
-                  }))
-                  .filter(item => item.text !== undefined && item.text !== null && String(item.text).trim() !== '');
-
-                if (exData.randomizeQuestions) validOptions.sort(() => Math.random() - 0.5);
-                return { ...q, shuffledOptions: validOptions } as any;
-              });
-
-              setQuestions(qs);
-            } catch (err) {
-              console.error("Failed to load secondary data:", err);
-            }
+        // Track initialized warning timestamp upon first mount
+        if (!initializedRef.current) {
+          if (sessData.adminWarningTime) {
+            setAcknowledgedWarningTime(sessData.adminWarningTime);
           }
-        }, (err) => {
-          console.error("Exam stream error:", err);
-          if (err.message.includes('unavailable')) setLoadError("Masalah koneksi terdeteksi (Backend Offline). Sila cek jaringan Anda.");
-        });
+          initializedRef.current = true;
+        }
 
-        return () => unsubExam();
-
+        if (sessData.status === 'Didiskualifikasi') {
+          if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+          }
+        }
       } catch (err) {
-        console.error("Fatal load error:", err);
-        setLoadError("Terjadi kesalahan sistem saat memuat data ujian. Silakan segarkan halaman.");
+        console.error("Kesalahan sinkronisasi data sesi:", err);
       }
     }, (err) => {
       console.error("Session stream error:", err);
@@ -259,62 +201,106 @@ export default function StudentExam() {
     return () => unsubSession();
   }, [user]);
 
-  // Sync session and exam data changes to current clock for absolute time
-  useEffect(() => {
-    if (!session?.startTime || !exam) return;
-    const activeDuration = typeof session.duration === 'number' ? session.duration : exam.duration;
-    const elapsed = Math.floor((Date.now() - session.startTime) / 1000);
-    const totalSecs = Math.round(activeDuration * 60);
-    const calculatedTimeLeft = Math.max(0, totalSecs - elapsed);
-    
-    setTimeLeft(calculatedTimeLeft);
-    
-    if (calculatedTimeLeft <= 0 && !isSubmittingOrFinished && session.status === 'Aktif') {
-      submitExam();
-    }
-  }, [session?.duration, exam?.duration, session?.startTime, exam, isSubmittingOrFinished, submitExam]);
-
-  // Listen to remote changes on session (for admin warnings/kicks)
-  useEffect(() => {
-    if (!user) return;
-    let initialized = false;
-    const unsub = onSnapshot(doc(db, 'student_sessions', user.uid), (docSnap) => {
-      if (docSnap.exists()) {
-        const dat = { id: docSnap.id, ...docSnap.data() } as StudentSession;
-        setSession(dat);
-        
-        // Match user's warning timestamp upon first mount to prevent showing legacy warnings
-        if (!initialized) {
-          if (dat.adminWarningTime) {
-            setAcknowledgedWarningTime(dat.adminWarningTime);
-          }
-          initialized = true;
-        }
-
-        if (dat.status === 'Didiskualifikasi') {
-          // Exit fullscreen immediately if disqualified
-          if (document.fullscreenElement) {
-            document.exitFullscreen().catch(() => {});
-          }
-        }
-      }
-    });
-    return () => unsub();
-  }, [user]);
-
-  // Listen to exam duration changes
+  // Listen to exam duration and parameters dynamically in real time
   useEffect(() => {
     if (!session?.examId) return;
-    const unsub = onSnapshot(doc(db, 'exams', session.examId), (docSnap) => {
+    const unsubExam = onSnapshot(doc(db, 'exams', session.examId), (docSnap) => {
       if (docSnap.exists()) {
-        const exData = docSnap.data() as Exam;
-        setExam(exData);
+        setExam(docSnap.data() as Exam);
       }
+    }, (err) => {
+      console.error("Exam stream error:", err);
     });
-    return () => unsub();
+    return () => unsubExam();
   }, [session?.examId]);
 
-  // Recalculate time left whenever session or exam duration changes
+  // Load questions and subject name ONCE per exam ID configuration to prevent recursive re-fetches and shuffling logic
+  useEffect(() => {
+    if (!session?.examId || !session?.subjectId) return;
+    if (loadedExamIdRef.current === session.examId) return;
+
+    loadedExamIdRef.current = session.examId;
+
+    async function loadQuestionsAndSubject() {
+      try {
+        const examId = session!.examId;
+        const subjectId = session!.subjectId;
+
+        // Fetch Exam config directly to read package configurations
+        const exSnap = await getDoc(doc(db, 'exams', examId));
+        if (!exSnap.exists()) return;
+        const exData = exSnap.data() as Exam;
+
+        // Fetch Subject Name
+        const subSnap = await getDoc(doc(db, 'subjects', subjectId));
+        if (subSnap.exists()) {
+          setSubjectName(subSnap.data().name);
+        } else {
+          setSubjectName('Mata Pelajaran Tidak Diketahui');
+        }
+
+        // Fetch questions list
+        let qQuery;
+        if (exData.packetName) {
+          qQuery = query(
+            collection(db, 'questions'),
+            where('subjectId', '==', subjectId),
+            where('packetName', '==', exData.packetName)
+          );
+        } else {
+          qQuery = query(collection(db, 'questions'), where('subjectId', '==', subjectId));
+        }
+
+        const qSnap = await getDocs(qQuery);
+        let qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
+
+        const typeOrder: Record<string, number> = { pilihan_ganda: 1, isian_singkat: 2, essay: 3 };
+
+        if (exData.randomizeQuestions) {
+          // Group by type and shuffle within each group
+          const groups: Record<number, Question[]> = { 1: [], 2: [], 3: [] };
+          qs.forEach(q => {
+            const order = typeOrder[q.type || 'pilihan_ganda'] || 1;
+            groups[order].push(q);
+          });
+          Object.values(groups).forEach(group => group.sort(() => Math.random() - 0.5));
+          qs = [...groups[1], ...groups[2], ...groups[3]];
+        } else {
+          // Sort by type first, then by sequence number
+          qs = qs.sort((a, b) => {
+            const aType = a.type || 'pilihan_ganda';
+            const bType = b.type || 'pilihan_ganda';
+            if (typeOrder[aType] !== typeOrder[bType]) return typeOrder[aType] - typeOrder[bType];
+            return (a.number || 0) - (b.number || 0);
+          });
+        }
+
+        // Pre-populate and cache options lists
+        qs = qs.map(q => {
+          const validOptions = (['A', 'B', 'C', 'D', 'E'] as const)
+            .map(opt => ({
+              key: opt,
+              text: q[`option${opt}` as keyof Question] as string | undefined
+            }))
+            .filter(item => item.text !== undefined && item.text !== null && String(item.text).trim() !== '');
+
+          if (exData.randomizeQuestions) {
+            validOptions.sort(() => Math.random() - 0.5);
+          }
+          return { ...q, shuffledOptions: validOptions } as any;
+        });
+
+        setQuestions(qs);
+      } catch (err) {
+        console.error("Gagal memuat pertanyaan ujian:", err);
+        setLoadError("Terjadi kesalahan saat memuat materi ujian. Silakan segarkan halaman.");
+      }
+    }
+
+    loadQuestionsAndSubject();
+  }, [session?.examId, session?.subjectId]);
+
+  // Recalculate remaining exam time dynamically based on session & configurations
   useEffect(() => {
     if (!session?.startTime || !exam) return;
     const activeDuration = typeof session.duration === 'number' ? session.duration : exam.duration;
