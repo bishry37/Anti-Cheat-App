@@ -92,6 +92,25 @@ export default function Exams() {
     }
   }, [formData.subjectId]);
 
+  // Automatically recalculate exam duration based on Start and End times
+  useEffect(() => {
+    if (formData.startTime && formData.endTime) {
+      const [startH, startM] = formData.startTime.split(':').map(Number);
+      const [endH, endM] = formData.endTime.split(':').map(Number);
+      if (!isNaN(startH) && !isNaN(startM) && !isNaN(endH) && !isNaN(endM)) {
+        let startMin = startH * 60 + startM;
+        let endMin = endH * 60 + endM;
+        if (endMin < startMin) {
+          endMin += 24 * 60; // handle cross-midnight duration gracefully
+        }
+        const calculatedDiff = endMin - startMin;
+        if (calculatedDiff >= 0 && formData.duration !== calculatedDiff) {
+          setFormData(prev => ({ ...prev, duration: calculatedDiff }));
+        }
+      }
+    }
+  }, [formData.startTime, formData.endTime]);
+
   // Background token auto-reset check
   useEffect(() => {
     if (exams.length === 0) return;

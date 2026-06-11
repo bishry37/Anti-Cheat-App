@@ -3,7 +3,7 @@ import { db, handleFirestoreError, OperationType, auth } from '../../lib/firebas
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, addDoc, onSnapshot } from 'firebase/firestore';
 import { StudentSession, Exam, Question, Setting, Violation } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
-import { ShieldAlert, Maximize, Clock, Save, AlertTriangle, LogOut, Loader2 } from 'lucide-react';
+import { ShieldAlert, Maximize, Clock, Save, AlertTriangle, LogOut, Loader2, Wifi, WifiOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { formatHTML, calculateSmartPoints } from '../../utils/textFormat';
@@ -30,6 +30,20 @@ export default function StudentExam() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSubmittingOrFinished, setIsSubmittingOrFinished] = useState(false);
   const [showSubmitErrorModal, setShowSubmitErrorModal] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -879,9 +893,22 @@ export default function StudentExam() {
             <div className="flex items-center bg-slate-800 text-white px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider shadow-3xs">
               {session.className}
             </div>
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight ml-1">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight ml-1 mr-2">
               {subjectName}
             </span>
+            {isOnline ? (
+              <div className="flex items-center bg-emerald-500 text-white px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-widest leading-none shadow-3xs transition-all duration-300">
+                <span className="w-1.5 h-1.5 bg-white rounded-full mr-1 animate-pulse"></span>
+                <Wifi className="w-3 h-3 mr-1" />
+                <span>ONLINE</span>
+              </div>
+            ) : (
+              <div className="flex items-center bg-rose-500 text-white px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-widest leading-none shadow-3xs animate-bounce border border-rose-600">
+                <span className="w-1.5 h-1.5 bg-white rounded-full mr-1 animate-ping"></span>
+                <WifiOff className="w-3 h-3 mr-1" />
+                <span>OFFLINE (TERPUTUS)</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center space-x-3 text-slate-700">
