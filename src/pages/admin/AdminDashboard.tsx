@@ -92,7 +92,7 @@ export default function AdminDashboard() {
         // Safe Client-side sorting for Active Sessions
         const activeList = activeSnap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
         activeList.sort((a, b) => b.lastActivity - a.lastActivity);
-        setActiveSessions(activeList.slice(0, 5));
+        setActiveSessions(activeList.slice(0, 6));
 
       } catch (e) {
         console.error("Dashboard statistics loading issue:", e);

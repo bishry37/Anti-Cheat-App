@@ -21,6 +21,12 @@ export default function StudentExam() {
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const answersRef = useRef<Record<string, string>>({});
+
+  // Sync answers to mutable ref to guarantee absolute real-time state for asynchronous auto-submits
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
   
   const [timeLeft, setTimeLeft] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -46,6 +52,8 @@ export default function StudentExam() {
       return;
     }
 
+    const currentAnswers = answersRef.current;
+
     // Calculate weight-based score
     let pointsEarned = 0;
     let totalWeight = 0;
@@ -56,7 +64,7 @@ export default function StudentExam() {
       const weight = q.weight || 10;
       totalWeight += weight;
       
-      const studentAns = answers[q.id!];
+      const studentAns = currentAnswers[q.id!];
       
       if (q.type === 'pilihan_ganda') {
         if (studentAns === q.correctAnswer) {
@@ -92,7 +100,7 @@ export default function StudentExam() {
         score,
         correctCount: correct,
         wrongCount: wrong,
-        answers
+        answers: currentAnswers
       });
       // Safety: Exit fullscreen
       if (document.fullscreenElement) {
@@ -103,7 +111,7 @@ export default function StudentExam() {
       setIsSubmittingOrFinished(false);
       alert('Gagal mengumpulkan ujian. Silakan cek koneksi internet Anda dan coba lagi.');
     }
-  }, [session, exam, questions, answers, user, isSubmittingOrFinished]);
+  }, [session, exam, questions, user, isSubmittingOrFinished]);
 
   // Real-time Clock Timer
   useEffect(() => {
@@ -478,19 +486,25 @@ export default function StudentExam() {
     }
   };
 
-  // Timer & Heartbeat
+  // Timer & Heartbeat (Robust Absolute Time Comparison prevents drift when tab is suspended)
   useEffect(() => {
     if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
 
     const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
+      if (!session?.startTime || !exam) return;
+      const activeDuration = typeof session.duration === 'number' ? session.duration : exam.duration;
+      const elapsed = Math.floor((Date.now() - session.startTime) / 1000);
+      const totalSecs = Math.round(activeDuration * 60);
+      const calculatedTimeLeft = Math.max(0, totalSecs - elapsed);
+
+      setTimeLeft(calculatedTimeLeft);
+
+      if (calculatedTimeLeft <= 0) {
+        clearInterval(timer);
+        if (!isSubmittingOrFinished) {
           submitExam();
-          return 0;
         }
-        return prev - 1;
-      });
+      }
     }, 1000);
 
     const heartbeat = setInterval(() => {
@@ -500,7 +514,7 @@ export default function StudentExam() {
     }, 10000); // every 10s
 
     return () => { clearInterval(timer); clearInterval(heartbeat); };
-  }, [session?.status, isFullscreen, isSubmittingOrFinished]);
+  }, [session?.startTime, session?.duration, exam, isSubmittingOrFinished, submitExam]);
 
   // Handle question change and persistence
   const changeQuestion = async (newIndex: number) => {
@@ -596,6 +610,20 @@ export default function StudentExam() {
             Kembali ke Beranda
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if ((timeLeft <= 0 || isSubmittingOrFinished) && session.status !== 'Selesai' && session.status !== 'Didiskualifikasi') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center select-none">
+        <Loader2 className="w-16 h-16 text-blue-500 mb-6 animate-spin" />
+        <h1 className="text-2xl sm:text-3xl font-black mb-4 tracking-tighter uppercase text-slate-100">
+          Waktu Ujian Berakhir
+        </h1>
+        <p className="max-w-md text-slate-400 mb-8 leading-relaxed text-xs font-medium">
+          Waktu pengerjaan ujian Anda sudah habis atau ujian telah ditutup secara resmi. Seluruh jawaban Anda sekarang sedang diamankan dan disinkronisasikan ke server database...
+        </p>
       </div>
     );
   }
