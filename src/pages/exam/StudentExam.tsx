@@ -21,12 +21,6 @@ export default function StudentExam() {
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const answersRef = useRef<Record<string, string>>({});
-
-  // Sync answers to mutable ref to guarantee absolute real-time state for asynchronous auto-submits
-  useEffect(() => {
-    answersRef.current = answers;
-  }, [answers]);
   
   const [timeLeft, setTimeLeft] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -35,39 +29,79 @@ export default function StudentExam() {
   const [acknowledgedWarningTime, setAcknowledgedWarningTime] = useState<number>(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSubmittingOrFinished, setIsSubmittingOrFinished] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [showSubmitErrorModal, setShowSubmitErrorModal] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
-  const loadedExamIdRef = useRef<string | null>(null);
-  const initializedRef = useRef<boolean>(false);
 
-  // Connection Status Monitor
+  // References to completely mitigate React stale closures on asynchronous timers/listeners
+  const lastProcessedAdjustedAt = useRef<number | null>(null);
+  const answersRef = useRef<Record<string, string>>({});
+  const sessionRef = useRef<StudentSession | null>(null);
+  const examRef = useRef<Exam | null>(null);
+  const questionsRef = useRef<Question[]>([]);
+  const isSubmittingOrFinishedRef = useRef(false);
+
+  // Synchronize state values directly into references
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    answersRef.current = answers;
+  }, [answers]);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    examRef.current = exam;
+  }, [exam]);
+
+  useEffect(() => {
+    questionsRef.current = questions;
+  }, [questions]);
+
+  useEffect(() => {
+    isSubmittingOrFinishedRef.current = isSubmittingOrFinished;
+  }, [isSubmittingOrFinished]);
+
+  // Disable Google Translate and other translation extensions dynamically
+  useEffect(() => {
+    document.body.setAttribute('translate', 'no');
+    document.body.classList.add('notranslate');
+    
+    const meta = document.createElement('meta');
+    meta.name = 'google';
+    meta.content = 'notranslate';
+    document.head.appendChild(meta);
+
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      document.body.removeAttribute('translate');
+      document.body.classList.remove('notranslate');
+      if (document.head.contains(meta)) {
+        document.head.removeChild(meta);
+      }
     };
   }, []);
 
   // Submit Exam Function (Declared Early for full accessibility and auto-timeouts)
   const submitExam = useCallback(async () => {
-    if (!session || !exam || isSubmittingOrFinished) return;
+    const sessionVal = sessionRef.current;
+    const examVal = examRef.current;
+    const isSubmittingOrFinishedVal = isSubmittingOrFinishedRef.current;
+    const questionsVal = questionsRef.current;
+    const answersVal = answersRef.current;
+
+    if (!sessionVal || !examVal || isSubmittingOrFinishedVal) return;
     
     // Set submitting flag immediately to prevent duplicate runs and ignore external alerts
     setIsSubmittingOrFinished(true);
+    isSubmittingOrFinishedRef.current = true;
     
-    const totalQuestions = questions.length;
+    const totalQuestions = questionsVal.length;
     if (totalQuestions === 0) {
       alert('Tidak ada soal dalam ujian ini. Silakan hubungi pengawas.');
       setIsSubmittingOrFinished(false);
+      isSubmittingOrFinishedRef.current = false;
       return;
     }
-
-    const currentAnswers = answersRef.current;
 
     // Calculate weight-based score
     let pointsEarned = 0;
@@ -75,11 +109,11 @@ export default function StudentExam() {
     let correct = 0;
     let wrong = 0;
     
-    questions.forEach(q => {
+    questionsVal.forEach(q => {
       const weight = q.weight || 10;
       totalWeight += weight;
       
-      const studentAns = currentAnswers[q.id!];
+      const studentAns = answersVal[q.id!];
       
       if (q.type === 'pilihan_ganda') {
         if (studentAns === q.correctAnswer) {
@@ -95,7 +129,6 @@ export default function StudentExam() {
         if (earned === weight) {
           correct++;
         } else if (earned > 0) {
-          // partially correct counts as half correct in stats for simplicity or just skip
           correct++; 
         } else {
           wrong++;
@@ -115,8 +148,14 @@ export default function StudentExam() {
         score,
         correctCount: correct,
         wrongCount: wrong,
-        answers: currentAnswers
+        answers: answersVal
       });
+
+      // Clear local backup
+      if (examVal.id) {
+        localStorage.removeItem(`cbt_answers_${examVal.id}`);
+      }
+
       // Safety: Exit fullscreen
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
@@ -124,9 +163,10 @@ export default function StudentExam() {
     } catch (e) {
       console.error("Gagal submit ujian:", e);
       setIsSubmittingOrFinished(false);
-      alert('Gagal mengumpulkan ujian. Silakan cek koneksi internet Anda dan coba lagi.');
+      isSubmittingOrFinishedRef.current = false;
+      setShowSubmitErrorModal(true);
     }
-  }, [session, exam, questions, user, isSubmittingOrFinished]);
+  }, [user]);
 
   // Real-time Clock Timer
   useEffect(() => {
@@ -149,158 +189,202 @@ export default function StudentExam() {
     return () => unsub();
   }, [session?.adminId]);
 
-  // Consolidate authorative Real-time Session Monitoring (warnings, disqualifications, status, and dynamic durations)
+  // Load Initial Data
   useEffect(() => {
     if (!user) return;
-
-    const unsubSession = onSnapshot(doc(db, 'student_sessions', user.uid), (sessSnap) => {
+    async function loadData() {
       try {
+        const sessSnap = await getDoc(doc(db, 'student_sessions', user!.uid));
         if (!sessSnap.exists()) {
           setLoadError("Sesi ujian tidak valid atau Anda bukan siswa yang terdaftar. Mohon logout lalu login sebagai Admin.");
           return;
         }
-
         const sessData = { id: sessSnap.id, ...sessSnap.data() } as StudentSession;
+        setSession(sessData);
 
-        // Initialize state fields precisely once upon the very first session configuration load
-        setSession(prev => {
-          if (!prev) {
-            setAnswers(sessData.answers || {});
-            if (sessData.lastQuestionIndex !== undefined) {
-              setCurrentQuestionIndex(sessData.lastQuestionIndex);
-            }
+        // Merge with local storage backup to handle extreme connection / power failure cases
+        let localBackup: Record<string, string> = {};
+        try {
+          const stored = localStorage.getItem(`cbt_answers_${sessData.examId}`);
+          if (stored) {
+            localBackup = JSON.parse(stored);
           }
-          return sessData;
-        });
+        } catch (e) {
+          console.error("Gagal membaca backup jawaban lokal", e);
+        }
+        const serverAnswers = sessData.answers || {};
+        const mergedAnswers = { ...localBackup, ...serverAnswers };
 
-        // Track initialized warning timestamp upon first mount
-        if (!initializedRef.current) {
-          if (sessData.adminWarningTime) {
-            setAcknowledgedWarningTime(sessData.adminWarningTime);
-          }
-          initializedRef.current = true;
+        setAnswers(mergedAnswers);
+        answersRef.current = mergedAnswers;
+
+        if (sessData.lastQuestionIndex !== undefined) {
+          setCurrentQuestionIndex(sessData.lastQuestionIndex);
         }
 
-        if (sessData.status === 'Didiskualifikasi') {
+        const exSnap = await getDoc(doc(db, 'exams', sessData.examId));
+        if (exSnap.exists()) {
+          const exData = exSnap.data() as Exam;
+          setExam(exData);
+
+          try {
+            const subSnap = await getDoc(doc(db, 'subjects', exData.subjectId));
+            if (subSnap.exists()) {
+              setSubjectName(subSnap.data().name);
+            } else {
+              setSubjectName('Mata Pelajaran Tidak Diketahui');
+            }
+          } catch (e) {
+            console.error("Gagal load subject name", e);
+            setSubjectName('Mata Pelajaran Tidak Diketahui');
+          }
+          
+          // Calculate initial time left
+          const activeDuration = typeof sessData.duration === 'number' ? sessData.duration : exData.duration;
+          const elapsed = Math.floor((Date.now() - sessData.startTime) / 1000);
+          const totalSecs = Math.round(activeDuration * 60);
+          const calculatedTimeLeft = Math.max(0, totalSecs - elapsed);
+
+          // Fetch questions
+          let qQuery;
+          if (exData.packetName) {
+            qQuery = query(collection(db, 'questions'), 
+              where('subjectId', '==', sessData.subjectId),
+              where('packetName', '==', exData.packetName)
+            );
+          } else {
+            qQuery = query(collection(db, 'questions'), where('subjectId', '==', sessData.subjectId));
+          }
+          
+          const qSnap = await getDocs(qQuery);
+          let qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
+          
+          const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
+          
+          if (exData.randomizeQuestions) {
+            // Group by type and shuffle within each group
+            const groups: Record<number, Question[]> = { 1: [], 2: [], 3: [] };
+            qs.forEach(q => {
+              const order = typeOrder[q.type || 'pilihan_ganda'] || 1;
+              groups[order].push(q);
+            });
+            
+            // Shuffle each group
+            Object.values(groups).forEach(group => {
+              group.sort(() => Math.random() - 0.5);
+            });
+            
+            // Combine in order: 1 (PG), 2 (IS), 3 (Essay)
+            qs = [...groups[1], ...groups[2], ...groups[3]];
+          } else {
+            // Respect the question sequence but grouped by type
+            qs = qs.sort((a, b) => {
+              const aType = a.type || 'pilihan_ganda';
+              const bType = b.type || 'pilihan_ganda';
+              if (typeOrder[aType] !== typeOrder[bType]) {
+                return typeOrder[aType] - typeOrder[bType];
+              }
+              return (a.number || 0) - (b.number || 0);
+            });
+          }
+
+          // Pre-populate shuffled options for all multiple choice questions
+          qs = qs.map(q => {
+            const validOptions = (['A', 'B', 'C', 'D', 'E'] as const)
+              .map(opt => ({
+                key: opt,
+                text: q[`option${opt}` as keyof Question] as string | undefined
+              }))
+              .filter(item => item.text !== undefined && item.text !== null && String(item.text).trim() !== '');
+
+            if (exData.randomizeQuestions) {
+              // Shuffling choices
+              validOptions.sort(() => Math.random() - 0.5);
+            }
+            
+            return {
+              ...q,
+              shuffledOptions: validOptions
+            } as any;
+          });
+
+          setQuestions(qs);
+
+          if (calculatedTimeLeft <= 0) {
+            setTimeLeft(0);
+            setTimeout(() => {
+              submitExam();
+            }, 500);
+          } else {
+            setTimeLeft(calculatedTimeLeft);
+          }
+        }
+
+      } catch (err) {
+        console.error("Gagal load data", err);
+        setLoadError("Terjadi kesalahan saat memuat ujian. Pastikan koneksi internet stabil.");
+      }
+    }
+    loadData();
+  }, [user]);
+
+  // Listen to remote changes on session (for admin warnings/kicks/manual duration changes)
+  useEffect(() => {
+    if (!user) return;
+    let initialized = false;
+    const unsub = onSnapshot(doc(db, 'student_sessions', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        const dat = { id: docSnap.id, ...docSnap.data() } as StudentSession;
+        setSession(dat);
+        
+        // Match user's warning timestamp upon first mount to prevent showing legacy warnings
+        if (!initialized) {
+          if (dat.adminWarningTime) {
+            setAcknowledgedWarningTime(dat.adminWarningTime);
+          }
+          initialized = true;
+        }
+
+        // Real-time manual duration adjustment from Admin
+        if (dat.adjustedRemainingMinutes !== undefined && dat.adjustedAt !== undefined) {
+          if (lastProcessedAdjustedAt.current === null || dat.adjustedAt > lastProcessedAdjustedAt.current) {
+            lastProcessedAdjustedAt.current = dat.adjustedAt;
+            
+            // Adjust the duration based on local elapsed time to perfectly sync remaining time
+            const elapsedMin = (Date.now() - dat.startTime) / 60000;
+            const targetDuration = dat.adjustedRemainingMinutes + elapsedMin;
+            
+            // Update Firestore with the resolved duration
+            updateDoc(doc(db, 'student_sessions', user.uid), {
+              duration: targetDuration
+            }).catch(e => console.error("Gagal update duration based on adjustment:", e));
+          }
+        }
+
+        if (dat.status === 'Didiskualifikasi') {
+          // Exit fullscreen immediately if disqualified
           if (document.fullscreenElement) {
             document.exitFullscreen().catch(() => {});
           }
         }
-      } catch (err) {
-        console.error("Kesalahan sinkronisasi data sesi:", err);
-      }
-    }, (err) => {
-      console.error("Session stream error:", err);
-      if (err.message.includes('unavailable') || err.message.includes('Backend didn\'t respond')) {
-        setLoadError("Server ujian tidak dapat dijangkau. Sila pastikan internet sekolah stabil dan tidak memblokir akses ke database (Firebase).");
-      } else {
-        setLoadError("Akses ditolak atau kesalahan otorisasi sesi.");
       }
     });
-
-    return () => unsubSession();
+    return () => unsub();
   }, [user]);
 
-  // Listen to exam duration and parameters dynamically in real time
+  // Listen to exam duration changes
   useEffect(() => {
     if (!session?.examId) return;
-    const unsubExam = onSnapshot(doc(db, 'exams', session.examId), (docSnap) => {
+    const unsub = onSnapshot(doc(db, 'exams', session.examId), (docSnap) => {
       if (docSnap.exists()) {
-        setExam(docSnap.data() as Exam);
+        const exData = docSnap.data() as Exam;
+        setExam(exData);
       }
-    }, (err) => {
-      console.error("Exam stream error:", err);
     });
-    return () => unsubExam();
+    return () => unsub();
   }, [session?.examId]);
 
-  // Load questions and subject name ONCE per exam ID configuration to prevent recursive re-fetches and shuffling logic
-  useEffect(() => {
-    if (!session?.examId || !session?.subjectId) return;
-    if (loadedExamIdRef.current === session.examId) return;
-
-    loadedExamIdRef.current = session.examId;
-
-    async function loadQuestionsAndSubject() {
-      try {
-        const examId = session!.examId;
-        const subjectId = session!.subjectId;
-
-        // Fetch Exam config directly to read package configurations
-        const exSnap = await getDoc(doc(db, 'exams', examId));
-        if (!exSnap.exists()) return;
-        const exData = exSnap.data() as Exam;
-
-        // Fetch Subject Name
-        const subSnap = await getDoc(doc(db, 'subjects', subjectId));
-        if (subSnap.exists()) {
-          setSubjectName(subSnap.data().name);
-        } else {
-          setSubjectName('Mata Pelajaran Tidak Diketahui');
-        }
-
-        // Fetch questions list
-        let qQuery;
-        if (exData.packetName) {
-          qQuery = query(
-            collection(db, 'questions'),
-            where('subjectId', '==', subjectId),
-            where('packetName', '==', exData.packetName)
-          );
-        } else {
-          qQuery = query(collection(db, 'questions'), where('subjectId', '==', subjectId));
-        }
-
-        const qSnap = await getDocs(qQuery);
-        let qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
-
-        const typeOrder: Record<string, number> = { pilihan_ganda: 1, isian_singkat: 2, essay: 3 };
-
-        if (exData.randomizeQuestions) {
-          // Group by type and shuffle within each group
-          const groups: Record<number, Question[]> = { 1: [], 2: [], 3: [] };
-          qs.forEach(q => {
-            const order = typeOrder[q.type || 'pilihan_ganda'] || 1;
-            groups[order].push(q);
-          });
-          Object.values(groups).forEach(group => group.sort(() => Math.random() - 0.5));
-          qs = [...groups[1], ...groups[2], ...groups[3]];
-        } else {
-          // Sort by type first, then by sequence number
-          qs = qs.sort((a, b) => {
-            const aType = a.type || 'pilihan_ganda';
-            const bType = b.type || 'pilihan_ganda';
-            if (typeOrder[aType] !== typeOrder[bType]) return typeOrder[aType] - typeOrder[bType];
-            return (a.number || 0) - (b.number || 0);
-          });
-        }
-
-        // Pre-populate and cache options lists
-        qs = qs.map(q => {
-          const validOptions = (['A', 'B', 'C', 'D', 'E'] as const)
-            .map(opt => ({
-              key: opt,
-              text: q[`option${opt}` as keyof Question] as string | undefined
-            }))
-            .filter(item => item.text !== undefined && item.text !== null && String(item.text).trim() !== '');
-
-          if (exData.randomizeQuestions) {
-            validOptions.sort(() => Math.random() - 0.5);
-          }
-          return { ...q, shuffledOptions: validOptions } as any;
-        });
-
-        setQuestions(qs);
-      } catch (err) {
-        console.error("Gagal memuat pertanyaan ujian:", err);
-        setLoadError("Terjadi kesalahan saat memuat materi ujian. Silakan segarkan halaman.");
-      }
-    }
-
-    loadQuestionsAndSubject();
-  }, [session?.examId, session?.subjectId]);
-
-  // Recalculate remaining exam time dynamically based on session & configurations
+  // Recalculate time left whenever session or exam duration changes
   useEffect(() => {
     if (!session?.startTime || !exam) return;
     const activeDuration = typeof session.duration === 'number' ? session.duration : exam.duration;
@@ -489,25 +573,19 @@ export default function StudentExam() {
     }
   };
 
-  // Timer & Heartbeat (Robust Absolute Time Comparison prevents drift when tab is suspended)
+  // Timer & Heartbeat
   useEffect(() => {
     if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
 
     const timer = setInterval(() => {
-      if (!session?.startTime || !exam) return;
-      const activeDuration = typeof session.duration === 'number' ? session.duration : exam.duration;
-      const elapsed = Math.floor((Date.now() - session.startTime) / 1000);
-      const totalSecs = Math.round(activeDuration * 60);
-      const calculatedTimeLeft = Math.max(0, totalSecs - elapsed);
-
-      setTimeLeft(calculatedTimeLeft);
-
-      if (calculatedTimeLeft <= 0) {
-        clearInterval(timer);
-        if (!isSubmittingOrFinished) {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
           submitExam();
+          return 0;
         }
-      }
+        return prev - 1;
+      });
     }, 1000);
 
     const heartbeat = setInterval(() => {
@@ -517,7 +595,7 @@ export default function StudentExam() {
     }, 10000); // every 10s
 
     return () => { clearInterval(timer); clearInterval(heartbeat); };
-  }, [session?.startTime, session?.duration, exam, isSubmittingOrFinished, submitExam]);
+  }, [session?.status, isFullscreen, isSubmittingOrFinished]);
 
   // Handle question change and persistence
   const changeQuestion = async (newIndex: number) => {
@@ -535,12 +613,21 @@ export default function StudentExam() {
   };
 
   const handleAnswer = async (qId: string, ans: string) => {
-    const newAnswers = { ...answers, [qId]: ans };
+    const newAnswers = { ...answersRef.current, [qId]: ans };
     setAnswers(newAnswers);
+    answersRef.current = newAnswers;
+
+    // Backup answers locally in case of electricity / connection loss
+    if (session?.examId) {
+      localStorage.setItem(`cbt_answers_${session.examId}`, JSON.stringify(newAnswers));
+    }
+
     // Auto save answers immediately for safety
     try {
       await updateDoc(doc(db, 'student_sessions', user!.uid), { answers: newAnswers });
-    } catch(e) { console.error("Gagal simpan jawaban sementara"); }
+    } catch(e) { 
+      console.error("Gagal simpan jawaban sementara ke server, tersimpan lokal."); 
+    }
   };
 
   const formatTime = (secs: number) => {
@@ -554,26 +641,15 @@ export default function StudentExam() {
 
   if (loadError) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
-        <div className="w-16 h-16 bg-red-500/20 border border-red-500 rounded-2xl flex items-center justify-center mb-6">
-          <AlertTriangle className="w-8 h-8 text-red-500" />
-        </div>
-        <h1 className="text-xl font-black mb-3 tracking-tighter uppercase text-slate-100">Gagal Memuat Data</h1>
-        <p className="max-w-md text-slate-400 mb-8 leading-relaxed text-xs font-medium">
-          {loadError}
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase cursor-pointer transition-all shadow-lg active:scale-95"
-          >
-            Muat Ulang Halaman
-          </button>
-          <button 
-            onClick={async () => { await logout(); navigate('/'); }} 
-            className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase cursor-pointer transition-all"
-          >
-            Kembali & Logout
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border">
+          <div className="w-20 h-20 mx-auto rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-6">
+            <ShieldAlert className="w-10 h-10" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800 mb-2">Akses Ditolak</h2>
+          <p className="text-slate-500 mb-6 text-sm">{loadError}</p>
+          <button onClick={async () => { await logout(); navigate('/'); }} className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-lg font-medium transition-colors w-full">
+            Kembali ke Beranda
           </button>
         </div>
       </div>
@@ -624,20 +700,6 @@ export default function StudentExam() {
             Kembali ke Beranda
           </button>
         </div>
-      </div>
-    );
-  }
-
-  if ((timeLeft <= 0 || isSubmittingOrFinished) && session.status !== 'Selesai' && session.status !== 'Didiskualifikasi') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center select-none">
-        <Loader2 className="w-16 h-16 text-blue-500 mb-6 animate-spin" />
-        <h1 className="text-2xl sm:text-3xl font-black mb-4 tracking-tighter uppercase text-slate-100">
-          Waktu Ujian Berakhir
-        </h1>
-        <p className="max-w-md text-slate-400 mb-8 leading-relaxed text-xs font-medium">
-          Waktu pengerjaan ujian Anda sudah habis atau ujian telah ditutup secara resmi. Seluruh jawaban Anda sekarang sedang diamankan dan disinkronisasikan ke server database...
-        </p>
       </div>
     );
   }
@@ -765,6 +827,47 @@ export default function StudentExam() {
         </div>
       )}
 
+      {/* Network Connectivity Error Modal */}
+      {showSubmitErrorModal && (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.5)] max-w-sm w-full border border-slate-100 p-6 flex flex-col items-center text-center animate-in scale-in duration-200">
+            <div className="w-16 h-16 rounded-full bg-red-50 text-red-600 flex items-center justify-center mb-4 border border-red-100">
+              <AlertTriangle className="w-8 h-8 animate-bounce" />
+            </div>
+            
+            <h3 className="text-base font-extrabold text-red-600 uppercase tracking-wider mb-2 font-sans">
+              Koneksi Terganggu / Hilang
+            </h3>
+            
+            <p className="text-xs text-slate-500 mb-6 leading-relaxed font-sans font-medium">
+              Sinyal atau koneksi internet pada perangkat Anda sedang terganggu. 
+              <br className="mb-2"/>
+              <strong>Tenang, seluruh jawaban Anda aman dan tidak hilang.</strong> 
+              <br className="mb-2"/>
+              Silakan periksa koneksi Wi-Fi/data seluler Anda, lalu tekan tombol <strong>Coba Lagi</strong> untuk mengirim ulang hasil ujian Anda.
+            </p>
+
+            <div className="flex gap-3 w-full">
+              <button 
+                onClick={() => setShowSubmitErrorModal(false)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer font-sans"
+              >
+                Tutup
+              </button>
+              <button 
+                onClick={async () => {
+                  setShowSubmitErrorModal(false);
+                  await submitExam();
+                }}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer font-sans"
+              >
+                Coba Lagi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-2 shrink-0 flex items-center justify-between sticky top-0 z-40">
         <div className="flex flex-col justify-center">
@@ -782,19 +885,6 @@ export default function StudentExam() {
           </div>
         </div>
         <div className="flex items-center space-x-3 text-slate-700">
-          {/* Connection Status Indicator */}
-          {!isOnline ? (
-            <div className="flex items-center px-2 py-1 rounded bg-red-600 text-white text-[10px] font-black uppercase tracking-widest animate-pulse border border-red-700 shadow-sm">
-              <ShieldAlert className="w-3.5 h-3.5 mr-1.5" />
-              <span>Offline - Cek Internet</span>
-            </div>
-          ) : (
-            <div className="flex items-center px-2 py-1 rounded bg-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest border border-slate-200">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 shadow-sm animate-pulse"></div>
-              <span>Terhubung</span>
-            </div>
-          )}
-
           <div className="font-mono text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full font-medium">
             {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>

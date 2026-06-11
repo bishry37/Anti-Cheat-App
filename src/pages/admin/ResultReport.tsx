@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, getDoc, orderBy, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, getDocs, getDoc, orderBy, where, doc, deleteDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { StudentSession, Exam, Question, Class, Subject, Setting } from '../../types';
 import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Check, Clock, Users, Search, LayoutGrid } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -21,6 +21,7 @@ export default function ResultReport() {
   const [setting, setSetting] = useState<Setting | null>(null);
   const [sortBy, setSortBy] = useState<string>('waktu_terbaru');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [dummyTrigger, setDummyTrigger] = useState<number>(0);
 
   const sortedSessions = useMemo(() => {
     let list = [...sessions];
@@ -216,8 +217,49 @@ export default function ResultReport() {
   };
 
   useEffect(() => {
-    if (user) fetchResults();
-  }, [filterExam, filterClass, user]);
+    if (!user) return;
+    setLoading(true);
+    
+    // Fetch all classes static comparison first if filterClass is selected
+    if (filterClass) {
+      const baseQ = query(
+        collection(db, 'student_sessions'),
+        where('adminId', '==', user.uid),
+        where('className', '==', filterClass)
+      );
+      getDocs(baseQ).then(baseSnap => {
+        const allClassSess = baseSnap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
+        setAllClassSessions(allClassSess);
+      }).catch(e => console.error(e));
+    } else {
+      setAllClassSessions([]);
+    }
+
+    let q = query(
+      collection(db, 'student_sessions'), 
+      where('adminId', '==', user.uid),
+      where('status', 'in', ['Selesai', 'Didiskualifikasi'])
+    );
+    if (filterClass) {
+        q = query(q, where('className', '==', filterClass));
+    }
+    if (filterExam) {
+       q = query(q, where('examId', '==', filterExam));
+    }
+
+    const unsub = onSnapshot(q, (snap) => {
+      let data = snap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
+      // Manual sort since compound index might fail without setup
+      data.sort((a,b) => b.endTime! - a.endTime!);
+      setSessions(data);
+      setLoading(false);
+    }, (err) => {
+      console.error(err);
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, [filterExam, filterClass, user, dummyTrigger]);
 
   const fetchClasses = async () => {
     if (!user) return;
@@ -246,42 +288,7 @@ export default function ResultReport() {
   };
 
   const fetchResults = async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      if (filterClass) {
-        const baseQ = query(
-          collection(db, 'student_sessions'),
-          where('adminId', '==', user.uid),
-          where('className', '==', filterClass)
-        );
-        const baseSnap = await getDocs(baseQ);
-        const allClassSess = baseSnap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
-        setAllClassSessions(allClassSess);
-      } else {
-        setAllClassSessions([]);
-      }
-
-      let q = query(
-        collection(db, 'student_sessions'), 
-        where('adminId', '==', user.uid),
-        where('status', 'in', ['Selesai', 'Didiskualifikasi'])
-      );
-      if (filterClass) {
-          q = query(q, where('className', '==', filterClass));
-      }
-      if (filterExam) {
-         q = query(q, where('examId', '==', filterExam));
-      }
-      const snap = await getDocs(q);
-      let data = snap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
-      // Manual sort since compound index might fail without setup
-      data.sort((a,b) => b.endTime! - a.endTime!);
-      setSessions(data);
-    } catch (err) {
-      console.error(err);
-    }
-    setLoading(false);
+    setDummyTrigger(prev => prev + 1);
   };
 
   const handleExportExcel = () => {

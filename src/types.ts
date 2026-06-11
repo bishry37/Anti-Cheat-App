@@ -94,6 +94,8 @@ export interface StudentSession {
   wasDisqualified?: boolean;
   duration?: number;
   deviceId?: string;
+  adjustedRemainingMinutes?: number;
+  adjustedAt?: number;
 }
 
 export interface Violation {

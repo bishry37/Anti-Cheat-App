@@ -77,13 +77,12 @@ export default function ExamMonitor() {
 
     if (mode === 'individual' && studentSession) {
       try {
-        const lastActiveTime = studentSession.lastActivity && studentSession.lastActivity > studentSession.startTime 
-          ? studentSession.lastActivity 
-          : Date.now();
-        const elapsedMin = (lastActiveTime - studentSession.startTime) / 60000;
+        const elapsedMin = (Date.now() - studentSession.startTime) / 60000;
         const targetDuration = newDuration + elapsedMin;
         await updateDoc(doc(db, 'student_sessions', studentSession.id!), {
-          duration: targetDuration
+          duration: targetDuration,
+          adjustedRemainingMinutes: newDuration,
+          adjustedAt: Date.now()
         });
         showToast(`Sisa durasi ujian ${studentSession.studentName} diubah menjadi ${newDuration} menit`);
       } catch (err) {
@@ -103,13 +102,12 @@ export default function ExamMonitor() {
         let successCount = 0;
         await Promise.all(activeSessionsInClass.map(async (s) => {
           try {
-            const lastActiveTime = s.lastActivity && s.lastActivity > s.startTime 
-              ? s.lastActivity 
-              : Date.now();
-            const elapsedMin = (lastActiveTime - s.startTime) / 60000;
+            const elapsedMin = (Date.now() - s.startTime) / 60000;
             const targetDuration = newDuration + elapsedMin;
             await updateDoc(doc(db, 'student_sessions', s.id!), {
-              duration: targetDuration
+              duration: targetDuration,
+              adjustedRemainingMinutes: newDuration,
+              adjustedAt: Date.now()
             });
             successCount++;
           } catch(e) {
@@ -711,20 +709,14 @@ export default function ExamMonitor() {
                   ) : (
                     filteredSessions.map((s, idx) => {
                       const isWarning = s.violationsCount > 0 && s.status === 'Aktif';
-                      const isOffline = (Date.now() - s.lastActivity) > 30000 && s.status === 'Aktif' && s.lastActivity > 0;
-                      const isStale = (Date.now() - s.lastActivity) > 120000 && s.status === 'Aktif' && s.lastActivity > 0;
+                      const isOffline = (Date.now() - s.lastActivity) > 60000 && s.status === 'Aktif' && s.lastActivity > 0;
                       const isWaitingLogin = s.status === 'Aktif' && s.lastActivity === 0;
                       
                       return (
-                        <tr key={s.id} className={`group border-b border-slate-50 hover:bg-slate-50 transition-colors ${isWarning ? 'bg-orange-50/50' : ''} ${s.status === 'Melanggar' ? 'bg-red-50/30' : ''} ${isStale ? 'opacity-60 bg-slate-100/50' : ''}`}>
+                        <tr key={s.id} className={`group border-b border-slate-50 hover:bg-slate-50 transition-colors ${isWarning ? 'bg-orange-50/50' : ''} ${s.status === 'Melanggar' ? 'bg-red-50/30' : ''}`}>
                           <td className="px-6 py-4 text-center text-slate-300 font-mono text-[11px]">{idx + 1}</td>
                           <td className="px-4 py-4">
-                            <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-                              {s.studentName}
-                              {isOffline && (
-                                <AlertTriangle className="w-3 h-3 text-red-500 animate-pulse" title="Siswa terputus dari jaringan" />
-                              )}
-                            </div>
+                            <div className="font-bold text-slate-800 text-sm">{s.studentName}</div>
                           </td>
                           <td className="px-4 py-4 text-center">
                             <div className="text-[10px] font-bold text-slate-500 bg-slate-100 inline-block px-1.5 rounded uppercase">{s.className}</div>
@@ -1109,53 +1101,32 @@ export default function ExamMonitor() {
             </p>
 
             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-5 text-center">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 animate-pulse">Sisa Durasi Ujian Baru (Menit)</label>
-              <div className="flex items-center justify-center space-x-4 mb-3">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Sisa Durasi Ujian Baru (Menit)</label>
+              <div className="flex items-center justify-center space-x-4">
                 <button 
                   type="button"
-                  onClick={() => setDurationModal(prev => ({ ...prev, newDuration: Math.max(1, prev.newDuration - 5) }))}
-                  className="w-9 h-9 rounded bg-white hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-black text-slate-600 active:scale-95 transition-all outline-none cursor-pointer shadow-3xs"
+                  onClick={() => setDurationModal(prev => ({ ...prev, newDuration: Math.max(5, prev.newDuration - 5) }))}
+                  className="w-8 h-8 rounded bg-white hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-sm font-black text-slate-600 active:scale-95 transition-all outline-none cursor-pointer"
                 >
-                  -5m
+                  -5
                 </button>
                 <input 
                   type="number"
-                  min={1}
+                  min={5}
                   value={durationModal.newDuration}
                   onChange={(e) => {
-                    const val = parseInt(e.target.value) || 1;
+                    const val = parseInt(e.target.value) || 5;
                     setDurationModal(prev => ({ ...prev, newDuration: val }));
                   }}
-                  className="w-20 px-2 py-1.5 bg-white border border-slate-300 rounded text-center text-sm font-black text-indigo-600 shadow-inner focus:border-indigo-500 outline-none"
+                  className="w-20 px-2 py-1 bg-white border border-slate-300 rounded text-center text-sm font-bold focus:ring-1 focus:ring-indigo-500 text-slate-800 outline-none"
                 />
                 <button 
                   type="button"
                   onClick={() => setDurationModal(prev => ({ ...prev, newDuration: prev.newDuration + 5 }))}
-                  className="w-9 h-9 rounded bg-white hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-black text-slate-600 active:scale-95 transition-all outline-none cursor-pointer shadow-3xs"
+                  className="w-8 h-8 rounded bg-white hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-sm font-black text-slate-600 active:scale-95 transition-all outline-none cursor-pointer"
                 >
-                  +5m
+                  +5
                 </button>
-              </div>
-
-              {/* Quick Presets Row */}
-              <div className="mt-3 border-t border-slate-200/60 pt-3">
-                <span className="block text-[8.5px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Preset Cepat</span>
-                <div className="flex flex-wrap items-center justify-center gap-1.5">
-                  {[10, 15, 30, 45, 60, 90, 120].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setDurationModal(prev => ({ ...prev, newDuration: preset }))}
-                      className={`px-2 py-1 text-[10px] font-bold rounded border transition-all cursor-pointer ${
-                        durationModal.newDuration === preset 
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-3xs' 
-                          : 'bg-white hover:bg-slate-100 border-slate-250 text-slate-600'
-                      }`}
-                    >
-                      {preset}m
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
 
