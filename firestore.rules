@@ -139,7 +139,9 @@ service cloud.firestore {
              (!('packetName' in data) || (data.packetName is string && data.packetName.size() <= 256)) &&
              (!('correctCount' in data) || data.correctCount is number) &&
              (!('wrongCount' in data) || data.wrongCount is number) &&
-             (!('answers' in data) || data.answers is map);
+             (!('answers' in data) || data.answers is map) &&
+             (!('questionOrder' in data) || data.questionOrder is list) &&
+             (!('optionsOrder' in data) || data.optionsOrder is map);
     }
 
     match /student_sessions/{sessionId} {

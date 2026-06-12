@@ -96,6 +96,8 @@ export interface StudentSession {
   deviceId?: string;
   adjustedRemainingMinutes?: number;
   adjustedAt?: number;
+  questionOrder?: string[];
+  optionsOrder?: Record<string, string[]>;
 }
 
 export interface Violation {

@@ -94,7 +94,9 @@
         "endTime": { "type": "number" },
         "score": { "type": "number" },
         "correctCount": { "type": "number" },
-        "wrongCount": { "type": "number" }
+        "wrongCount": { "type": "number" },
+        "questionOrder": { "type": "array" },
+        "optionsOrder": { "type": "object" }
       },
       "required": ["studentName", "className", "examId", "subjectId", "token", "status", "violationsCount", "lastActivity", "startTime"]
     },

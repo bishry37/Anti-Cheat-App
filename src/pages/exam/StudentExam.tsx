@@ -275,21 +275,39 @@ export default function StudentExam() {
           
           const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
           
+          let shouldSaveRandomization = false;
+          let generatedQuestionOrder: string[] = [];
+          const generatedOptionsOrder: Record<string, string[]> = {};
+
           if (exData.randomizeQuestions) {
-            // Group by type and shuffle within each group
-            const groups: Record<number, Question[]> = { 1: [], 2: [], 3: [] };
-            qs.forEach(q => {
-              const order = typeOrder[q.type || 'pilihan_ganda'] || 1;
-              groups[order].push(q);
-            });
-            
-            // Shuffle each group
-            Object.values(groups).forEach(group => {
-              group.sort(() => Math.random() - 0.5);
-            });
-            
-            // Combine in order: 1 (PG), 2 (IS), 3 (Essay)
-            qs = [...groups[1], ...groups[2], ...groups[3]];
+            if (sessData.questionOrder && Array.isArray(sessData.questionOrder) && sessData.questionOrder.length > 0) {
+              // Reorder according to the saved questionOrder in student session
+              const qOrderMap = new Map<string, number>();
+              sessData.questionOrder.forEach((id, idx) => qOrderMap.set(id, idx));
+              
+              qs.sort((a, b) => {
+                const idxA = qOrderMap.has(a.id!) ? qOrderMap.get(a.id!) : 9999;
+                const idxB = qOrderMap.has(b.id!) ? qOrderMap.get(b.id!) : 9999;
+                return idxA - idxB;
+              });
+            } else {
+              // Group by type and shuffle within each group
+              const groups: Record<number, Question[]> = { 1: [], 2: [], 3: [] };
+              qs.forEach(q => {
+                const order = typeOrder[q.type || 'pilihan_ganda'] || 1;
+                groups[order].push(q);
+              });
+              
+              // Shuffle each group
+              Object.values(groups).forEach(group => {
+                group.sort(() => Math.random() - 0.5);
+              });
+              
+              // Combine in order: 1 (PG), 2 (IS), 3 (Essay)
+              qs = [...groups[1], ...groups[2], ...groups[3]];
+              generatedQuestionOrder = qs.map(q => q.id!);
+              shouldSaveRandomization = true;
+            }
           } else {
             // Respect the question sequence but grouped by type
             qs = qs.sort((a, b) => {
@@ -312,8 +330,21 @@ export default function StudentExam() {
               .filter(item => item.text !== undefined && item.text !== null && String(item.text).trim() !== '');
 
             if (exData.randomizeQuestions) {
-              // Shuffling choices
-              validOptions.sort(() => Math.random() - 0.5);
+              if (sessData.optionsOrder && sessData.optionsOrder[q.id!]) {
+                const optOrder = sessData.optionsOrder[q.id!];
+                const optOrderMap = new Map<string, number>();
+                optOrder.forEach((key, idx) => optOrderMap.set(key, idx));
+                validOptions.sort((a, b) => {
+                  const idxA = optOrderMap.has(a.key) ? optOrderMap.get(a.key) : 999;
+                  const idxB = optOrderMap.has(b.key) ? optOrderMap.get(b.key) : 999;
+                  return idxA - idxB;
+                });
+              } else {
+                // Shuffling choices
+                validOptions.sort(() => Math.random() - 0.5);
+                generatedOptionsOrder[q.id!] = validOptions.map(o => o.key);
+                shouldSaveRandomization = true;
+              }
             }
             
             return {
@@ -321,6 +352,24 @@ export default function StudentExam() {
               shuffledOptions: validOptions
             } as any;
           });
+
+          // If the randomization order was just generated, save it to DB immediately for session persistence
+          if (shouldSaveRandomization) {
+            try {
+              const updatePayload: Partial<StudentSession> = {};
+              if (generatedQuestionOrder.length > 0) {
+                updatePayload.questionOrder = generatedQuestionOrder;
+              }
+              if (Object.keys(generatedOptionsOrder).length > 0) {
+                updatePayload.optionsOrder = generatedOptionsOrder;
+              }
+              if (Object.keys(updatePayload).length > 0) {
+                await updateDoc(doc(db, 'student_sessions', user.uid), updatePayload);
+              }
+            } catch (e) {
+              console.error("Gagal menyimpan metadata randomisasi ujian ke DB", e);
+            }
+          }
 
           setQuestions(qs);
 
