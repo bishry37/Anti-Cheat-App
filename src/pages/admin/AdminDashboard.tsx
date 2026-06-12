@@ -15,11 +15,15 @@ import {
   Sparkles,
   Search,
   Activity,
-  Award
+  Award,
+  Calendar,
+  Key,
+  Copy,
+  Check
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { StudentSession, Violation, Setting } from '../../types';
+import { StudentSession, Violation, Setting, Exam } from '../../types';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -36,7 +40,9 @@ export default function AdminDashboard() {
     totalClasses: 0
   });
 
-  const [recentViolations, setRecentViolations] = useState<Violation[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [subjectsMap, setSubjectsMap] = useState<Record<string, string>>({});
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [activeSessions, setActiveSessions] = useState<StudentSession[]>([]);
 
   // Function to determine greeting based on Indonesian time
@@ -84,10 +90,24 @@ export default function AdminDashboard() {
           totalClasses: classSnap.size
         });
 
-        // Safe Client-side sorting for Recent Violations to avoid indexing requirements
-        const violationsList = volSnap.docs.map(d => ({ id: d.id, ...d.data() } as Violation));
-        violationsList.sort((a, b) => b.timestamp - a.timestamp);
-        setRecentViolations(violationsList.slice(0, 5));
+        // Map subjects list to dictionary for quick subjectName resolution
+        const subMap: Record<string, string> = {};
+        subjSnap.docs.forEach(d => {
+          const s = d.data();
+          if (d.id && s.name) {
+            subMap[d.id] = s?.name;
+          }
+        });
+        setSubjectsMap(subMap);
+
+        // Fetch and sort Exams list
+        const examsList = examSnap.docs.map(d => ({ id: d.id, ...d.data() } as Exam));
+        examsList.sort((a, b) => {
+          if (a.isActive && !b.isActive) return -1;
+          if (!a.isActive && b.isActive) return 1;
+          return b.createdAt - a.createdAt;
+        });
+        setExams(examsList);
 
         // Safe Client-side sorting for Active Sessions
         const activeList = activeSnap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
@@ -122,6 +142,16 @@ export default function AdminDashboard() {
       });
     } catch {
       return '';
+    }
+  };
+
+  const handleCopyToken = (token: string) => {
+    try {
+      navigator.clipboard.writeText(token);
+      setCopiedToken(token);
+      setTimeout(() => setCopiedToken(null), 2000);
+    } catch (e) {
+      console.error('Failed to copy token:', e);
     }
   };
 
@@ -250,60 +280,121 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column (List of Active & Violations) */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Recent Violations Panel */}
+          {/* Agenda & Status Token Ujian Panel */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <AlertTriangle className="w-4 h-4 text-red-600" />
+                <FileText className="w-4 h-4 text-blue-600" />
                 <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-widest">
-                  Log Kasus Pelanggaran Terbaru
+                  Status Token & Jadwal Ujian Terbaru
                 </h3>
               </div>
-              <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[9px] font-black uppercase tracking-wider rounded">
-                TERBARU
+              <span className="px-2 py-0.5 bg-blue-105 text-blue-700 text-[9px] font-black uppercase tracking-wider rounded">
+                AGENDA
               </span>
             </div>
             
-            <div className="divide-y divide-slate-150 max-h-[290px] overflow-y-auto">
+            <div className="divide-y divide-slate-150 max-h-[350px] overflow-y-auto">
               {loading ? (
                 <div className="p-8 text-center text-slate-400 text-xs font-semibold uppercase tracking-wider">
-                  Memuat data pelanggaran...
+                  Memuat data ujian...
                 </div>
-              ) : recentViolations.length === 0 ? (
+              ) : exams.length === 0 ? (
                 <div className="p-8 text-center text-slate-400">
                   <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2.5 text-slate-400">
-                    <CheckCircle className="w-5 h-5" />
+                    <FileText className="w-5 h-5" />
                   </div>
                   <span className="text-[10px] font-bold uppercase tracking-wider block text-slate-500">
-                    Semua Berjalan Tertib & Aman
+                    Belum Ada Ujian Terjadwal
                   </span>
                   <span className="text-[9px] text-slate-400 block mt-0.5">
-                    Tidak terdeteksi adanya indikasi siswa berpindah tab/keluar aplikasi
+                    Silakan tambahkan ujian baru untuk memulai pengerjaan CBT siswa
                   </span>
+                  <Link 
+                    to="/admin/exams" 
+                    className="mt-3.5 inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Buat Ujian
+                  </Link>
                 </div>
               ) : (
-                recentViolations.map((v, i) => (
-                  <div key={v.id || i} className="p-3.5 hover:bg-slate-50/50 transition flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-red-55/65 text-red-600 shrink-0 mt-0.5">
-                      <AlertTriangle className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-slate-800 uppercase tracking-tight block truncate">
-                          {v.studentName}
-                        </span>
-                        <span className="text-[9px] text-slate-400 font-semibold uppercase shrink-0">
-                          {formatTime(v.timestamp)}
-                        </span>
+                exams.slice(0, 5).map((ex, i) => {
+                  const subjectName = subjectsMap[ex.subjectId] || 'Mata Pelajaran';
+                  return (
+                    <div key={ex.id || i} className="p-4 hover:bg-slate-50/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider leading-none border ${
+                            ex.isActive 
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50' 
+                              : 'bg-slate-100 text-slate-500 border-slate-200'
+                          }`}>
+                            {ex.isActive ? 'AKTIF' : 'NONAKTIF'}
+                          </span>
+                          {ex.targetClass && (
+                            <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide">
+                              Kelas {ex.targetClass}
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-tight mt-1 truncate">
+                          {ex.title}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-450 font-semibold uppercase tracking-wide flex-wrap">
+                          <span className="text-blue-600 font-bold">{subjectName}</span>
+                          <span className="text-slate-300">•</span>
+                          <span className="flex items-center gap-1 text-slate-500">
+                            <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                            {ex.date}
+                          </span>
+                          <span className="text-slate-300">•</span>
+                          <span className="text-slate-500">{ex.startTime} - {ex.endTime} ({ex.duration} Mins)</span>
+                        </div>
                       </div>
-                      <p className="text-[11px] text-slate-500 font-semibold leading-normal mt-1 uppercase text-slate-500">
-                        {v.type || "Meninggalkan lembar ujian"}
-                      </p>
+
+                      {/* Token Section */}
+                      <div className="shrink-0 flex items-center justify-end">
+                        {ex.isActive ? (
+                          <div className="bg-slate-50 border border-slate-200 rounded-lg p-1.5 pl-2.5 flex items-center gap-2 shadow-3xs max-w-xs">
+                            <div className="flex flex-col">
+                              <span className="text-[8px] font-black tracking-wider text-slate-400 uppercase leading-none">RILIS TOKEN</span>
+                              <span className="font-mono text-xs font-black tracking-widest text-slate-800 mt-0.5">{ex.activeToken}</span>
+                            </div>
+                            <button
+                              onClick={() => handleCopyToken(ex.activeToken)}
+                              className="p-1.5 hover:bg-slate-200/60 text-slate-500 hover:text-slate-705 rounded-md transition cursor-pointer"
+                              title="Salin Token"
+                            >
+                              {copiedToken === ex.activeToken ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-450 font-bold uppercase tracking-wider italic">
+                            Token Terkunci
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
+            {exams.length > 5 && (
+              <div className="p-3 bg-slate-50 border-t border-slate-100 flex justify-center">
+                <Link 
+                  to="/admin/exams" 
+                  className="text-[10px] uppercase font-black tracking-widest text-blue-600 hover:text-blue-700 flex items-center gap-1 transition"
+                >
+                  <span>Lihat Semua Ujian ({stats.totalExams})</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Active Sessions Monitor Grid */}
