@@ -96,7 +96,8 @@
         "correctCount": { "type": "number" },
         "wrongCount": { "type": "number" },
         "questionOrder": { "type": "array" },
-        "optionsOrder": { "type": "object" }
+        "optionsOrder": { "type": "object" },
+        "hiddenFromMonitor": { "type": "boolean" }
       },
       "required": ["studentName", "className", "examId", "subjectId", "token", "status", "violationsCount", "lastActivity", "startTime"]
     },

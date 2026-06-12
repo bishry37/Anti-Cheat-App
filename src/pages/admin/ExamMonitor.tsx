@@ -169,7 +169,9 @@ export default function ExamMonitor() {
       let q = query(collection(db, 'student_sessions'), where('adminId', '==', user.uid));
       
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
+        const data = snapshot.docs
+          .map(d => ({ id: d.id, ...d.data() } as StudentSession))
+          .filter(s => !s.hiddenFromMonitor);
         // Sort active first, then newest
         data.sort((a, b) => {
           if (a.status === 'Aktif' && b.status !== 'Aktif') return -1;
@@ -360,10 +362,12 @@ export default function ExamMonitor() {
       }
     } else if (type === 'delete' && candidateId) {
       try {
-        await deleteDoc(doc(db, 'student_sessions', candidateId));
-        showToast('Sesi ujian berhasil dihapus');
+        await updateDoc(doc(db, 'student_sessions', candidateId), {
+          hiddenFromMonitor: true
+        });
+        showToast('Siswa berhasil dihilangkan dari monitoring');
       } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, 'student_sessions');
+        handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
       }
     }
   };

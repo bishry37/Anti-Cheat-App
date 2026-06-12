@@ -141,7 +141,8 @@ service cloud.firestore {
              (!('wrongCount' in data) || data.wrongCount is number) &&
              (!('answers' in data) || data.answers is map) &&
              (!('questionOrder' in data) || data.questionOrder is list) &&
-             (!('optionsOrder' in data) || data.optionsOrder is map);
+             (!('optionsOrder' in data) || data.optionsOrder is map) &&
+             (!('hiddenFromMonitor' in data) || data.hiddenFromMonitor is bool);
     }
 
     match /student_sessions/{sessionId} {

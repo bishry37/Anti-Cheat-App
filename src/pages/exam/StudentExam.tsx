@@ -583,6 +583,8 @@ export default function StudentExam() {
         e.key === 'Meta' ||
         e.key === 'Escape' ||
         e.key === 'F12' || 
+        e.key === 'F5' ||
+        (e.ctrlKey && (e.key === 'r' || e.key === 'R')) ||
         (e.ctrlKey && e.shiftKey && e.key === 'I') || 
         (e.ctrlKey && e.shiftKey && e.key === 'J') ||
         (e.ctrlKey && e.key === 'U') ||
@@ -598,6 +600,7 @@ export default function StudentExam() {
         if (e.key === 'Escape') type = 'Keluar dari Layar Penuh';
         if (e.key === 'PrintScreen') type = 'Screenshot Layar';
         if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) type = 'Membuka Developer Tools';
+        if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) type = 'Menyegarkan Halaman (F5/Reload)';
 
         recordViolation(type, `Aksi terlarang terdeteksi: ${type}`);
       }

@@ -98,6 +98,7 @@ export interface StudentSession {
   adjustedAt?: number;
   questionOrder?: string[];
   optionsOrder?: Record<string, string[]>;
+  hiddenFromMonitor?: boolean;
 }
 
 export interface Violation {
