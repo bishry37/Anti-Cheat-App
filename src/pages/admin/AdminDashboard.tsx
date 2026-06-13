@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../lib/firebase';
-import { collection, query, getDocs, where, doc, getDoc } from 'firebase/firestore';
+import { collection, query, getDocs, where, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { 
   Users, 
   FileText, 
@@ -178,8 +178,12 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
+    if (!user) return;
+
+    let unsubscribeSessions: (() => void) | undefined;
+    let unsubscribeViolations: (() => void) | undefined;
+
     const fetchDashboardData = async () => {
-      if (!user) return;
       try {
         // Fetch Settings Profile
         const profileSnap = await getDoc(doc(db, 'settings', user.uid));
@@ -187,45 +191,23 @@ export default function AdminDashboard() {
           setProfile(profileSnap.data() as Setting);
         }
 
-        // Fetch Stats
+        // Fetch Exam, Subject, and Class data
         const [
-          activeSnap, 
           examSnap, 
-          completedSnap, 
-          volSnap,
           subjSnap,
           classSnap
         ] = await Promise.all([
-          getDocs(query(collection(db, 'student_sessions'), where('adminId', '==', user.uid), where('status', 'in', ['Aktif', 'Tidak Fokus', 'Melanggar']))),
           getDocs(query(collection(db, 'exams'), where('adminId', '==', user.uid))),
-          getDocs(query(collection(db, 'student_sessions'), where('adminId', '==', user.uid), where('status', 'in', ['Selesai', 'Didiskualifikasi']))),
-          getDocs(query(collection(db, 'violations'), where('adminId', '==', user.uid))),
           getDocs(query(collection(db, 'subjects'), where('adminId', '==', user.uid))),
           getDocs(query(collection(db, 'classes'), where('adminId', '==', user.uid)))
         ]);
-
-        // Safe Client-side sorting for Active Sessions
-        const activeList = activeSnap.docs
-          .map(d => ({ id: d.id, ...d.data() } as StudentSession))
-          .filter(s => !s.hiddenFromMonitor);
-        activeList.sort((a, b) => b.lastActivity - a.lastActivity);
-        setActiveSessions(activeList);
-
-        setStats({
-          activeStudents: activeList.length,
-          totalExams: examSnap.size,
-          completedExams: completedSnap.size,
-          totalViolations: volSnap.size,
-          totalSubjects: subjSnap.size,
-          totalClasses: classSnap.size
-        });
 
         // Map subjects list to dictionary for quick subjectName resolution
         const subMap: Record<string, string> = {};
         subjSnap.docs.forEach(d => {
           const s = d.data();
           if (d.id && s.name) {
-            subMap[d.id] = s?.name;
+            subMap[d.id] = s.name;
           }
         });
         setSubjectsMap(subMap);
@@ -239,14 +221,72 @@ export default function AdminDashboard() {
         });
         setExams(examsList);
 
+        setStats(prev => ({
+          ...prev,
+          totalExams: examSnap.size,
+          totalSubjects: subjSnap.size,
+          totalClasses: classSnap.size
+        }));
+
+        // Now setup real-time listener for student sessions
+        const sessionsQuery = query(
+          collection(db, 'student_sessions'),
+          where('adminId', '==', user.uid)
+        );
+
+        unsubscribeSessions = onSnapshot(sessionsQuery, (snapshot) => {
+          const allSessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
+          
+          // Filter active (Aktif, Tidak Fokus, Melanggar)
+          const activeList = allSessions.filter(
+            s => ['Aktif', 'Tidak Fokus', 'Melanggar'].includes(s.status) && !s.hiddenFromMonitor
+          );
+          activeList.sort((a, b) => b.lastActivity - a.lastActivity);
+          setActiveSessions(activeList);
+
+          // Filter completed (Selesai, Didiskualifikasi)
+          const completedList = allSessions.filter(
+            s => ['Selesai', 'Didiskualifikasi'].includes(s.status)
+          );
+
+          setStats(prev => ({
+            ...prev,
+            activeStudents: activeList.length,
+            completedExams: completedList.length
+          }));
+          setLoading(false);
+        }, (err) => {
+          console.error("Error watching sessions in real-time:", err);
+          setLoading(false);
+        });
+
+        // Setup real-time listener for violations
+        const violationsQuery = query(
+          collection(db, 'violations'),
+          where('adminId', '==', user.uid)
+        );
+
+        unsubscribeViolations = onSnapshot(violationsQuery, (snapshot) => {
+          setStats(prev => ({
+            ...prev,
+            totalViolations: snapshot.size
+          }));
+        }, (err) => {
+          console.error("Error watching violations in real-time:", err);
+        });
+
       } catch (e) {
         console.error("Dashboard statistics loading issue:", e);
-      } finally {
         setLoading(false);
       }
     };
 
     fetchDashboardData();
+
+    return () => {
+      if (unsubscribeSessions) unsubscribeSessions();
+      if (unsubscribeViolations) unsubscribeViolations();
+    };
   }, [user]);
 
   // Format Helper for relative time
