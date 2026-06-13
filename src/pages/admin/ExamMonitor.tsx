@@ -518,7 +518,7 @@ export default function ExamMonitor() {
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-750 text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer transition-all"
              >
-                <option value="online">Online / Mengerjakan</option>
+                <option value="online">Online</option>
                 <option value="">Semua Status</option>
                 <option value="tidak_fokus">Tidak Fokus</option>
                 <option value="melanggar">Melanggar</option>
@@ -678,6 +678,18 @@ export default function ExamMonitor() {
                                   Peserta ini sempat didiskualifikasi dari ujian, namun kembali diberikan izin melanjutkan pengerjaan hingga selesai oleh pengawas/admin.
                                 </span>
                               </div>
+                            ) : s.status === 'Tidak Fokus' ? (
+                               <div className="flex flex-col items-center gap-1">
+                                 <span className="text-[10px] text-orange-600 font-black bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-205/60 uppercase tracking-tight flex items-center gap-1">
+                                   <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+                                   Tidak Fokus
+                                 </span>
+                                 {s.violationsCount > 0 && (
+                                   <span className="text-[9.5px] font-black text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-tighter">
+                                     {s.violationsCount} Pelanggaran
+                                   </span>
+                                 )}
+                               </div>
                             ) : s.violationsCount > 0 ? (
                               <div className="inline-flex items-center gap-1.5">
                                 <ShieldAlert className={`w-3.5 h-3.5 ${s.violationsCount >= 3 ? 'text-red-600 animate-bounce' : 'text-orange-500'}`} />
