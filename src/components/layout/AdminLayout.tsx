@@ -49,7 +49,7 @@ export default function AdminLayout() {
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 font-sans relative">
       {/* Mobile Drawer Sidebar */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
+        <div className="fixed inset-0 z-50 flex lg:hidden">
           {/* Overlay background */}
           <div 
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-300"
@@ -84,6 +84,7 @@ export default function AdminLayout() {
                   <Link
                     key={item.name}
                     to={item.path}
+                    onClick={() => setIsMobileMenuOpen(false)}
                     className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
                       isActive 
                         ? 'bg-blue-600 text-white' 
@@ -125,7 +126,7 @@ export default function AdminLayout() {
         </div>
       )}
 
-      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col hidden md:flex shrink-0">
+      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col hidden lg:flex shrink-0">
         <div className="p-6 flex flex-col items-center text-center gap-3 border-b border-slate-800 shrink-0">
           <div className="w-16 h-16 flex items-center justify-center shrink-0 overflow-hidden bg-white/10 rounded-2xl p-2">
             <img src={setting?.schoolLogo || brandLogo} alt={setting?.schoolName || "SYSTEM"} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
@@ -191,14 +192,14 @@ export default function AdminLayout() {
             {/* Hamburger Button for mobile */}
             <button 
               onClick={() => setIsMobileMenuOpen(true)}
-              className="md:hidden p-1.5 -ml-1.5 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+              className="lg:hidden p-1.5 -ml-1.5 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
               title="Buka Menu"
             >
               <Menu className="w-5 h-5" />
             </button>
 
-            <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider hidden md:block">Dashboard Admin</h2>
-            <div className="md:hidden flex items-center">
+            <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider hidden lg:block">Dashboard Admin</h2>
+            <div className="lg:hidden flex items-center">
                <div className="w-11 h-11 flex items-center justify-center mr-3 shrink-0 bg-slate-100 rounded-xl p-1.5">
                   <img src={setting?.schoolLogo || brandLogo} alt={setting?.schoolName || "SYSTEM"} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                </div>
@@ -206,11 +207,11 @@ export default function AdminLayout() {
                  {setting?.schoolName || 'ANTI CHEATING APP'}
                </span>
             </div>
-            <span className="hidden md:inline-flex px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded uppercase tracking-wider">System Active</span>
+            <span className="hidden lg:inline-flex px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded uppercase tracking-wider">System Active</span>
           </div>
 
           {/* Mobile Profile Indicator */}
-          <div className="md:hidden flex items-center">
+          <div className="lg:hidden flex items-center">
             {setting?.teacherPhoto ? (
               <div className="w-7 h-7 rounded-full overflow-hidden border border-slate-200 shadow-xs">
                 <img src={setting.teacherPhoto} alt="Profil" className="w-full h-full object-cover" />
