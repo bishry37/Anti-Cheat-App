@@ -527,26 +527,32 @@ export default function StudentExam() {
           document.exitFullscreen().catch(() => {});
         }
       } else {
+        const isFocusLoss = type.includes('Pindah Tab') || type.includes('Membuka aplikasi lain') || type.includes('Fokus hilang') || type.includes('Keluar Fullscreen');
+        const nextStatus = isFocusLoss ? 'Tidak Fokus' : 'Melanggar';
+
         await updateDoc(docRef, {
-          status: 'Melanggar',
+          status: nextStatus,
           violationsCount: newCount,
           lastActivity: Date.now()
         });
         
         // Reset status briefly, but ONLY if they are not disqualified/done in the meantime
-        setTimeout(async () => {
-          try {
-            const freshSnap = await getDoc(docRef);
-            if (freshSnap.exists()) {
-              const freshData = freshSnap.data() as StudentSession;
-              if (freshData.status !== 'Didiskualifikasi' && freshData.status !== 'Selesai') {
-                await updateDoc(docRef, { status: 'Aktif' });
+        // and only if it's NOT a focus-loss (so if they are still on another window, they stay 'Tidak Fokus')
+        if (!isFocusLoss) {
+          setTimeout(async () => {
+            try {
+              const freshSnap = await getDoc(docRef);
+              if (freshSnap.exists()) {
+                const freshData = freshSnap.data() as StudentSession;
+                if (freshData.status === 'Melanggar') {
+                  await updateDoc(docRef, { status: 'Aktif' });
+                }
               }
+            } catch (err) {
+              console.error("Gagal reset status ke Aktif", err);
             }
-          } catch (err) {
-            console.error("Gagal reset status ke Aktif", err);
-          }
-        }, 5000);
+          }, 5000);
+        }
       }
     } catch (err) {
       console.error("Gagal mencatat pelanggaran:", err);
@@ -556,14 +562,38 @@ export default function StudentExam() {
   useEffect(() => {
     if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
 
+    const handleRegainFocus = async () => {
+      try {
+        const docRef = doc(db, 'student_sessions', user!.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const freshData = docSnap.data() as StudentSession;
+          if (freshData.status === 'Tidak Fokus' || freshData.status === 'Melanggar') {
+            await updateDoc(docRef, {
+              status: 'Aktif',
+              lastActivity: Date.now()
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Gagal memperbarui status ke Aktif saat regain focus:", err);
+      }
+    };
+
     const handleVisibilityChange = () => {
       if (document.hidden) {
         recordViolation('Pindah Tab Browser', 'Terdeteksi pindah tab! Tindakan ini dilarang.');
+      } else {
+        handleRegainFocus();
       }
     };
 
     const handleBlur = () => {
       recordViolation('Membuka aplikasi lain', 'Fokus hilang dari ujian! Jangan buka aplikasi lain.');
+    };
+
+    const handleFocus = () => {
+      handleRegainFocus();
     };
 
     const handleFullscreenChange = () => {
@@ -572,6 +602,7 @@ export default function StudentExam() {
         recordViolation('Keluar Fullscreen', 'Keluar dari layar penuh! Ujian harus dikerjakan secara fullscreen.');
       } else {
         setIsFullscreen(true);
+        handleRegainFocus();
       }
     };
 
@@ -613,6 +644,7 @@ export default function StudentExam() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     window.addEventListener('keydown', handleKeyDown);
     document.addEventListener('copy', handleCopyPaste);
@@ -622,13 +654,14 @@ export default function StudentExam() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       window.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('copy', handleCopyPaste);
       document.removeEventListener('paste', handleCopyPaste);
       document.removeEventListener('contextmenu', (e) => e.preventDefault());
     };
-  }, [session, settings, isSubmittingOrFinished]);
+  }, [session, settings, isSubmittingOrFinished, user]);
 
   // Request Fullscreen
   const requestFullscreen = () => {
