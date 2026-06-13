@@ -566,7 +566,7 @@ export default function ResultReport() {
                       <LayoutGrid className="w-6 h-6" />
                     </div>
                     <div>
-                      <h4 className="text-base font-black text-slate-800 uppercase tracking-tight">Pilih File Soal / Ujian</h4>
+                      <h4 className="text-base font-black text-slate-800 uppercase tracking-tight">Pilih File Soal</h4>
                       <p className="text-[11px] text-slate-500 font-bold mt-1 uppercase tracking-wider">
                         Hasil Ujian Kelas: <span className="text-blue-600 font-black">{filterClass}</span>
                       </p>
