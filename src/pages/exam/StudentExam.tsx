@@ -166,8 +166,8 @@ export default function StudentExam() {
       });
 
       // Clear local backup
-      if (examVal.id) {
-        localStorage.removeItem(`cbt_answers_${examVal.id}`);
+      if (examVal.id && user?.uid) {
+        localStorage.removeItem(`cbt_answers_${user.uid}_${examVal.id}`);
       }
 
       // Safety: Exit fullscreen
@@ -206,6 +206,16 @@ export default function StudentExam() {
   // Load Initial Data
   useEffect(() => {
     if (!user) return;
+
+    // Reset all student states immediately when user changes to prevent cross-account leaks
+    setSession(null);
+    setExam(null);
+    setQuestions([]);
+    setAnswers({});
+    answersRef.current = {};
+    setCurrentQuestionIndex(0);
+    setLoadError('');
+
     async function loadData() {
       try {
         const sessSnap = await getDoc(doc(db, 'student_sessions', user!.uid));
@@ -216,10 +226,10 @@ export default function StudentExam() {
         const sessData = { id: sessSnap.id, ...sessSnap.data() } as StudentSession;
         setSession(sessData);
 
-        // Merge with local storage backup to handle extreme connection / power failure cases
+        // Merge with local storage backup to handle extreme connection / power failure cases (scoped by student UID)
         let localBackup: Record<string, string> = {};
         try {
-          const stored = localStorage.getItem(`cbt_answers_${sessData.examId}`);
+          const stored = localStorage.getItem(`cbt_answers_${user.uid}_${sessData.examId}`);
           if (stored) {
             localBackup = JSON.parse(stored);
           }
@@ -716,9 +726,9 @@ export default function StudentExam() {
     setAnswers(newAnswers);
     answersRef.current = newAnswers;
 
-    // Backup answers locally in case of electricity / connection loss
-    if (session?.examId) {
-      localStorage.setItem(`cbt_answers_${session.examId}`, JSON.stringify(newAnswers));
+    // Backup answers locally in case of electricity / connection loss (scoped by student UID)
+    if (session?.examId && user?.uid) {
+      localStorage.setItem(`cbt_answers_${user.uid}_${session.examId}`, JSON.stringify(newAnswers));
     }
 
     // Auto save answers immediately for safety
