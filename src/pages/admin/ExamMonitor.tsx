@@ -17,10 +17,9 @@ export default function ExamMonitor() {
 
   // Filters
   const [filterClass, setFilterClass] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<string>('online');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterExam, setFilterExam] = useState<string>('');
-  const [showAllMode, setShowAllMode] = useState(false);
-  const [examSearch, setExamSearch] = useState<string>('');
-  const [selectedClassFilter, setSelectedClassFilter] = useState<string>('');
 
   // Detail Modal
   const [selectedSession, setSelectedSession] = useState<StudentSession | null>(null);
@@ -195,10 +194,38 @@ export default function ExamMonitor() {
 
   const filteredSessions = sessions
     .filter(s => {
-      if (showAllMode) return true;
+      // 1. Class filter
       if (filterClass && s.className !== filterClass) return false;
+
+      // 1b. Exam filter
       if (filterExam && s.examId !== filterExam) return false;
-      if (!filterClass && !filterExam) return false;
+
+      // 2. Status filter
+      if (filterStatus) {
+        if (filterStatus === 'online') {
+          // 'online' acts for active participants
+          if (s.status !== 'Aktif' && s.status !== 'Tidak Fokus' && s.status !== 'Melanggar') return false;
+        } else if (filterStatus === 'tidak_fokus') {
+          if (s.status !== 'Tidak Fokus') return false;
+        } else if (filterStatus === 'melanggar') {
+          if (s.status !== 'Melanggar') return false;
+        } else if (filterStatus === 'selesai') {
+          if (s.status !== 'Selesai') return false;
+        } else if (filterStatus === 'didiskualifikasi') {
+          if (s.status !== 'Didiskualifikasi') return false;
+        }
+      }
+
+      // 3. Search query
+      if (searchQuery.trim() !== '') {
+        const queryClean = searchQuery.toLowerCase();
+        const studName = s.studentName.toLowerCase();
+        const examTitle = (exams[s.examId]?.title || '').toLowerCase();
+        if (!studName.includes(queryClean) && !examTitle.includes(queryClean)) {
+          return false;
+        }
+      }
+
       return true;
     })
     .reduce((acc: StudentSession[], current) => {
@@ -460,211 +487,104 @@ export default function ExamMonitor() {
              </div>
           </div>
           
-          <div className="flex flex-wrap items-center gap-2">
-             <div className="flex items-center gap-2">
-                {((filterClass && filterExam) || showAllMode) && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button 
-                      onClick={() => {
-                        setFilterClass('');
-                        setShowAllMode(false);
-                        setFilterExam('');
-                      }}
-                      className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-1 text-[11px] font-black transition-all cursor-pointer shadow-sm"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 rotate-180 text-slate-400" />
-                      <span>KEMBALI KE DAFTAR UJIAN</span>
-                    </button>
-
-                    <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-slate-400 ml-1">
-                      <span className="font-extrabold uppercase">MONITORING:</span>
-                      {showAllMode ? (
-                        <span className="bg-indigo-50 text-indigo-700 font-extrabold px-2.5 py-0.5 rounded border border-indigo-100 uppercase font-bold text-[10px]">SEMUA KELAS & UJIAN</span>
-                      ) : (
-                        <span className="bg-indigo-50 text-indigo-700 font-extrabold px-2.5 py-0.5 rounded border border-indigo-100 uppercase">{filterClass}</span>
-                      )}
-                      {!showAllMode && <span className="text-slate-350">/</span>}
-                      {!showAllMode && <span className="font-extrabold text-slate-700 bg-slate-50 px-2.5 py-0.5 rounded border border-slate-100 uppercase">{exams[filterExam]?.title || 'Ujian'}</span>}
-                    </div>
-
-                    <button 
-                      onClick={() => {
-                        const activeSessionsInClass = sessions.filter(
-                          s => s.className === filterClass && s.status !== 'Selesai' && s.status !== 'Didiskualifikasi'
-                        );
-                        let defaultDur = 90;
-                        if (activeSessionsInClass.length > 0) {
-                          const firstSession = activeSessionsInClass[0];
-                          const currentDur = typeof firstSession.duration === 'number' ? firstSession.duration : (exams[firstSession.examId]?.duration || 90);
-                          const elapsedMin = (Date.now() - firstSession.startTime) / 60000;
-                          defaultDur = Math.max(0, Math.ceil(currentDur - elapsedMin));
-                        }
-                        setDurationModal({
-                          isOpen: true,
-                          mode: 'mass',
-                          className: filterClass,
-                          newDuration: defaultDur || 20
-                        });
-                      }}
-                      className={`bg-indigo-600 hover:bg-indigo-750 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all text-[11px] font-extrabold uppercase shadow-sm cursor-pointer ml-2 ${showAllMode ? 'hidden' : ''}`}
-                      title={`Sesuaikan durasi pengerjaan untuk semua siswa kelas ${filterClass}`}
-                    >
-                      <Clock3 className="w-3.5 h-3.5 text-indigo-200" />
-                      <span>Atur Durasi Kelas</span>
-                    </button>
-                  </div>
-                )}
+          <div className="flex flex-wrap items-center gap-2.5">
+             {/* Search Input Field */}
+             <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400" />
+                <input 
+                   type="text"
+                   placeholder="Cari nama siswa / ujian..."
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   className="bg-slate-50 border border-slate-200 hover:border-slate-300 text-xs font-medium rounded-lg pl-8 pr-3 py-1.5 w-full sm:w-[200px] focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-800 placeholder:text-slate-400 transition-all font-sans"
+                />
              </div>
+
+             {/* Class Select Dropdown (Filter Kelas) */}
+             <select
+                value={filterClass}
+                onChange={(e) => setFilterClass(e.target.value)}
+                className="bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-750 text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer transition-all"
+             >
+                <option value="">Semua Kelas</option>
+                {classesData.map(c => (
+                   <option key={c.id} value={c.name}>{c.name}</option>
+                ))}
+             </select>
+
+             {/* Status Select Dropdown (Filter Status) */}
+             <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-750 text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer transition-all"
+             >
+                <option value="online">Online / Mengerjakan</option>
+                <option value="">Semua Status</option>
+                <option value="tidak_fokus">Tidak Fokus</option>
+                <option value="melanggar">Melanggar</option>
+                <option value="selesai">Selesai</option>
+                <option value="didiskualifikasi">Didiskualifikasi</option>
+             </select>
+
+             {/* Exam File Dropdown (Filter File Ujian) */}
+             <select
+                value={filterExam}
+                onChange={(e) => setFilterExam(e.target.value)}
+                className="bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-755 text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer transition-all"
+             >
+                <option value="">Semua Ujian</option>
+                {(Object.values(exams) as any[]).map(ex => (
+                   <option key={ex.id} value={ex.id}>{ex.title}</option>
+                ))}
+             </select>
+
+             {/* Reset Filter Button */}
+             {(searchQuery || filterClass || filterStatus !== 'online' || filterExam) && (
+                <button 
+                  onClick={() => {
+                     setFilterClass('');
+                     setFilterExam('');
+                     setFilterStatus('online');
+                     setSearchQuery('');
+                  }}
+                  className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3 py-1.5 rounded-lg flex items-center space-x-1 text-xs font-bold uppercase transition-all cursor-pointer shadow-xs"
+                >
+                  <span>Reset Filter</span>
+                </button>
+             )}
+
+             {filterClass && (
+                <button 
+                  onClick={() => {
+                    const activeSessionsInClass = sessions.filter(
+                      s => s.className === filterClass && s.status !== 'Selesai' && s.status !== 'Didiskualifikasi'
+                    );
+                    let defaultDur = 90;
+                    if (activeSessionsInClass.length > 0) {
+                      const firstSession = activeSessionsInClass[0];
+                      const currentDur = typeof firstSession.duration === 'number' ? firstSession.duration : (exams[firstSession.examId]?.duration || 90);
+                      const elapsedMin = (Date.now() - firstSession.startTime) / 60000;
+                      defaultDur = Math.max(0, Math.ceil(currentDur - elapsedMin));
+                    }
+                    setDurationModal({
+                      isOpen: true,
+                      mode: 'mass',
+                      className: filterClass,
+                      newDuration: defaultDur || 20
+                    });
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all text-xs font-bold uppercase shadow-xs cursor-pointer"
+                  title={`Sesuaikan durasi pengerjaan untuk semua siswa kelas ${filterClass}`}
+                >
+                  <Clock3 className="w-3.5 h-3.5 text-indigo-200" />
+                  <span>Durasi Kelas</span>
+                </button>
+             )}
           </div>
         </div>
       </div>
 
        <AnimatePresence mode="wait">
-        {(!showAllMode && (!filterClass || !filterExam)) ? (
-          <motion.div 
-            key="exam-selection-portal"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.08, ease: "linear" }}
-            className="flex-1 flex flex-col space-y-5"
-          >
-            {/* Header section */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-tight">PILIH JADWAL UJIAN</h2>
-               <p className="text-slate-500 text-[11px] mt-0.5">
-                  Pilihlah salah satu daftar jadwal ujian aktif di bawah untuk memantau status fokus peserta secara real-time.
-               </p>
-            </div>
-
-            {/* Quick Filter Bar */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-               {/* Class Selection Dropdown */}
-               <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 select-none w-full">
-                  <select
-                     value={selectedClassFilter}
-                     onChange={(e) => {
-                        setSelectedClassFilter(e.target.value);
-                     }}
-                     className="bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-0 focus:border-slate-350 min-w-[150px] cursor-pointer h-9"
-                  >
-                     <option value="">--Pilih Kelas--</option>
-                     {classesData.map(c => (
-                        <option key={c.id} value={c.name}>{c.name}</option>
-                     ))}
-                  </select>
-
-                  <button
-                     type="button"
-                     onClick={() => {
-                        setShowAllMode(true);
-                     }}
-                     className="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-200 text-xs font-black rounded-lg px-4 py-1.5 h-9 transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5 uppercase tracking-wider shrink-0"
-                  >
-                     <Eye className="w-4 h-4 shrink-0" />
-                     <span>Lihat Semua</span>
-                  </button>
-               </div>
-            </div>
-
-            {/* Conditional List Rendering */}
-            {!selectedClassFilter ? (
-               <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-450 font-bold text-xs shadow-sm py-20 flex flex-col items-center justify-center space-y-2">
-                  <Users className="w-8 h-8 text-slate-350" />
-                  <span>Silakan pilih kelas terlebih dahulu untuk menampilkan daftar jadwal ujian.</span>
-               </div>
-            ) : (
-               /* Exams Table List Selection */
-               <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden animate-fadeIn">
-                  <div className="overflow-x-auto">
-                     <table className="w-full text-left border-collapse">
-                        <thead>
-                           <tr className="bg-slate-50 text-slate-400 text-[10px] uppercase font-bold tracking-wider border-b border-slate-200 select-none">
-                              <th className="px-5 py-3 w-12 text-center">No</th>
-                              <th className="px-5 py-3">Ujian & Mata Pelajaran</th>
-                              <th className="px-5 py-3 text-center hidden md:table-cell">Paket Soal</th>
-                              <th className="px-5 py-3 text-center hidden sm:table-cell">Durasi</th>
-                              <th className="px-5 py-3 text-center">Siswa Aktif</th>
-                           </tr>
-                        </thead>
-                        <tbody className="text-xs divide-y divide-slate-100">
-                           {(() => {
-                               const filteredExamsList = (Object.values(exams) as Exam[])
-                                 .filter(ex => ex.targetClass === selectedClassFilter)
-                                 .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-
-                              if (filteredExamsList.length === 0) {
-                                 return (
-                                    <tr>
-                                       <td colSpan={5} className="px-5 py-12 text-center text-slate-400 font-medium">
-                                          Tidak ada ujian yang aktif untuk Kelas {selectedClassFilter}.
-                                       </td>
-                                    </tr>
-                                 );
-                              }
-
-                              return filteredExamsList.map((ex, idx) => {
-                                 const examId = ex.id!;
-                                 const activeStudentsCount = sessions.filter(
-                                    s => s.examId === examId && s.status !== 'Selesai' && s.status !== 'Didiskualifikasi'
-                                 ).length;
-                                 const totalLoggedStudents = sessions.filter(s => s.examId === examId).length;
-                                 const targetSubject = subjects[ex.subjectId]?.name || 'Mata Pelajaran';
-
-                                 return (
-                                    <tr 
-                                       key={examId}
-                                       onClick={() => {
-                                          setFilterClass(ex.targetClass || '');
-                                          setFilterExam(examId);
-                                       }}
-                                       className="hover:bg-slate-50 cursor-pointer transition-colors group"
-                                    >
-                                       <td className="px-5 py-4 text-center font-bold text-slate-405">
-                                          {idx + 1}
-                                       </td>
-                                       <td className="px-5 py-4">
-                                          <div className="font-bold text-slate-800 group-hover:text-indigo-650 transition-colors uppercase tracking-tight">
-                                             {ex.title}
-                                          </div>
-                                          <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
-                                             {targetSubject.toUpperCase()} {ex.isActive ? `• TOKEN: ${ex.activeToken}` : ''}
-                                          </span>
-                                       </td>
-                                       <td className="px-5 py-4 text-center hidden md:table-cell font-medium text-slate-500">
-                                          <div className="truncate max-w-[150px] mx-auto" title={ex.packetName || 'Default'}>
-                                             {ex.packetName || 'Default'}
-                                          </div>
-                                          <span className="text-[9px] text-slate-400">
-                                             {ex.questionCount || 0} Soal
-                                          </span>
-                                       </td>
-                                       <td className="px-5 py-4 text-center hidden sm:table-cell font-mono font-medium text-slate-600">
-                                          {ex.duration} menit
-                                       </td>
-                                       <td className="px-5 py-4 text-center">
-                                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black ${
-                                             activeStudentsCount > 0 
-                                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
-                                             : 'bg-slate-100 text-slate-500 border border-slate-200'
-                                          }`}>
-                                             <span className={`w-1.5 h-1.5 rounded-full ${
-                                                activeStudentsCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
-                                             }`}></span>
-                                             {activeStudentsCount} / {totalLoggedStudents} Siswa
-                                          </span>
-                                       </td>
-                                    </tr>
-                                 );
-                              });
-                           })()}
-                        </tbody>
-                     </table>
-                  </div>
-               </div>
-            )}
-          </motion.div>
-        ) : (
           <motion.div 
             key="exam-monitoring-portal"
             initial={{ opacity: 0 }}
@@ -676,7 +596,7 @@ export default function ExamMonitor() {
             <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between sticky top-0 z-20">
                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                  <LayoutGrid className="w-3 h-3" />
-                 {showAllMode ? 'MONITORING SELURUH KELAS & UJIAN' : `KELAS ${filterClass.toUpperCase()} - ${(exams[filterExam]?.title || 'UJIAN').toUpperCase()}`}
+                 {`MONITORING KELAS ${filterClass ? filterClass.toUpperCase() : 'SEMUA'} - ${filterExam && exams[filterExam] ? exams[filterExam].title.toUpperCase() : 'SEMUA UJIAN'}`}
                </span>
                <span className="text-[10px] font-bold text-indigo-600 bg-white px-2 py-0.5 rounded border border-indigo-100 shadow-sm">
                  {filteredSessions.length} Terdeteksi
@@ -901,7 +821,6 @@ export default function ExamMonitor() {
               </table>
             </div>
           </motion.div>
-        )}
       </AnimatePresence>
 
       {/* Modal Detail */}

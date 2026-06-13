@@ -286,7 +286,11 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         
         {/* Welcome Greeting Card (Left) */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-xs relative overflow-hidden flex flex-col justify-between">
+        <div className="lg:col-span-7 bg-gradient-to-br from-white via-slate-50 to-slate-100/80 border border-slate-200 rounded-2xl p-6 shadow-xs relative overflow-hidden flex flex-col justify-between">
+          {/* Soft glowing ambient spots in corners */}
+          <div className="absolute -top-10 -left-10 w-32 h-32 bg-blue-300/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -bottom-10 -right-10 w-28 h-28 bg-indigo-300/10 rounded-full blur-2xl pointer-events-none" />
+          
           <div className="space-y-2 z-10">
             <div className="flex items-center gap-2">
               <span className="flex h-2.5 w-2.5 relative">
