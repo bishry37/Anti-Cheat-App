@@ -265,7 +265,7 @@ export default function Settings() {
         </div>
       )}
 
-      <form onSubmit={handleSave} className="space-y-6">
+      <form onSubmit={handleSave} className="space-y-6" autoComplete="off" data-lpignore="true">
         
         {/* ROW 1: School Identity & Teacher Profile */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -277,8 +277,11 @@ export default function Settings() {
             </div>
             <div className="p-6 space-y-6 flex-1">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Nama Sekolah (Opsional)</label>
+                <label htmlFor={`schoolName_input_${user?.uid || ''}`} className="block text-sm font-medium text-slate-700 mb-1.5">Nama Sekolah (Opsional)</label>
                 <input
+                  id={`schoolName_input_${user?.uid || ''}`}
+                  autoComplete="new-password"
+                  data-lpignore="true"
                   type="text"
                   name="schoolName"
                   value={setting.schoolName || ''}
@@ -326,8 +329,11 @@ export default function Settings() {
             </div>
             <div className="p-6 space-y-4 flex-1">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Nama Guru</label>
+                <label htmlFor={`teacherName_input_${user?.uid || ''}`} className="block text-sm font-medium text-slate-700 mb-1.5">Nama Guru</label>
                 <input
+                  id={`teacherName_input_${user?.uid || ''}`}
+                  autoComplete="new-password"
+                  data-lpignore="true"
                   type="text"
                   name="teacherName"
                   value={setting.teacherName || ''}
@@ -338,8 +344,11 @@ export default function Settings() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Jabatan / Keterangan</label>
+                <label htmlFor={`teacherRole_input_${user?.uid || ''}`} className="block text-sm font-medium text-slate-700 mb-1.5">Jabatan / Keterangan</label>
                 <input
+                  id={`teacherRole_input_${user?.uid || ''}`}
+                  autoComplete="new-password"
+                  data-lpignore="true"
                   type="text"
                   name="teacherRole"
                   value={setting.teacherRole || ''}
