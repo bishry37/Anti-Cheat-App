@@ -711,7 +711,13 @@ export default function Home() {
                 transition={{ duration: 0.2 }}
                 onSubmit={handleAdminEmailLogin}
                 className="space-y-5"
+                autoComplete="off"
+                data-lpignore="true"
               >
+                {/* Honeypot fields to absorb browser autocompletion and cached emails */}
+                <input style={{ display: 'none' }} type="email" name="fake_admin_email_field_autofill" tabIndex={-1} aria-hidden="true" value="" readOnly />
+                <input style={{ display: 'none' }} type="password" name="fake_admin_password_field_autofill" tabIndex={-1} aria-hidden="true" value="" readOnly />
+
                 <div className="mb-2 text-center">
                   <h2 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center justify-center">
                     <span className="w-1.5 h-1.5 bg-slate-800 rounded-full mr-1.5 animate-pulse"></span>
@@ -720,9 +726,13 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Email</label>
+                  <label htmlFor="admin_email_input" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Email</label>
                   <input 
+                    id="admin_email_input"
+                    autoComplete="new-password"
+                    data-lpignore="true"
                     type="email" 
+                    name="admin_login_user_email"
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
                     placeholder="email@sekolah.com"
@@ -731,7 +741,7 @@ export default function Home() {
                 </div>
                 <div>
                   <div className="flex justify-between items-center mb-1.5">
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Password</label>
+                    <label htmlFor="admin_password_input" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Password</label>
                     <button
                       type="button"
                       onClick={() => {
@@ -746,7 +756,11 @@ export default function Home() {
                     </button>
                   </div>
                   <input 
+                    id="admin_password_input"
+                    autoComplete="new-password"
+                    data-lpignore="true"
                     type="password" 
+                    name="admin_login_user_pass"
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
                     placeholder="••••••••"
@@ -787,7 +801,12 @@ export default function Home() {
                 transition={{ duration: 0.2 }}
                 onSubmit={handleForgotPassword}
                 className="space-y-5"
+                autoComplete="off"
+                data-lpignore="true"
               >
+                {/* Honeypot field for forgot password email */}
+                <input style={{ display: 'none' }} type="email" name="fake_forgot_email_field_autofill" tabIndex={-1} aria-hidden="true" value="" readOnly />
+
                 <div className="mb-2 text-center flex flex-col items-center">
                   <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mb-3">
                      <KeyRound className="w-6 h-6 text-blue-500" />
@@ -799,9 +818,13 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Email Akun</label>
+                  <label htmlFor="reset_email_input" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Email Akun</label>
                   <input 
+                    id="reset_email_input"
+                    autoComplete="new-password"
+                    data-lpignore="true"
                     type="email" 
+                    name="admin_reset_user_email"
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
                     placeholder="email@sekolah.com"

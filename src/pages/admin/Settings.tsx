@@ -113,7 +113,13 @@ export default function Settings() {
   }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
+    let { name, value } = e.target;
+    
+    // Normalize dynamic user-scoped name back to state property keys
+    if (name.startsWith('schoolName_')) name = 'schoolName';
+    if (name.startsWith('teacherName_')) name = 'teacherName';
+    if (name.startsWith('teacherRole_')) name = 'teacherRole';
+
     setSetting(prev => ({
       ...prev,
       [name]: name === 'maxViolations' ? parseInt(value) || 0 : value
@@ -267,6 +273,11 @@ export default function Settings() {
 
       <form onSubmit={handleSave} className="space-y-6" autoComplete="off" data-lpignore="true">
         
+        {/* Anti-autofill Honeypot Inputs to absorb browser caching patterns */}
+        <input style={{ display: 'none' }} type="text" name="fake_schoolname_field_autofill" tabIndex={-1} aria-hidden="true" value="" readOnly />
+        <input style={{ display: 'none' }} type="text" name="fake_teachername_field_autofill" tabIndex={-1} aria-hidden="true" value="" readOnly />
+        <input style={{ display: 'none' }} type="text" name="fake_teacherrole_field_autofill" tabIndex={-1} aria-hidden="true" value="" readOnly />
+
         {/* ROW 1: School Identity & Teacher Profile */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
@@ -276,14 +287,14 @@ export default function Settings() {
                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Identitas Sekolah</h3>
             </div>
             <div className="p-6 space-y-6 flex-1">
-              <div>
-                <label htmlFor={`schoolName_input_${user?.uid || ''}`} className="block text-sm font-medium text-slate-700 mb-1.5">Nama Sekolah (Opsional)</label>
+               <div>
+                <label htmlFor={`schoolName_input_${user?.uid || 'default'}`} className="block text-sm font-medium text-slate-700 mb-1.5">Nama Sekolah (Opsional)</label>
                 <input
-                  id={`schoolName_input_${user?.uid || ''}`}
-                  autoComplete="new-password"
+                  id={`schoolName_input_${user?.uid || 'default'}`}
+                  autoComplete={`off-field-${(user?.uid || '').substring(0, 8)}`}
                   data-lpignore="true"
                   type="text"
-                  name="schoolName"
+                  name={`schoolName_${(user?.uid || '').substring(0, 10)}`}
                   value={setting.schoolName || ''}
                   onChange={handleChange}
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm font-medium placeholder-slate-400"
@@ -329,13 +340,13 @@ export default function Settings() {
             </div>
             <div className="p-6 space-y-4 flex-1">
               <div>
-                <label htmlFor={`teacherName_input_${user?.uid || ''}`} className="block text-sm font-medium text-slate-700 mb-1.5">Nama Guru</label>
+                <label htmlFor={`teacherName_input_${user?.uid || 'default'}`} className="block text-sm font-medium text-slate-700 mb-1.5">Nama Guru</label>
                 <input
-                  id={`teacherName_input_${user?.uid || ''}`}
-                  autoComplete="new-password"
+                  id={`teacherName_input_${user?.uid || 'default'}`}
+                  autoComplete={`off-field-${(user?.uid || '').substring(0, 8)}`}
                   data-lpignore="true"
                   type="text"
-                  name="teacherName"
+                  name={`teacherName_${(user?.uid || '').substring(0, 10)}`}
                   value={setting.teacherName || ''}
                   onChange={handleChange}
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm placeholder-slate-400"
@@ -344,13 +355,13 @@ export default function Settings() {
               </div>
               
               <div>
-                <label htmlFor={`teacherRole_input_${user?.uid || ''}`} className="block text-sm font-medium text-slate-700 mb-1.5">Jabatan / Keterangan</label>
+                <label htmlFor={`teacherRole_input_${user?.uid || 'default'}`} className="block text-sm font-medium text-slate-700 mb-1.5">Jabatan / Keterangan</label>
                 <input
-                  id={`teacherRole_input_${user?.uid || ''}`}
-                  autoComplete="new-password"
+                  id={`teacherRole_input_${user?.uid || 'default'}`}
+                  autoComplete={`off-field-${(user?.uid || '').substring(0, 8)}`}
                   data-lpignore="true"
                   type="text"
-                  name="teacherRole"
+                  name={`teacherRole_${(user?.uid || '').substring(0, 10)}`}
                   value={setting.teacherRole || ''}
                   onChange={handleChange}
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm placeholder-slate-400"
