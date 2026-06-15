@@ -1235,14 +1235,6 @@ export default function QuestionBank() {
                 {selectedTemplateFilter !== null && selectedTemplateFilter !== 'all' && (
                   <>
                     <button 
-                      onClick={handleExportQuestions}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-[10px] font-bold uppercase flex items-center space-x-1.5 transition-colors cursor-pointer shadow-sm"
-                      title="Export soal yang ada saat ini ke Excel"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Export Soal</span>
-                    </button>
-                    <button 
                       onClick={() => {
                         setAddingData({...addingData, number: questions.length + 1});
                         setIsAddingQuestion(true);
