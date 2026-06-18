@@ -617,31 +617,47 @@ export default function StudentExam() {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent common shortcuts: Ctrl+C, Ctrl+V, F12 (DevTools), PrintScreen, Atl+Tab handled by blur usually but just in case
+      // Prevent common shortcuts and requested violations
+      const key = e.key;
+      const ctrl = e.ctrlKey;
+      const shift = e.shiftKey;
+      const meta = e.metaKey;
+      const alt = e.altKey;
+
       if (
-        e.key === 'Alt' ||
-        e.key === 'Tab' ||
-        e.key === 'Meta' ||
-        e.key === 'Escape' ||
-        e.key === 'F12' || 
-        e.key === 'F5' ||
-        (e.ctrlKey && (e.key === 'r' || e.key === 'R')) ||
-        (e.ctrlKey && e.shiftKey && e.key === 'I') || 
-        (e.ctrlKey && e.shiftKey && e.key === 'J') ||
-        (e.ctrlKey && e.key === 'U') ||
-        (e.ctrlKey && e.key === 'c') ||
-        (e.ctrlKey && e.key === 'v') ||
-        e.key === 'PrintScreen'
+        key === 'Alt' ||
+        key === 'Tab' ||
+        key === 'Meta' ||
+        key === 'Escape' ||
+        key === 'F12' || 
+        key === 'F5' ||
+        key === 'PrintScreen' ||
+        (ctrl && (key === 'r' || key === 'R' || key === 'c' || key === 'C' || key === 'v' || key === 'V' || key === 'u' || key === 'U' || key === 't' || key === 'T' || key === 'n' || key === 'N' || key === 'l' || key === 'L')) ||
+        (ctrl && shift && (key === 'i' || key === 'I' || key === 'j' || key === 'J' || key === 'n' || key === 'N')) ||
+        (meta && (key === 'd' || key === 'D' || key === 'e' || key === 'E' || key === 'Tab')) ||
+        (alt && key === 'Tab')
       ) {
         e.preventDefault();
         let type = 'Tombol Shortcut Terlarang';
-        if (e.key === 'Alt') type = 'Menekan Tombol Alt';
-        if (e.key === 'Tab') type = 'Menekan Tombol Tab';
-        if (e.key === 'Meta') type = 'Membuka Start Menu / Windows';
-        if (e.key === 'Escape') type = 'Keluar dari Layar Penuh';
-        if (e.key === 'PrintScreen') type = 'Screenshot Layar';
-        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) type = 'Membuka Developer Tools';
-        if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) type = 'Menyegarkan Halaman (F5/Reload)';
+        
+        if (meta && (key === 'd' || key === 'D')) type = 'Shortcut Windows + D (Desktop)';
+        else if (meta && (key === 'e' || key === 'E')) type = 'Shortcut Windows + E (Explorer)';
+        else if (meta && key === 'Tab') type = 'Shortcut Windows + Tab (Task View)';
+        else if (alt && key === 'Tab') type = 'Shortcut Alt + Tab (Pindah Aplikasi)';
+        else if (key === 'Alt') type = 'Menekan Tombol Alt';
+        else if (key === 'Tab') type = 'Menekan Tombol Tab';
+        else if (key === 'Meta') type = 'Membuka Start Menu / Windows';
+        else if (key === 'Escape') type = 'Keluar dari Layar Penuh';
+        else if (key === 'PrintScreen') type = 'Screenshot Layar';
+        else if (key === 'F12' || (ctrl && shift && (key === 'i' || key === 'I'))) type = 'Membuka Developer Tools';
+        else if (key === 'F5' || (ctrl && (key === 'r' || key === 'R'))) type = 'Menyegarkan Halaman (Reload)';
+        else if (ctrl && (key === 'c' || key === 'C')) type = 'Shortcut Ctrl + C (Copy)';
+        else if (ctrl && (key === 'v' || key === 'V')) type = 'Shortcut Ctrl + V (Paste)';
+        else if (ctrl && (key === 't' || key === 'T')) type = 'Shortcut Ctrl + T (New Tab)';
+        else if (ctrl && (key === 'n' || key === 'N') && !shift) type = 'Shortcut Ctrl + N (New Window)';
+        else if (ctrl && shift && (key === 'n' || key === 'N')) type = 'Shortcut Ctrl + Shift + N (Incognito)';
+        else if (ctrl && (key === 'l' || key === 'L')) type = 'Shortcut Ctrl + L (Address Bar)';
+        else if (ctrl && (key === 'u' || key === 'U')) type = 'Shortcut Ctrl + U (View Source)';
 
         recordViolation(type, `Aksi terlarang terdeteksi: ${type}`);
       }
