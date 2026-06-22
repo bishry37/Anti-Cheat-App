@@ -1057,7 +1057,7 @@ export default function StudentExam() {
                      <span className="text-slate-400 text-[10px] font-bold uppercase">Bobot: {currentQ.weight}</span>
                   </div>
                   
-                  <div className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed ql-editor whitespace-pre-wrap p-0" dangerouslySetInnerHTML={{ __html: formatHTML(currentQ.question) }} />
+                  <div className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed ql-editor whitespace-pre-wrap px-0 py-0" dangerouslySetInnerHTML={{ __html: formatHTML(currentQ.question) }} />
 
                   {currentQ.type === 'essay' ? (
                      <div className="mt-4 flex flex-col flex-1">

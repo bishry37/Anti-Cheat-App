@@ -945,7 +945,7 @@ export default function ResultReport() {
                           </span>
                         </div>
 
-                        <div className="text-xs font-semibold text-slate-800 mb-3 whitespace-pre-wrap leading-relaxed ql-editor p-0" dangerouslySetInnerHTML={{ __html: formatHTML(q.question) }} />
+                        <div className="text-xs font-semibold text-slate-800 mb-3 whitespace-pre-wrap leading-relaxed ql-editor px-0 py-0" dangerouslySetInnerHTML={{ __html: formatHTML(q.question) }} />
 
                         {q.type === 'isian_singkat' ? (
                           <div className="space-y-2">
