@@ -607,7 +607,14 @@ export default function StudentExam() {
     };
 
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) {
+      const doc = document as any;
+      const fullscreenElement = doc.fullscreenElement || doc.webkitFullscreenElement;
+      
+      // If we are on a device that doesn't actually support true fullscreen, 
+      // don't treat the absence of fullscreenElement as a violation.
+      const supportsFullscreen = !!(document.documentElement.requestFullscreen || (document.documentElement as any).webkitRequestFullscreen);
+
+      if (!fullscreenElement && supportsFullscreen) {
         setIsFullscreen(false);
         recordViolation('Keluar Fullscreen', 'Keluar dari layar penuh! Ujian harus dikerjakan secara fullscreen.');
       } else {
@@ -691,10 +698,19 @@ export default function StudentExam() {
 
   // Request Fullscreen
   const requestFullscreen = () => {
-    if (document.documentElement.requestFullscreen) {
-      document.documentElement.requestFullscreen().catch((err) => {
+    const docEl = document.documentElement as any;
+    if (docEl.requestFullscreen) {
+      docEl.requestFullscreen().catch((err: any) => {
         console.error(`Error attempting to enable fullscreen: ${err.message}`);
+        // If it fails, proceed anyway for user experience
+        setIsFullscreen(true);
       });
+    } else if (docEl.webkitRequestFullscreen) {
+      docEl.webkitRequestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      // No fullscreen API support, proceed anyway
+      setIsFullscreen(true);
     }
   };
 
