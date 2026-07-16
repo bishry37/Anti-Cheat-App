@@ -155,19 +155,40 @@ export default function Classes() {
     setNameInput('');
   };
 
-  const handleAddStudent = () => {
+  const saveStudentList = async (updatedStudents: string[]) => {
+    if (!selectedClass?.id) return;
+    setProcessing(true);
+    try {
+      const sortedStudents = [...updatedStudents].sort();
+      await updateDoc(doc(db, 'classes', selectedClass.id), {
+        students: sortedStudents
+      });
+      
+      const updatedClassObj = { ...selectedClass, students: sortedStudents };
+      setSelectedClass(updatedClassObj);
+      setClassesList(prev => prev.map(c => c.id === selectedClass.id ? updatedClassObj : c));
+      setDraftStudents(sortedStudents);
+      showToast('Siswa berhasil disimpan ke database!');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, 'classes');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleAddStudent = async () => {
     if (!studentInput.trim() || !selectedClass?.id) return;
     const newStudent = studentInput.trim().toUpperCase();
     if (draftStudents.includes(newStudent)) {
-      showToast('Siswa dengan nama tersebut sudah ada di rancangan.');
+      showToast('Siswa dengan nama tersebut sudah ada.');
       return;
     }
-    setDraftStudents(prev => [...prev, newStudent].sort());
+    const updated = [...draftStudents, newStudent];
     setStudentInput('');
-    showToast('Siswa ditambahkan ke rancangan (Klik Simpan untuk menyimpan)');
+    await saveStudentList(updated);
   };
 
-  const handleBulkImport = () => {
+  const handleBulkImport = async () => {
     if (!bulkInput.trim() || !selectedClass?.id) return;
     const names = bulkInput
       .split('\n')
@@ -176,16 +197,15 @@ export default function Classes() {
     
     if (names.length === 0) return;
 
-    const combined = Array.from(new Set([...draftStudents, ...names])).sort();
-    setDraftStudents(combined);
+    const combined = Array.from(new Set([...draftStudents, ...names]));
     setBulkInput('');
     setShowBulk(false);
-    showToast(`${names.length} siswa ditambahkan ke rancangan (Klik Simpan untuk menyimpan)`);
+    await saveStudentList(combined);
   };
 
-  const handleRemoveStudent = (studentName: string) => {
-    setDraftStudents(prev => prev.filter(s => s !== studentName));
-    showToast('Siswa dihapus dari rancangan (Klik Simpan untuk menyimpan)');
+  const handleRemoveStudent = async (studentName: string) => {
+    const updated = draftStudents.filter(s => s !== studentName);
+    await saveStudentList(updated);
   };
 
   const startEditStudent = (idx: number, name: string) => {
@@ -193,7 +213,7 @@ export default function Classes() {
     setEditingStudentValue(name);
   };
 
-  const handleSaveStudentEdit = (idx: number) => {
+  const handleSaveStudentEdit = async (idx: number) => {
     const val = editingStudentValue.trim().toUpperCase();
     if (!val) return;
     
@@ -204,46 +224,16 @@ export default function Classes() {
       return;
     }
     
-    setDraftStudents(prev => {
-      const copy = [...prev];
-      copy[idx] = val;
-      return copy.sort();
-    });
+    const updated = [...draftStudents];
+    updated[idx] = val;
     setEditingStudentIndex(null);
     setEditingStudentValue('');
-    showToast('Nama siswa diperbarui di rancangan (Klik Simpan untuk menyimpan)');
+    await saveStudentList(updated);
   };
 
   const handleCancelStudentEdit = () => {
     setEditingStudentIndex(null);
     setEditingStudentValue('');
-  };
-
-  const handleSaveStudents = async () => {
-    if (!selectedClass?.id) return;
-    setProcessing(true);
-    try {
-      await updateDoc(doc(db, 'classes', selectedClass.id), {
-        students: draftStudents
-      });
-      
-      const updatedClassObj = { ...selectedClass, students: draftStudents };
-      setSelectedClass(updatedClassObj);
-      setClassesList(prev => prev.map(c => c.id === selectedClass.id ? updatedClassObj : c));
-      showToast('Perubahan daftar siswa berhasil disimpan!');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'classes');
-    }
-    setProcessing(false);
-  };
-
-  const handleCancelStudentChanges = () => {
-    if (selectedClass) {
-      setDraftStudents(selectedClass.students || []);
-      setEditingStudentIndex(null);
-      setEditingStudentValue('');
-      showToast('Perubahan dibatalkan');
-    }
   };
 
   return (
@@ -383,7 +373,6 @@ export default function Classes() {
               </p>
             </div>
           ) : (() => {
-            const hasChanges = JSON.stringify(draftStudents) !== JSON.stringify(selectedClass.students || []);
             return (
               <div className="flex-1 flex flex-col h-full min-h-0">
                 {/* Panel Header */}
@@ -560,40 +549,23 @@ export default function Classes() {
                   })()}
                 </div>
 
-                {/* Sticky Action Footer for student list saving */}
+                {/* Sticky Action Footer with automatic status indicator */}
                 <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between shrink-0">
-                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">
-                    {hasChanges ? (
-                      <span className="text-amber-600 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                        Ada perubahan (Klik Simpan)
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                        Data tersimpan di database
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={handleCancelStudentChanges}
-                      disabled={processing || !hasChanges}
-                      className="flex items-center space-x-1 px-3 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-40 rounded-lg transition-colors text-xs font-bold cursor-pointer uppercase"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      <span>Batal</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveStudents}
-                      disabled={processing || !hasChanges}
-                      className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg disabled:opacity-40 disabled:hover:bg-blue-600 transition-colors text-xs font-bold cursor-pointer uppercase shadow-xs shrink-0"
-                    >
-                      {processing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                      <span>Simpan</span>
-                    </button>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wide flex items-center gap-1.5 w-full justify-between">
+                    <span className="text-slate-400 flex items-center gap-1.5">
+                      {processing ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-550" />
+                          <span className="text-blue-600 font-bold">Menyimpan perubahan otomatis...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          <span>Perubahan otomatis disimpan ke database</span>
+                        </>
+                      )}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-medium">Auto-Save Aktif</span>
                   </div>
                 </div>
               </div>
