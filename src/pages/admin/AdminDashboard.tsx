@@ -671,56 +671,66 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Quick Info & Stats summary */}
+          {/* Informasi Dasar Institusi */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
             <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">
-              Statistik Ringkas Aplikasi
+              Informasi Data Institusi
             </h3>
             
             <div className="space-y-3">
-              
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/40 border border-slate-150/50">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-1 px-2.5 bg-blue-50 text-blue-600 font-bold rounded-lg text-xs">
-                    {stats.totalExams}
+                  <div className="p-1.5 bg-slate-100 text-slate-600 rounded-lg">
+                    <Settings className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-bold text-slate-650 uppercase tracking-wide">
-                    Total Sesi Ujian
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-650 uppercase tracking-wide">
+                      Nama Institusi
+                    </span>
+                    <span className="text-xs font-black text-slate-800">
+                      {profile?.schoolName || '-'}
+                    </span>
+                  </div>
                 </div>
-                <Link to="/admin/exams" className="text-blue-600 text-[10px] font-bold hover:underline">
-                  Kelola
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/40 border border-slate-150/50">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                    <BookOpen className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-650 uppercase tracking-wide">
+                      Total Mata Pelajaran
+                    </span>
+                    <span className="text-xs font-black text-slate-800">
+                      {stats.totalSubjects}
+                    </span>
+                  </div>
+                </div>
+                <Link to="/admin/subjects" className="text-blue-600 text-[10px] font-bold hover:underline">
+                  Lihat
                 </Link>
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/40 border border-slate-150/50">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-1 px-2.5 bg-emerald-50 text-emerald-600 font-bold rounded-lg text-xs">
-                    {stats.completedExams}
+                  <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                    <Users className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-bold text-slate-650 uppercase tracking-wide">
-                    Siswa Selesai Ujian
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-650 uppercase tracking-wide">
+                      Total Data Kelas
+                    </span>
+                    <span className="text-xs font-black text-slate-800">
+                      {stats.totalClasses}
+                    </span>
+                  </div>
                 </div>
-                <Link to="/admin/results" className="text-blue-600 text-[10px] font-bold hover:underline">
-                  Hasil
+                <Link to="/admin/classes" className="text-blue-600 text-[10px] font-bold hover:underline">
+                  Lihat
                 </Link>
               </div>
-
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/40 border border-slate-150/50">
-                <div className="flex items-center gap-2.5">
-                  <div className={`p-1 px-2.5 font-bold rounded-lg text-xs ${stats.totalViolations > 0 ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-655'}`}>
-                    {stats.totalViolations}
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-650 uppercase tracking-wide">
-                    Kasus Pelanggaran
-                  </span>
-                </div>
-                <Link to="/admin/monitor" className="text-red-600 text-[10px] font-bold hover:underline">
-                  Periksa
-                </Link>
-              </div>
-
             </div>
           </div>
 
