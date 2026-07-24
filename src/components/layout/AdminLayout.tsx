@@ -38,7 +38,7 @@ export default function AdminLayout() {
     { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
     { name: 'Manajemen Ujian', path: '/admin/exams', icon: FileText },
     { name: 'Manajemen Kelas', path: '/admin/classes', icon: Users },
-    { name: 'Bank Soal', path: '/admin/questions', icon: Database },
+    { name: 'Manajemen Soal', path: '/admin/questions', icon: Database },
     { name: 'Mata Pelajaran', path: '/admin/subjects', icon: BookOpen },
     { name: 'Monitoring Peserta', path: '/admin/monitor', icon: MonitorPlay },
     { name: 'Hasil Ujian', path: '/admin/results', icon: FileBarChart },
