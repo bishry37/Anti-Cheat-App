@@ -332,6 +332,7 @@ export default function ExamMonitor() {
           sessionId: session.id,
           studentName: session.studentName,
           subjectId: session.subjectId,
+          adminId: user.uid,
           type: 'Peringatan Admin',
           status: willDisqualify ? 'Diskualifikasi otomatis (Peringatan Maksimal)' : msg,
           timestamp: Date.now()
@@ -364,6 +365,7 @@ export default function ExamMonitor() {
           sessionId: session.id,
           studentName: session.studentName,
           subjectId: session.subjectId,
+          adminId: user.uid,
           type: 'Diskualifikasi Paksa',
           status: 'Dihentikan langsung oleh pengawas.',
           timestamp: Date.now()

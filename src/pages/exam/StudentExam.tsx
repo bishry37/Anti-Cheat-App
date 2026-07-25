@@ -589,6 +589,7 @@ export default function StudentExam() {
         sessionId: currentSession.id || user!.uid,
         studentName: currentSession.studentName || 'Siswa',
         subjectId: currentSession.subjectId || '',
+        adminId: currentSession.adminId,
         type,
         status: willDisqualify ? 'Diskualifikasi otomatis' : 'Tercatat',
         timestamp: Date.now()

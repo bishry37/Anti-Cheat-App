@@ -86,13 +86,13 @@ service cloud.firestore {
     }
 
     match /audio_banks/{audioId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow create: if isAdmin() && isValidId(audioId) && isValidAudioBank(incoming()) && incoming().adminId == request.auth.uid;
       allow update: if isAdmin() && isValidId(audioId) && isValidAudioBank(incoming()) && existing().adminId == request.auth.uid && (!('adminId' in incoming()) || incoming().adminId == request.auth.uid);
       allow delete: if isAdmin() && existing().adminId == request.auth.uid;
 
       match /chunks/{chunkId} {
-        allow read: if request.auth != null;
+        allow read: if true;
         allow create: if isAdmin() && isValidId(audioId) && isValidId(chunkId);
         allow update: if isAdmin() && isValidId(audioId) && isValidId(chunkId);
         allow delete: if isAdmin();
@@ -165,16 +165,23 @@ service cloud.firestore {
              data.lastActivity is number &&
              data.startTime is number &&
              data.adminId is string &&
-             (!('endTime' in data) || data.endTime is number) &&
+             (!('endTime' in data) || data.endTime == null || data.endTime is number) &&
              (!('score' in data) || data.score is number) &&
-             (!('packetName' in data) || (data.packetName is string && data.packetName.size() <= 256)) &&
+             (!('packetName' in data) || data.packetName == null || (data.packetName is string && data.packetName.size() <= 256)) &&
              (!('correctCount' in data) || data.correctCount is number) &&
              (!('wrongCount' in data) || data.wrongCount is number) &&
              (!('answers' in data) || data.answers is map) &&
+             (!('essayScores' in data) || data.essayScores is map) &&
              (!('questionOrder' in data) || data.questionOrder is list) &&
              (!('optionsOrder' in data) || data.optionsOrder is map) &&
              (!('hiddenFromMonitor' in data) || data.hiddenFromMonitor is bool) &&
-             (!('deviceId' in data) || data.deviceId is string);
+             (!('deviceId' in data) || data.deviceId == null || data.deviceId is string) &&
+             (!('adminWarningMessage' in data) || data.adminWarningMessage == null || data.adminWarningMessage is string) &&
+             (!('adminWarningTime' in data) || data.adminWarningTime == null || data.adminWarningTime is number) &&
+             (!('lastQuestionIndex' in data) || data.lastQuestionIndex == null || data.lastQuestionIndex is number) &&
+             (!('wasDisqualified' in data) || data.wasDisqualified is bool) &&
+             (!('duration' in data) || data.duration == null || data.duration is number) &&
+             (!('adjustedRemainingMinutes' in data) || data.adjustedRemainingMinutes == null || data.adjustedRemainingMinutes is number);
     }
 
     match /student_sessions/{sessionId} {
