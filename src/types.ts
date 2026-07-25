@@ -43,8 +43,18 @@ export interface Question {
   weight: number;
   packetName?: string;
   type?: 'pilihan_ganda' | 'isian_singkat' | 'essay' | 'listening';
-  audioURL?: string;
-  allowReplay?: boolean;
+  createdAt: number;
+}
+
+export interface TemplateMetadata {
+  id?: string;
+  adminId?: string;
+  subjectId: string;
+  packetName: string;
+  audioUrl?: string;
+  audioFileName?: string;
+  isAudioRepeatable: boolean;
+  audioDuration?: number; // in seconds
   createdAt: number;
 }
 
