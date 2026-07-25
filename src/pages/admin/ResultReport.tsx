@@ -8,6 +8,16 @@ import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatHTML, calculateSmartPoints, normalizeTextForGrading } from '../../utils/textFormat';
 
+const isOptionEmpty = (val: string | undefined | null): boolean => {
+  if (!val) return true;
+  const str = String(val).trim();
+  if (/<(img|audio|video|iframe|svg|math)/i.test(str)) {
+    return false;
+  }
+  const plainText = str.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, '').trim();
+  return plainText === '';
+};
+
 export default function ResultReport() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<StudentSession[]>([]);
@@ -99,7 +109,7 @@ export default function ResultReport() {
       const qSnap = await getDocs(qQuery);
       const qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
       
-      const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
+      const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 2, 'isian_singkat': 3, 'essay': 4 };
       const sortedQs = qs.sort((a, b) => {
         const aType = a.type || 'pilihan_ganda';
         const bType = b.type || 'pilihan_ganda';
@@ -132,7 +142,7 @@ export default function ResultReport() {
         const weight = q.weight || 10;
         totalWeight += weight;
 
-        if (q.type === 'pilihan_ganda') {
+        if (q.type === 'pilihan_ganda' || q.type === 'listening') {
           if (studentAnswers[q.id!] === q.correctAnswer) {
             pointsEarned += weight;
           }
@@ -932,11 +942,13 @@ export default function ResultReport() {
                           <span className={`text-[10px] uppercase font-extrabold px-2 py-0.5 rounded border ${
                             isEssay ? 'bg-purple-50 text-purple-700 border-purple-100' : 
                             q.type === 'isian_singkat' ? 'bg-amber-100 text-amber-800 border-amber-200' : 
+                            q.type === 'listening' ? 'bg-blue-50 text-blue-700 border-blue-100' :
                             'bg-slate-50 text-slate-600 border-slate-200'
                           }`}>
                             Soal {qIndex + 1} - {
                               isEssay ? 'Essay / Uraian' : 
                               q.type === 'isian_singkat' ? 'Isian Singkat' : 
+                              q.type === 'listening' ? 'Listening (Pilihan Ganda)' :
                               'Pilihan Ganda'
                             }
                           </span>
@@ -1021,7 +1033,7 @@ export default function ResultReport() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 text-[11px] gap-2 mb-3 bg-slate-50 p-2.5 rounded border border-slate-100">
                               {['A', 'B', 'C', 'D', 'E'].map(l => {
                                 const optVal = (q as any)[`option${l}`];
-                                if (!optVal) return null;
+                                if (isOptionEmpty(optVal)) return null;
                                 const isKey = q.correctAnswer === l;
                                 const isSt = studentAns === l;
                                 return (

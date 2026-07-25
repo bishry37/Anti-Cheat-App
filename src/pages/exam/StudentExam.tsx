@@ -8,6 +8,16 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { formatHTML, calculateSmartPoints } from '../../utils/textFormat';
 
+const isOptionEmpty = (val: string | undefined | null): boolean => {
+  if (!val) return true;
+  const str = String(val).trim();
+  if (/<(img|audio|video|iframe|svg|math)/i.test(str)) {
+    return false;
+  }
+  const plainText = str.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, '').trim();
+  return plainText === '';
+};
+
 export default function StudentExam() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -131,7 +141,7 @@ export default function StudentExam() {
       
       const studentAns = answersVal[q.id!];
       
-      if (q.type === 'pilihan_ganda') {
+      if (q.type === 'pilihan_ganda' || q.type === 'listening') {
         if (studentAns === q.correctAnswer) {
           correct++;
           pointsEarned += weight;
@@ -316,7 +326,7 @@ export default function StudentExam() {
           const qSnap = await getDocs(qQuery);
           let qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
           
-          const typeOrder: Record<string, number> = { 'listening': 1, 'pilihan_ganda': 2, 'isian_singkat': 3, 'essay': 4 };
+          const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 2, 'isian_singkat': 3, 'essay': 4 };
           
           let shouldSaveRandomization = false;
           let generatedQuestionOrder: string[] = [];
@@ -334,15 +344,15 @@ export default function StudentExam() {
                 return idxA - idxB;
               });
             } else {
-              // Listening questions are kept in original order and placed first. Other types are shuffled.
+              // Listening questions are kept in original order. Other types are shuffled.
               const listeningGroup = qs.filter(q => (q.type || 'pilihan_ganda') === 'listening');
               listeningGroup.sort((a, b) => (a.number || 0) - (b.number || 0));
 
-              const groups: Record<number, Question[]> = { 2: [], 3: [], 4: [] };
+              const groups: Record<number, Question[]> = { 1: [], 3: [], 4: [] };
               qs.forEach(q => {
                 const t = q.type || 'pilihan_ganda';
                 if (t !== 'listening') {
-                  const order = typeOrder[t] || 2;
+                  const order = typeOrder[t] || 1;
                   if (!groups[order]) groups[order] = [];
                   groups[order].push(q);
                 }
@@ -352,12 +362,12 @@ export default function StudentExam() {
                 group.sort(() => Math.random() - 0.5);
               });
               
-              qs = [...listeningGroup, ...groups[2], ...groups[3], ...groups[4]];
+              qs = [...groups[1], ...listeningGroup, ...groups[3], ...groups[4]];
               generatedQuestionOrder = qs.map(q => q.id!);
               shouldSaveRandomization = true;
             }
           } else {
-            // Respect the question sequence but grouped by type (listening first)
+            // Respect the question sequence but grouped by type
             qs = qs.sort((a, b) => {
               const aType = a.type || 'pilihan_ganda';
               const bType = b.type || 'pilihan_ganda';
@@ -368,14 +378,14 @@ export default function StudentExam() {
             });
           }
 
-          // Pre-populate shuffled options for all multiple choice questions
+           // Pre-populate shuffled options for all multiple choice questions
           qs = qs.map(q => {
             const validOptions = (['A', 'B', 'C', 'D', 'E'] as const)
               .map(opt => ({
                 key: opt,
                 text: q[`option${opt}` as keyof Question] as string | undefined
               }))
-              .filter(item => item.text !== undefined && item.text !== null && String(item.text).trim() !== '');
+              .filter(item => !isOptionEmpty(item.text));
 
             if (exData.randomizeQuestions) {
               if (sessData.optionsOrder && sessData.optionsOrder[q.id!]) {

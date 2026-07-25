@@ -63,6 +63,16 @@ const stripSimpleHTML = (val: string | undefined | null): string => {
   return str.trim();
 };
 
+const isOptionEmpty = (val: string | undefined | null): boolean => {
+  if (!val) return true;
+  const str = String(val).trim();
+  if (/<(img|audio|video|iframe|svg|math)/i.test(str)) {
+    return false;
+  }
+  const plainText = str.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, '').trim();
+  return plainText === '';
+};
+
 export default function QuestionBank() {
   const { user } = useAuth();
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -261,7 +271,7 @@ export default function QuestionBank() {
       const snap = await getDocs(q);
       const qs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
       
-      const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
+      const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 2, 'isian_singkat': 3, 'essay': 4 };
       const sortedQs = qs.sort((a, b) => {
         const aType = a.type || 'pilihan_ganda';
         const bType = b.type || 'pilihan_ganda';
@@ -351,7 +361,16 @@ export default function QuestionBank() {
                     spacing: { before: 20, after: 20 },
                     children: [
                       new TextRun({ text: "• Kode ", size: 18 }),
-                      new TextRun({ text: "2", bold: true, size: 18, color: "ea580c" }),
+                      new TextRun({ text: "2", bold: true, size: 18, color: "0284c7" }),
+                      new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
+                      new TextRun({ text: "Listening (Pilihan Ganda) (Kolom Pilihan A-E wajib diisi)", bold: true, size: 18 })
+                    ]
+                  }),
+                  new Paragraph({
+                    spacing: { before: 20, after: 20 },
+                    children: [
+                      new TextRun({ text: "• Kode ", size: 18 }),
+                      new TextRun({ text: "3", bold: true, size: 18, color: "ea580c" }),
                       new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
                       new TextRun({ text: "Isian Singkat (Cukup tuliskan kata kunci jawaban)", bold: true, size: 18 })
                     ]
@@ -360,7 +379,7 @@ export default function QuestionBank() {
                     spacing: { before: 20, after: 20 },
                     children: [
                       new TextRun({ text: "• Kode ", size: 18 }),
-                      new TextRun({ text: "3", bold: true, size: 18, color: "7c3aed" }),
+                      new TextRun({ text: "4", bold: true, size: 18, color: "7c3aed" }),
                       new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
                       new TextRun({ text: "Paragraf / Essay (Kunci Jawaban sebagai acuan koreksi)", bold: true, size: 18 })
                     ]
@@ -443,7 +462,76 @@ export default function QuestionBank() {
         ]
       });
 
-      // 3. ISIAN SINGKAT & ESSAY follow similar logic but simpler rows
+      // 3. TABLE FOR LISTENING (PILIHAN GANDA) - identical structure to MCQ
+      const listeningHeader = new TableRow({
+        children: [
+          createCell("NO", true, "e0f2fe", 6),
+          createCell("SOAL", true, "e0f2fe", 42),
+          createCell("JENIS", true, "e0f2fe", 8),
+          createCell("OPSI", true, "e0f2fe", 6),
+          createCell("JAWABAN", true, "e0f2fe", 32),
+          createCell("KUNCI", true, "e0f2fe", 6),
+        ]
+      });
+
+      const listeningTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          listeningHeader,
+          new TableRow({
+            children: [
+              createCell("1", false, undefined, undefined, VerticalMergeType.RESTART),
+              createCell("Pertanyaan audio listening: Manakah pernyataan yang sesuai dengan percakapan?", false, undefined, undefined, VerticalMergeType.RESTART),
+              createCell("2", false, undefined, undefined, VerticalMergeType.RESTART),
+              createCell("A", false),
+              createCell("Pilihan Jawaban A", false),
+              createCell("A", false, undefined, undefined, VerticalMergeType.RESTART),
+            ]
+          }),
+          new TableRow({
+            children: [
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("B", false),
+              createCell("Pilihan Jawaban B", false),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+            ]
+          }),
+          new TableRow({
+            children: [
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("C", false),
+              createCell("Pilihan Jawaban C", false),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+            ]
+          }),
+          new TableRow({
+            children: [
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("D", false),
+              createCell("Pilihan Jawaban D", false),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+            ]
+          }),
+          new TableRow({
+            children: [
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+              createCell("E", false),
+              createCell("Pilihan Jawaban E", false),
+              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+            ]
+          }),
+        ]
+      });
+
+      // 4. ISIAN SINGKAT & ESSAY follow similar logic but simpler rows
       const shortHeader = new TableRow({
         children: [
           createCell("NO", true, "fef3c7", 6),
@@ -457,7 +545,7 @@ export default function QuestionBank() {
         children: [
           createCell("1", false),
           createCell("Gas apa yang paling banyak terkandung di atmosfer bumi?", false),
-          createCell("2", false),
+          createCell("3", false),
           createCell("Nitrogen", false),
         ]
       });
@@ -467,7 +555,7 @@ export default function QuestionBank() {
         rows: [shortHeader, shortRowExample]
       });
 
-      // 4. PARAGRAF / ESSAY TABLE
+      // 5. PARAGRAF / ESSAY TABLE
       const essayHeader = new TableRow({
         children: [
           createCell("NO", true, "f3e8ff", 6),
@@ -481,7 +569,7 @@ export default function QuestionBank() {
         children: [
           createCell("1", false),
           createCell("Jelaskan pengertian ekologi laut dan berikan 2 contoh ekosistemnya!", false),
-          createCell("3", false),
+          createCell("4", false),
           createCell("Ekologi laut adalah studi hubungan organisme dengan lingkungan laut. Contoh: Terumbu karang dan Padang lamun.", false),
         ]
       });
@@ -539,7 +627,21 @@ export default function QuestionBank() {
                 spacing: { before: 300, after: 100 },
                 children: [
                   new TextRun({
-                    text: "2. TABEL SOAL ISIAN SINGKAT (Jenis Soal = 2)",
+                    text: "2. TABEL SOAL LISTENING (PILIHAN GANDA) (Jenis Soal = 2)",
+                    bold: true,
+                    size: 20,
+                    color: "0284c7"
+                  })
+                ]
+              }),
+              listeningTable,
+
+              // Table 3
+              new Paragraph({
+                spacing: { before: 300, after: 100 },
+                children: [
+                  new TextRun({
+                    text: "3. TABEL SOAL ISIAN SINGKAT (Jenis Soal = 3)",
                     bold: true,
                     size: 20,
                     color: "d97706"
@@ -548,12 +650,12 @@ export default function QuestionBank() {
               }),
               shortTable,
 
-              // Table 3
+              // Table 4
               new Paragraph({
                 spacing: { before: 300, after: 100 },
                 children: [
                   new TextRun({
-                    text: "3. TABEL SOAL PARAGRAF / ESSAY (Jenis Soal = 3)",
+                    text: "4. TABEL SOAL PARAGRAF / ESSAY (Jenis Soal = 4)",
                     bold: true,
                     size: 20,
                     color: "7c3aed"
@@ -637,11 +739,33 @@ export default function QuestionBank() {
         
         const parseType = (val: string) => {
           const v = val.toLowerCase().trim();
-          if (v === '4' || v.includes('listening') || v.includes('dengar')) return 'listening';
+          if (v === '2' || v.includes('listening') || v.includes('dengar')) return 'listening';
           if (v === '1' || v.includes('ganda') || v.includes('pilihan') || v.includes('pg')) return 'pilihan_ganda';
-          if (v === '2' || v.includes('singkat') || v.includes('isian')) return 'isian_singkat';
-          if (v === '3' || v.includes('essay') || v.includes('essai') || v.includes('uraian') || v.includes('paragraf') || v.includes('panjang')) return 'essay';
+          if (v === '3' || v.includes('singkat') || v.includes('isian')) return 'isian_singkat';
+          if (v === '4' || v.includes('essay') || v.includes('essai') || v.includes('uraian') || v.includes('paragraf') || v.includes('panjang')) return 'essay';
           return 'pilihan_ganda';
+        };
+
+        const validateAndCleanupQuestion = (qObj: any) => {
+          if (qObj.type === 'pilihan_ganda' || qObj.type === 'listening') {
+            const availableOptions: string[] = [];
+            if (!isOptionEmpty(qObj.optionA)) availableOptions.push('A'); else qObj.optionA = '';
+            if (!isOptionEmpty(qObj.optionB)) availableOptions.push('B'); else qObj.optionB = '';
+            if (!isOptionEmpty(qObj.optionC)) availableOptions.push('C'); else qObj.optionC = '';
+            if (!isOptionEmpty(qObj.optionD)) availableOptions.push('D'); else qObj.optionD = '';
+            if (!isOptionEmpty(qObj.optionE)) availableOptions.push('E'); else qObj.optionE = '';
+
+            if (availableOptions.length === 0) {
+              throw new Error(`Soal No. ${qObj.number || ''}: Pilihan Ganda harus memiliki setidaknya satu pilihan jawaban.`);
+            }
+
+            const ans = qObj.correctAnswer ? qObj.correctAnswer.trim().toUpperCase() : '';
+            if (ans && ['A', 'B', 'C', 'D', 'E'].includes(ans)) {
+              if (!availableOptions.includes(ans)) {
+                throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban '${ans}' tidak valid karena opsi tersebut kosong atau tidak tersedia.`);
+              }
+            }
+          }
         };
 
         // Loop through each table in the document
@@ -683,7 +807,10 @@ export default function QuestionBank() {
             // Logic for finding a new question Row
             // 1. Logic for STARTING A NEW QUESTION: Has a number or a question text in a full-length row
             if (rowCells.length >= 4 && ((cellNo && !isNaN(Number(cellNo))) || cellSoalText)) {
-              if (currentQ && currentQ.question.trim()) questionsToUpload.push(currentQ);
+              if (currentQ && currentQ.question.trim()) {
+                validateAndCleanupQuestion(currentQ);
+                questionsToUpload.push(currentQ);
+              }
               
               currentQ = {
                 subjectId: selectedSubject,
@@ -733,7 +860,10 @@ export default function QuestionBank() {
               }
             }
           }
-          if (currentQ && currentQ.question.trim()) questionsToUpload.push(currentQ);
+          if (currentQ && currentQ.question.trim()) {
+            validateAndCleanupQuestion(currentQ);
+            questionsToUpload.push(currentQ);
+          }
         }
 
         if (questionsToUpload.length === 0) {
@@ -741,7 +871,7 @@ export default function QuestionBank() {
         }
 
         const totalQ = questionsToUpload.length;
-        const typeUnits: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 5, 'essay': 15 };
+        const typeUnits: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 1, 'isian_singkat': 5, 'essay': 15 };
         let totalUnits = 0;
         questionsToUpload.forEach(q => {
           totalUnits += typeUnits[q.type] || 1;
@@ -926,7 +1056,30 @@ export default function QuestionBank() {
     setProcessing(true);
     try {
       const qType = editingData.type || 'pilihan_ganda';
-      const isPg = qType === 'pilihan_ganda';
+      const isPg = qType === 'pilihan_ganda' || qType === 'listening';
+      
+      if (isPg) {
+        const availableOptions: string[] = [];
+        if (!isOptionEmpty(editingData.optionA)) availableOptions.push('A');
+        if (!isOptionEmpty(editingData.optionB)) availableOptions.push('B');
+        if (!isOptionEmpty(editingData.optionC)) availableOptions.push('C');
+        if (!isOptionEmpty(editingData.optionD)) availableOptions.push('D');
+        if (!isOptionEmpty(editingData.optionE)) availableOptions.push('E');
+
+        if (availableOptions.length === 0) {
+          showCustomAlert('Opsi Kosong', 'Soal Pilihan Ganda / Listening harus memiliki setidaknya satu pilihan jawaban.', false);
+          setProcessing(false);
+          return;
+        }
+
+        const ans = editingData.correctAnswer ? editingData.correctAnswer.toUpperCase() : 'A';
+        if (!availableOptions.includes(ans)) {
+          showCustomAlert('Kunci Jawaban Tidak Valid', `Kunci jawaban '${ans}' tidak valid karena opsi tersebut kosong atau tidak tersedia.`, false);
+          setProcessing(false);
+          return;
+        }
+      }
+
       await updateDoc(doc(db, 'questions', editingQuestionId), {
         number: Number(editingData.number),
         question: editingData.question || '',
@@ -956,6 +1109,31 @@ export default function QuestionBank() {
     if (!user || !selectedSubject || selectedTemplateFilter === 'all') return;
     setProcessing(true);
     try {
+      const qType = addingData.type || 'pilihan_ganda';
+      const isPg = qType === 'pilihan_ganda' || qType === 'listening';
+
+      if (isPg) {
+        const availableOptions: string[] = [];
+        if (!isOptionEmpty(addingData.optionA)) availableOptions.push('A');
+        if (!isOptionEmpty(addingData.optionB)) availableOptions.push('B');
+        if (!isOptionEmpty(addingData.optionC)) availableOptions.push('C');
+        if (!isOptionEmpty(addingData.optionD)) availableOptions.push('D');
+        if (!isOptionEmpty(addingData.optionE)) availableOptions.push('E');
+
+        if (availableOptions.length === 0) {
+          showCustomAlert('Opsi Kosong', 'Soal Pilihan Ganda / Listening harus memiliki setidaknya satu pilihan jawaban.', false);
+          setProcessing(false);
+          return;
+        }
+
+        const ans = addingData.correctAnswer ? addingData.correctAnswer.toUpperCase() : 'A';
+        if (!availableOptions.includes(ans)) {
+          showCustomAlert('Kunci Jawaban Tidak Valid', `Kunci jawaban '${ans}' tidak valid karena opsi tersebut kosong atau tidak tersedia.`, false);
+          setProcessing(false);
+          return;
+        }
+      }
+
       const newNumber = Number(addingData.number || 1);
       
       // Batch operation
@@ -972,8 +1150,6 @@ export default function QuestionBank() {
       
       // 3. Add the new question
       const qRef = doc(collection(db, 'questions'));
-      const qType = addingData.type || 'pilihan_ganda';
-      const isPg = qType === 'pilihan_ganda';
       const docData = {
         number: newNumber,
         subjectId: selectedSubject,
@@ -1300,17 +1476,18 @@ export default function QuestionBank() {
                         value={addingData.type || 'pilihan_ganda'}
                         onChange={e => {
                           const val = e.target.value as any;
-                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 5, 'essay': 15 };
+                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 1, 'isian_singkat': 5, 'essay': 15 };
                           setAddingData({ 
                             ...addingData, 
                             type: val,
                             weight: weightUnits[val] || 1,
-                            correctAnswer: (val === 'pilihan_ganda' || val === 'menjodohkan') ? 'A' : '' 
+                            correctAnswer: (val === 'pilihan_ganda' || val === 'menjodohkan' || val === 'listening') ? 'A' : '' 
                           });
                         }}
                         className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800 cursor-pointer"
                       >
                         <option value="pilihan_ganda">Pilihan Ganda</option>
+                        <option value="listening">Listening (Pilihan Ganda)</option>
                         <option value="isian_singkat">Isian Singkat</option>
                         <option value="menjodohkan">Menjodohkan</option>
                         <option value="essay">Paragraf / Essai</option>
@@ -1341,7 +1518,7 @@ export default function QuestionBank() {
                     </div>
                   </div>
 
-                  {addingData.type === 'pilihan_ganda' || addingData.type === 'menjodohkan' || !addingData.type ? (
+                  {addingData.type === 'pilihan_ganda' || addingData.type === 'listening' || addingData.type === 'menjodohkan' || !addingData.type ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                         {['A', 'B', 'C', 'D', 'E'].map(l => (
@@ -1463,17 +1640,18 @@ export default function QuestionBank() {
                               value={editingData.type || 'pilihan_ganda'}
                               onChange={e => {
                                 const val = e.target.value as any;
-                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 5, 'essay': 15 };
+                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 1, 'isian_singkat': 5, 'essay': 15 };
                                 setEditingData({ 
                                   ...editingData, 
                                   type: val,
                                   weight: weightUnits[val] || 1,
-                                  correctAnswer: (val === 'pilihan_ganda' || val === 'menjodohkan') ? 'A' : '' 
+                                  correctAnswer: (val === 'pilihan_ganda' || val === 'menjodohkan' || val === 'listening') ? 'A' : '' 
                                 });
                               }}
                               className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800 cursor-pointer"
                             >
                               <option value="pilihan_ganda">Pilihan Ganda</option>
+                              <option value="listening">Listening (Pilihan Ganda)</option>
                               <option value="isian_singkat">Isian Singkat</option>
                               <option value="menjodohkan">Menjodohkan</option>
                               <option value="essay">Paragraf / Essai</option>
@@ -1504,7 +1682,7 @@ export default function QuestionBank() {
                           </div>
                         </div>
 
-                        {editingData.type === 'pilihan_ganda' || editingData.type === 'menjodohkan' || !editingData.type ? (
+                        {editingData.type === 'pilihan_ganda' || editingData.type === 'listening' || editingData.type === 'menjodohkan' || !editingData.type ? (
                           <>
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                               {['A', 'B', 'C', 'D', 'E'].map(l => (
@@ -1614,7 +1792,7 @@ export default function QuestionBank() {
                         </div>
                       </div>
                       
-                      {(q.type === 'pilihan_ganda' || !q.type || q.type === 'menjodohkan') ? (
+                      {(q.type === 'pilihan_ganda' || !q.type || q.type === 'listening' || q.type === 'menjodohkan') ? (
                         <div className="pl-9 grid grid-cols-1 sm:grid-cols-2 text-[11px] gap-x-4">
                           {q.type === 'menjodohkan' && (
                             <div className="col-span-2 text-[10px] font-bold text-emerald-800 uppercase tracking-wide mb-1.5 flex items-center space-x-1 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded w-max shadow-3xs">
@@ -1624,7 +1802,7 @@ export default function QuestionBank() {
                           {['A', 'B', 'C', 'D', 'E'].map((opt) => {
                             const key = `option${opt}` as keyof Question;
                             const val = q[key];
-                            if (!val) return null;
+                            if (isOptionEmpty(val)) return null;
                             const isCorrect = q.correctAnswer === opt;
                             
                             return (
