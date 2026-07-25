@@ -148,7 +148,9 @@ export default function Exams() {
               const newToken = generateNewToken();
               const now = Date.now();
               try {
+                const { id, ...examData } = exam;
                 await updateDoc(doc(db, 'exams', exam.id!), {
+                  ...examData,
                   activeToken: newToken,
                   tokenUpdatedAt: now
                 });

@@ -171,6 +171,24 @@ service cloud.firestore {
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
+
+    function isValidAudioPacket(data) {
+      return data.keys().hasAll(['adminId', 'subjectId', 'packetName', 'audioUrl', 'allowRepetition', 'fileName', 'createdAt']) &&
+             data.adminId is string &&
+             data.subjectId is string &&
+             data.packetName is string && data.packetName.size() <= 256 &&
+             data.audioUrl is string && data.audioUrl.size() <= 2048 &&
+             data.allowRepetition is bool &&
+             data.fileName is string && data.fileName.size() <= 256 &&
+             data.createdAt is number;
+    }
+
+    match /audio_packets/{packetId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidId(packetId) && isValidAudioPacket(incoming()) && incoming().adminId == request.auth.uid;
+      allow update: if isAdmin() && isValidId(packetId) && isValidAudioPacket(incoming()) && existing().adminId == request.auth.uid && incoming().adminId == request.auth.uid;
+      allow delete: if isAdmin() && existing().adminId == request.auth.uid;
+    }
   }
 }
 

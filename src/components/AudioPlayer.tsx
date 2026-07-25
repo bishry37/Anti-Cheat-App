@@ -1,73 +1,97 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, RotateCcw } from 'lucide-react';
-import { TemplateMetadata } from '../types';
 
-interface AudioPlayerProps {
-  metadata: TemplateMetadata;
+interface Props {
+  audioUrl: string;
+  allowRepetition: boolean;
 }
 
-export const AudioPlayer: React.FC<AudioPlayerProps> = ({ metadata }) => {
+export function AudioPlayer({ audioUrl, allowRepetition }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
+  const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [playedCount, setPlayedCount] = useState(0);
+  const [hasPlayedOnce, setHasPlayedOnce] = useState(false);
 
   useEffect(() => {
-    if (audioRef.current) {
-        audioRef.current.onloadedmetadata = () => {
-            setDuration(audioRef.current!.duration);
-        };
-        audioRef.current.ontimeupdate = () => {
-            setCurrentTime(audioRef.current!.currentTime);
-        };
-        audioRef.current.onended = () => {
-            setIsPlaying(false);
-            setPlayedCount(prev => prev + 1);
-        };
-    }
-  }, []);
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const updateProgress = () => {
+      setProgress(audio.currentTime);
+    };
+
+    const updateDuration = () => {
+      setDuration(audio.duration);
+    };
+
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setHasPlayedOnce(true);
+      if (!allowRepetition) {
+        audio.pause();
+      }
+    };
+
+    audio.addEventListener('timeupdate', updateProgress);
+    audio.addEventListener('loadedmetadata', updateDuration);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', updateProgress);
+      audio.removeEventListener('loadedmetadata', updateDuration);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [allowRepetition]);
 
   const togglePlay = () => {
-    if (!metadata.isAudioRepeatable && playedCount >= 1) return;
+    if (hasPlayedOnce && !allowRepetition) return;
+
+    const audio = audioRef.current;
+    if (!audio) return;
 
     if (isPlaying) {
-      audioRef.current?.pause();
+      audio.pause();
     } else {
-      audioRef.current?.play();
+      audio.play();
     }
     setIsPlaying(!isPlaying);
   };
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const formatTime = (time: number) => {
+    const m = Math.floor(time / 60);
+    const s = Math.floor(time % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm mb-6">
-      <audio ref={audioRef} src={metadata.audioUrl} />
-      <div className="flex items-center gap-4">
-        <button 
-            onClick={togglePlay}
-            disabled={!metadata.isAudioRepeatable && playedCount >= 1}
-            className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
-        </button>
-        <div className="flex-1">
-          <p className="text-sm font-bold text-slate-800">{metadata.audioFileName}</p>
-          <div className="h-2 bg-slate-200 rounded-full mt-2">
-            <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${progress}%` }} />
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-             {Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')} / 
-             {Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2, '0')}
-          </p>
+    <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 flex items-center gap-4 mb-4">
+      <audio ref={audioRef} src={audioUrl} />
+      
+      <button 
+        onClick={togglePlay}
+        disabled={hasPlayedOnce && !allowRepetition}
+        className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-50"
+      >
+        {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+      </button>
+
+      <div className="flex-1">
+        <input 
+          type="range"
+          min="0"
+          max={duration}
+          value={progress}
+          onChange={(e) => {
+            if (audioRef.current) audioRef.current.currentTime = Number(e.target.value);
+          }}
+          className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+        />
+        <div className="flex justify-between text-xs text-slate-500 mt-1">
+          <span>{formatTime(progress)}</span>
+          <span>{formatTime(duration)}</span>
         </div>
       </div>
-      {!metadata.isAudioRepeatable && (
-          <p className="text-[10px] text-red-600 font-bold mt-2 uppercase tracking-wide">
-              Audio hanya dapat diputar satu kali.
-          </p>
-      )}
     </div>
   );
-};
+}

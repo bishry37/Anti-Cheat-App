@@ -114,6 +114,21 @@
         "status": { "type": "string" }
       },
       "required": ["sessionId", "studentName", "subjectId", "type", "timestamp", "status"]
+    },
+    "AudioPacket": {
+      "title": "AudioPacket",
+      "description": "Listening audio configuration for a question packet",
+      "type": "object",
+      "properties": {
+        "adminId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "packetName": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "allowRepetition": { "type": "boolean" },
+        "fileName": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["adminId", "subjectId", "packetName", "audioUrl", "allowRepetition", "fileName", "createdAt"]
     }
   },
   "firestore": {
@@ -144,6 +159,10 @@
     "violations/{violationId}": {
       "schema": { "$ref": "#/entities/Violation" },
       "description": "Violation logs"
+    },
+    "audio_packets/{packetId}": {
+      "schema": { "$ref": "#/entities/AudioPacket" },
+      "description": "Audio files for listening sections"
     }
   }
 }

@@ -46,15 +46,14 @@ export interface Question {
   createdAt: number;
 }
 
-export interface TemplateMetadata {
+export interface AudioPacket {
   id?: string;
-  adminId?: string;
+  adminId: string;
   subjectId: string;
   packetName: string;
-  audioUrl?: string;
-  audioFileName?: string;
-  isAudioRepeatable: boolean;
-  audioDuration?: number; // in seconds
+  audioUrl: string;
+  allowRepetition: boolean;
+  fileName: string;
   createdAt: number;
 }
 

@@ -15,8 +15,8 @@ export default function StudentExam() {
 
   const [session, setSession] = useState<StudentSession | null>(null);
   const [exam, setExam] = useState<Exam | null>(null);
+  const [audioPacket, setAudioPacket] = useState<any | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [audioMetadata, setAudioMetadata] = useState<TemplateMetadata | null>(null);
   const [settings, setSettings] = useState<Setting | null>(null);
   const [loadError, setLoadError] = useState('');
   const [subjectName, setSubjectName] = useState('');
@@ -274,16 +274,20 @@ export default function StudentExam() {
           // Fetch questions
           let qQuery;
           if (exData.packetName) {
-            // Fetch audio metadata
-            const metaSnap = await getDoc(doc(db, 'templateMetadata', `${sessData.subjectId}_${exData.packetName}`));
-            if (metaSnap.exists()) {
-              setAudioMetadata(metaSnap.data() as TemplateMetadata);
-            }
-            
             qQuery = query(collection(db, 'questions'), 
               where('subjectId', '==', sessData.subjectId),
               where('packetName', '==', exData.packetName)
             );
+            
+            // Fetch audio packet
+            const audioQuery = query(collection(db, 'audio_packets'), 
+              where('subjectId', '==', sessData.subjectId),
+              where('packetName', '==', exData.packetName)
+            );
+            const audioSnap = await getDocs(audioQuery);
+            if (!audioSnap.empty) {
+              setAudioPacket(audioSnap.docs[0].data());
+            }
           } else {
             qQuery = query(collection(db, 'questions'), where('subjectId', '==', sessData.subjectId));
           }
@@ -291,7 +295,7 @@ export default function StudentExam() {
           const qSnap = await getDocs(qQuery);
           let qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
           
-          const typeOrder: Record<string, number> = { 'listening': 0, 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
+          const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
           
           let shouldSaveRandomization = false;
           let generatedQuestionOrder: string[] = [];
@@ -309,16 +313,23 @@ export default function StudentExam() {
                 return idxA - idxB;
               });
             } else {
-              // Separate Listening and others
-              const listeningQs = qs.filter(q => q.type === 'listening');
-              const otherQs = qs.filter(q => q.type !== 'listening');
-
-              // Shuffle others
-              otherQs.sort(() => Math.random() - 0.5);
+              // Group by type and shuffle within each group
+              const groups: Record<number, Question[]> = { 0: [], 1: [], 2: [], 3: [] };
+              qs.forEach(q => {
+                // Kode 4 (listening) will have order 0 to keep them at the top
+                const order = q.type === 'listening' ? 0 : (typeOrder[q.type || 'pilihan_ganda'] || 1);
+                groups[order].push(q);
+              });
               
-              // Combine
-              qs = [...listeningQs, ...otherQs];
+              // Shuffle each group except for listening (0)
+              Object.values(groups).forEach((group, order) => {
+                if (order !== 0) {
+                  group.sort(() => Math.random() - 0.5);
+                }
+              });
               
+              // Combine in order: 0 (Listening), 1 (PG), 2 (IS), 3 (Essay)
+              qs = [...groups[0], ...groups[1], ...groups[2], ...groups[3]];
               generatedQuestionOrder = qs.map(q => q.id!);
               shouldSaveRandomization = true;
             }
@@ -1072,15 +1083,16 @@ export default function StudentExam() {
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 w-full max-w-4xl mx-auto p-4 md:p-6 flex flex-col min-h-full">
             {currentQ ? (
                <div className="flex-1 flex flex-col">
-                  {currentQ.type === 'listening' && audioMetadata && (
-                    <AudioPlayer metadata={audioMetadata} />
-                  )}
                   <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                      <span className="bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Soal No. {currentQuestionIndex + 1}</span>
                      <span className="text-slate-400 text-[10px] font-bold uppercase">Bobot: {currentQ.weight}</span>
                   </div>
                   
                   <div className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed ql-editor whitespace-pre-wrap px-0 py-0" dangerouslySetInnerHTML={{ __html: formatHTML(currentQ.question) }} />
+
+                  {currentQ.type === 'listening' && audioPacket && (
+                    <AudioPlayer audioUrl={audioPacket.audioUrl} allowRepetition={audioPacket.allowRepetition} />
+                  )}
 
                   {currentQ.type === 'essay' ? (
                      <div className="mt-4 flex flex-col flex-1">
