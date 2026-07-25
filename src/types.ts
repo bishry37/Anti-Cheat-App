@@ -56,6 +56,7 @@ export interface Question {
   weight: number;
   packetName?: string;
   type?: 'pilihan_ganda' | 'isian_singkat' | 'essay' | 'listening';
+  typeCode?: number;
   createdAt: number;
 }
 

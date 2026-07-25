@@ -115,6 +115,7 @@ service cloud.firestore {
              data.createdAt is number &&
              data.adminId is string &&
              (!('packetName' in data) || (data.packetName is string && data.packetName.size() <= 256)) &&
+             (!('typeCode' in data) || (data.typeCode is number && data.typeCode >= 1 && data.typeCode <= 4)) &&
              (!('type' in data) || (data.type is string && data.type.matches('^(pilihan_ganda|isian_singkat|essay|listening)$')));
     }
 

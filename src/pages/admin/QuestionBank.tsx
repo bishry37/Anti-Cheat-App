@@ -737,13 +737,40 @@ export default function QuestionBank() {
         let batch = writeBatch(db);
         let questionsToUpload: any[] = [];
         
-        const parseType = (val: string) => {
-          const v = val.toLowerCase().trim();
-          if (v === '2' || v.includes('listening') || v.includes('dengar')) return 'listening';
-          if (v === '1' || v.includes('ganda') || v.includes('pilihan') || v.includes('pg')) return 'pilihan_ganda';
-          if (v === '3' || v.includes('singkat') || v.includes('isian')) return 'isian_singkat';
-          if (v === '4' || v.includes('essay') || v.includes('essai') || v.includes('uraian') || v.includes('paragraf') || v.includes('panjang')) return 'essay';
-          return 'pilihan_ganda';
+        const parseTypeAndCode = (val: string, numberStr: string) => {
+          const v = val.trim();
+          if (!v) {
+            return { type: 'pilihan_ganda' as const, typeCode: 1 };
+          }
+          const vLower = v.toLowerCase();
+          
+          if (vLower === '1') {
+            return { type: 'pilihan_ganda' as const, typeCode: 1 };
+          }
+          if (vLower === '2') {
+            return { type: 'listening' as const, typeCode: 2 };
+          }
+          if (vLower === '3') {
+            return { type: 'isian_singkat' as const, typeCode: 3 };
+          }
+          if (vLower === '4') {
+            return { type: 'essay' as const, typeCode: 4 };
+          }
+
+          if (vLower.includes('listening') || vLower.includes('dengar')) {
+            return { type: 'listening' as const, typeCode: 2 };
+          }
+          if (vLower.includes('ganda') || vLower.includes('pilihan') || vLower.includes('pg')) {
+            return { type: 'pilihan_ganda' as const, typeCode: 1 };
+          }
+          if (vLower.includes('singkat') || vLower.includes('isian')) {
+            return { type: 'isian_singkat' as const, typeCode: 3 };
+          }
+          if (vLower.includes('essay') || vLower.includes('essai') || vLower.includes('uraian') || vLower.includes('paragraf') || vLower.includes('panjang')) {
+            return { type: 'essay' as const, typeCode: 4 };
+          }
+
+          throw new Error(`Soal No. ${numberStr}: Kode soal ${v} tidak dikenali. Gunakan kode 1, 2, 3, atau 4.`);
         };
 
         const validateAndCleanupQuestion = (qObj: any) => {
@@ -820,6 +847,10 @@ export default function QuestionBank() {
                 questionsToUpload.push(currentQ);
               }
               
+              const parsedInfo = colMap.type !== -1 
+                ? parseTypeAndCode(rowCells[colMap.type], cellNo || String(questionsToUpload.length + 1)) 
+                : { type: 'pilihan_ganda' as const, typeCode: 1 };
+
               currentQ = {
                 subjectId: selectedSubject,
                 packetName: templateName.trim(),
@@ -827,7 +858,8 @@ export default function QuestionBank() {
                 question: cellSoalHTML,
                 optionA: '', optionB: '', optionC: '', optionD: '', optionE: '',
                 correctAnswer: colMap.correctAnswer !== -1 ? rowCells[colMap.correctAnswer]?.trim().toUpperCase() : '',
-                type: colMap.type !== -1 ? parseType(rowCells[colMap.type]) : 'pilihan_ganda',
+                type: parsedInfo.type,
+                typeCode: parsedInfo.typeCode,
                 adminId: user!.uid
               };
 
@@ -1088,6 +1120,13 @@ export default function QuestionBank() {
         }
       }
 
+      const mapTypeToCode = (t: string): number => {
+        if (t === 'listening') return 2;
+        if (t === 'isian_singkat') return 3;
+        if (t === 'essay') return 4;
+        return 1; // 'pilihan_ganda'
+      };
+
       await updateDoc(doc(db, 'questions', editingQuestionId), {
         number: Number(editingData.number),
         question: editingData.question || '',
@@ -1098,6 +1137,7 @@ export default function QuestionBank() {
         optionE: isPg ? String(editingData.optionE || '') : '',
         correctAnswer: isPg ? String(editingData.correctAnswer?.toUpperCase() || 'A') : (editingData.correctAnswer || ''),
         type: qType,
+        typeCode: mapTypeToCode(qType),
         weight: Number(editingData.weight || 10),
         lastEditedAt: Date.now()
       } as any);
@@ -1157,6 +1197,13 @@ export default function QuestionBank() {
       });
       
       // 3. Add the new question
+      const mapTypeToCode = (t: string): number => {
+        if (t === 'listening') return 2;
+        if (t === 'isian_singkat') return 3;
+        if (t === 'essay') return 4;
+        return 1; // 'pilihan_ganda'
+      };
+
       const qRef = doc(collection(db, 'questions'));
       const docData = {
         number: newNumber,
@@ -1172,6 +1219,7 @@ export default function QuestionBank() {
         optionE: isPg ? String(addingData.optionE || '') : '',
         correctAnswer: isPg ? String(addingData.correctAnswer?.toUpperCase() || 'A') : (addingData.correctAnswer || ''),
         type: qType,
+        typeCode: mapTypeToCode(qType),
         weight: Number(addingData.weight || 10)
       };
       
@@ -1780,6 +1828,10 @@ export default function QuestionBank() {
                               <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-blue-100 text-blue-700 border-blue-200">
                                 Pilihan Ganda
                               </span>
+                            ) : q.type === 'listening' ? (
+                              <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-sky-100 text-sky-700 border-sky-200">
+                                Listening (Pilihan Ganda)
+                              </span>
                             ) : q.type === 'isian_singkat' ? (
                               <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-amber-100 text-amber-700 border-amber-200">
                                 Isian Singkat
@@ -1790,7 +1842,7 @@ export default function QuestionBank() {
                               </span>
                             ) : (
                               <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-purple-100 text-purple-700 border-purple-200">
-                                Paragraf / Essai
+                                Essay
                               </span>
                             )}
                             <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 font-bold uppercase rounded border border-slate-200">
