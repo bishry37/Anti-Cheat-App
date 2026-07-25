@@ -173,7 +173,8 @@ service cloud.firestore {
              (!('answers' in data) || data.answers is map) &&
              (!('questionOrder' in data) || data.questionOrder is list) &&
              (!('optionsOrder' in data) || data.optionsOrder is map) &&
-             (!('hiddenFromMonitor' in data) || data.hiddenFromMonitor is bool);
+             (!('hiddenFromMonitor' in data) || data.hiddenFromMonitor is bool) &&
+             (!('deviceId' in data) || data.deviceId is string);
     }
 
     match /student_sessions/{sessionId} {
