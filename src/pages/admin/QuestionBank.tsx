@@ -269,7 +269,28 @@ export default function QuestionBank() {
         );
       }
       const snap = await getDocs(q);
-      const qs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
+      const qs = snap.docs.map(d => {
+        const data = d.data() as any;
+        let qType = data.type;
+        const tCode = data.typeCode;
+        if (qType === 1 || qType === '1' || tCode === 1) {
+          qType = 'pilihan_ganda';
+        } else if (qType === 2 || qType === '2' || tCode === 2) {
+          qType = 'listening';
+        } else if (qType === 3 || qType === '3' || tCode === 3) {
+          qType = 'isian_singkat';
+        } else if (qType === 4 || qType === '4' || tCode === 4) {
+          qType = 'essay';
+        } else if (!qType) {
+          qType = 'pilihan_ganda';
+        }
+        return {
+          id: d.id,
+          ...data,
+          type: qType,
+          typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
+        } as Question;
+      });
       
       const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 2, 'isian_singkat': 3, 'essay': 4 };
       const sortedQs = qs.sort((a, b) => {
@@ -834,11 +855,11 @@ export default function QuestionBank() {
           const headerTds = Array.from(trs[0].querySelectorAll('td')).map(td => td.textContent?.trim().toLowerCase() || '');
           headerTds.forEach((text, idx) => {
             if (text === 'no' || text === 'nomor') colMap.number = idx;
-            else if (text.includes('soal')) colMap.question = idx;
-            else if (text.includes('jenis') || text.includes('kode')) colMap.type = idx;
+            else if (text.includes('jenis') || text.includes('kode') || text.includes('tipe')) colMap.type = idx;
+            else if (text.includes('kunci')) colMap.correctAnswer = idx;
             else if (text === 'opsi' || text === 'label') colMap.optionLabel = idx;
             else if (text === 'jawaban') colMap.optionContent = idx;
-            else if (text.includes('kunci')) colMap.correctAnswer = idx;
+            else if (text.includes('soal') || text.includes('pertanyaan')) colMap.question = idx;
           });
 
           // Fallback mapper for old formats or single-row tables

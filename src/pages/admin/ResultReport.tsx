@@ -107,7 +107,28 @@ export default function ResultReport() {
       }
       
       const qSnap = await getDocs(qQuery);
-      const qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
+      const qs = qSnap.docs.map(d => {
+        const data = d.data() as any;
+        let qType = data.type;
+        const tCode = data.typeCode;
+        if (qType === 1 || qType === '1' || tCode === 1) {
+          qType = 'pilihan_ganda';
+        } else if (qType === 2 || qType === '2' || tCode === 2) {
+          qType = 'listening';
+        } else if (qType === 3 || qType === '3' || tCode === 3) {
+          qType = 'isian_singkat';
+        } else if (qType === 4 || qType === '4' || tCode === 4) {
+          qType = 'essay';
+        } else if (!qType) {
+          qType = 'pilihan_ganda';
+        }
+        return {
+          id: d.id,
+          ...data,
+          type: qType,
+          typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
+        } as Question;
+      });
       
       const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 2, 'isian_singkat': 3, 'essay': 4 };
       const sortedQs = qs.sort((a, b) => {
