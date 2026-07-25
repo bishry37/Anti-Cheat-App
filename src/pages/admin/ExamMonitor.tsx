@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc, deleteDoc, getDoc, where } from 'firebase/firestore';
 import { StudentSession, Violation, Exam, Subject, Class } from '../../types';
-import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight, Play, CheckCircle2, Clock3, Ban, Unlock, Radio } from 'lucide-react';
+import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight, Play, CheckCircle2, Clock3, Ban, Unlock, Radio, Music } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -12,6 +12,7 @@ export default function ExamMonitor() {
   const [exams, setExams] = useState<Record<string, Exam>>({});
   const [classesData, setClassesData] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject>>({});
+  const [audioNames, setAudioNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [maxViolations, setMaxViolations] = useState<number>(3);
 
@@ -127,11 +128,12 @@ export default function ExamMonitor() {
     const fetchRefs = async () => {
       if (!user) return;
       try {
-        const [exSnap, subSnap, setSnap, clsSnap] = await Promise.all([
+        const [exSnap, subSnap, setSnap, clsSnap, audSnap] = await Promise.all([
           getDocs(query(collection(db, 'exams'), where('adminId', '==', user.uid))),
           getDocs(query(collection(db, 'subjects'), where('adminId', '==', user.uid))),
           getDoc(doc(db, 'settings', user.uid)),
-          getDocs(query(collection(db, 'classes'), where('adminId', '==', user.uid)))
+          getDocs(query(collection(db, 'classes'), where('adminId', '==', user.uid))),
+          getDocs(query(collection(db, 'audio_banks'), where('adminId', '==', user.uid)))
         ]);
         
         const exMap: Record<string, Exam> = {};
@@ -145,6 +147,12 @@ export default function ExamMonitor() {
           subMap[d.id] = { id: d.id, ...d.data() } as Subject;
         });
         setSubjects(subMap);
+
+        const audMap: Record<string, string> = {};
+        audSnap.forEach(d => {
+          audMap[d.id] = (d.data() as any).name || 'Unknown Audio';
+        });
+        setAudioNames(audMap);
 
         const clsList = clsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Class));
         clsList.sort((a,b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -649,7 +657,15 @@ export default function ExamMonitor() {
                           </td>
                           <td className="px-4 py-4">
                              <div className="font-bold text-slate-600 text-[11px] line-clamp-1 mb-0.5">{exams[s.examId]?.title || 'Unknown Exam'}</div>
-                             <div className="text-[9px] text-slate-400 font-bold uppercase">{subjects[s.subjectId]?.name || 'Unknown Subject'}</div>
+                             <div className="flex flex-col gap-0.5">
+                               <div className="text-[9px] text-slate-400 font-bold uppercase">{subjects[s.subjectId]?.name || 'Unknown Subject'}</div>
+                               {exams[s.examId]?.audioId && (
+                                 <div className="flex items-center gap-1 text-[8px] text-amber-600 font-black uppercase tracking-tight bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/50 w-max mt-0.5">
+                                   <Music className="w-2 h-2" />
+                                   <span className="truncate max-w-[100px]" title={audioNames[exams[s.examId]!.audioId!]}>Audio: {audioNames[exams[s.examId]!.audioId!]}</span>
+                                 </div>
+                               )}
+                             </div>
                           </td>
                           <td className="px-4 py-4 text-center">
                              <div className="flex items-center justify-center gap-1.5 min-w-[120px]">

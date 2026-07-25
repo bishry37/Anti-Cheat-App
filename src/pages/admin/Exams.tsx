@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot } from 'firebase/firestore';
 import { Exam, Subject, Class, AudioItem } from '../../types';
-import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Calendar, Clock, Copy, CheckCircle2, Search, Filter } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Calendar, Clock, Copy, CheckCircle2, Search, Filter, Music } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
@@ -334,6 +334,8 @@ export default function Exams() {
   };
 
   const getSubjectName = (subId: string) => (Array.isArray(subjects) ? subjects.find(s => s.id === subId) : undefined)?.name || 'Unknown';
+
+  const getAudioName = (audioId: string) => (Array.isArray(audioList) ? audioList.find(a => a.id === audioId) : undefined)?.name || 'Unknown Audio';
 
   const handleCopyLink = (examId: string) => {
     const shortCode = examId.substring(0, 6);
@@ -738,9 +740,21 @@ export default function Exams() {
                     </td>
                     <td className="px-4 py-4">
                       {exam.packetName ? (
-                        <span className="inline-block text-xs font-bold text-blue-600 bg-blue-50/80 border border-blue-100/80 px-2.5 py-1 rounded-lg">
-                          {exam.packetName}
-                        </span>
+                        <div className="flex flex-col gap-1.5">
+                          <span className="inline-block w-max text-xs font-bold text-blue-600 bg-blue-50/80 border border-blue-100/80 px-2.5 py-1 rounded-lg">
+                            {exam.packetName}
+                          </span>
+                          {exam.audioId && (
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold uppercase tracking-tight">
+                              <div className="w-4 h-4 rounded bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+                                <Music className="w-2.5 h-2.5" />
+                              </div>
+                              <span className="truncate max-w-[120px]" title={getAudioName(exam.audioId)}>
+                                Audio: {getAudioName(exam.audioId)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-xs text-slate-400 font-medium">-</span>
                       )}

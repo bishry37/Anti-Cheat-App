@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, getDoc, orderBy, where, doc, deleteDoc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { StudentSession, Exam, Question, Class, Subject, Setting } from '../../types';
-import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Check, Clock, Users, Search, LayoutGrid } from 'lucide-react';
+import { StudentSession, Exam, Question, Class, Subject, Setting, AudioItem } from '../../types';
+import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Check, Clock, Users, Search, LayoutGrid, Music } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -24,6 +24,7 @@ export default function ResultReport() {
   const [exams, setExams] = useState<Record<string, Exam>>({});
   const [classesData, setClassesData] = useState<Class[]>([]);
   const [subjectsMap, setSubjectsMap] = useState<Record<string, string>>({});
+  const [audioNames, setAudioNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [filterClass, setFilterClass] = useState<string>('');
   const [filterExam, setFilterExam] = useState<string>('');
@@ -209,9 +210,25 @@ export default function ResultReport() {
       fetchExams();
       fetchClasses();
       fetchSubjects();
+      fetchAudioNames();
       fetchSettings();
     }
   }, [user]);
+
+  const fetchAudioNames = async () => {
+    if (!user) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'audio_banks'), where('adminId', '==', user.uid)));
+      const map: Record<string, string> = {};
+      snap.docs.forEach(d => {
+        const data = d.data() as AudioItem;
+        map[d.id] = data.name;
+      });
+      setAudioNames(map);
+    } catch (e) {
+      console.error('Error fetching audio names:', e);
+    }
+  };
 
   const fetchSettings = async () => {
     if (!user) return;
@@ -681,9 +698,17 @@ export default function ResultReport() {
                               })()}
                               <div className="mt-auto pt-3 border-t border-slate-50 w-full flex flex-col gap-2">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-[9px] font-extrabold text-blue-500 uppercase tracking-widest">
-                                    {subjectsMap[ex.subjectId] || 'Mata Pelajaran'}
-                                  </span>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-[9px] font-extrabold text-blue-500 uppercase tracking-widest">
+                                      {subjectsMap[ex.subjectId] || 'Mata Pelajaran'}
+                                    </span>
+                                    {ex.audioId && (
+                                      <div className="flex items-center gap-1 text-[8px] text-amber-600 font-black uppercase tracking-tight bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/40 w-max">
+                                        <Music className="w-2 h-2" />
+                                        <span className="truncate max-w-[120px]" title={audioNames[ex.audioId]}>Audio: {audioNames[ex.audioId]}</span>
+                                      </div>
+                                    )}
+                                  </div>
                                   <div className="flex items-center gap-1 bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[8px] font-black uppercase">
                                     <span>Pilih</span>
                                     <Award className="w-2.5 h-2.5 text-blue-400" />
@@ -768,8 +793,16 @@ export default function ResultReport() {
                         <div className="text-[10px] text-slate-500">Kelas {s.className}</div>
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="font-medium text-slate-700">{exams[s.examId]?.title || 'Ujian Terhapus'}</div>
-                        <div className="text-[10px] text-slate-500">{new Date(s.endTime || 0).toLocaleDateString()}</div>
+                        <div className="font-medium text-slate-700 leading-snug">{exams[s.examId]?.title || 'Ujian Terhapus'}</div>
+                        <div className="flex flex-col gap-0.5 mt-0.5">
+                          <div className="text-[10px] text-slate-500 font-medium">{new Date(s.endTime || 0).toLocaleDateString()}</div>
+                          {exams[s.examId]?.audioId && (
+                            <div className="flex items-center gap-1 text-[8px] text-amber-600 font-black uppercase tracking-tight bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/40 w-max">
+                              <Music className="w-2 h-2" />
+                              <span className="truncate max-w-[100px]" title={audioNames[exams[s.examId]!.audioId!]}>Audio: {audioNames[exams[s.examId]!.audioId!]}</span>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-2.5 text-center">
                         <span className={`text-base font-bold ${s.score! >= 70 ? 'text-green-600' : 'text-red-500'}`}>
