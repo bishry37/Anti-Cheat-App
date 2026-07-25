@@ -1108,7 +1108,7 @@ export default function StudentExam() {
                         </div>
                         <div>
                           <audio 
-                            src={audioItem.audioData || audioItem.data}
+                            src={audioItem.data}
                             controls
                             controlsList="nodownload noplaybackrate"
                             onPlay={(e) => {

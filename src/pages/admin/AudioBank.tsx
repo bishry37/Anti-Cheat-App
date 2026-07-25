@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, storage } from '../../lib/firebase';
+import { db } from '../../lib/firebase';
 import { collection, addDoc, getDocs, deleteDoc, doc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../../contexts/AuthContext';
 import { AudioItem } from '../../types';
 import { Headphones, Upload, Play, Pause, Trash2, Plus, Search, Music, Clock, AlertCircle, X, CheckCircle2 } from 'lucide-react';
@@ -70,60 +69,72 @@ export default function AudioBank() {
     setError('');
 
     try {
-      // 1. Get audio duration locally using an Object URL (fast and client-side only)
-      const objectUrl = URL.createObjectURL(file);
-      const audioObj = new Audio(objectUrl);
-      
-      const getDuration = (): Promise<number> => {
-        return new Promise((resolve) => {
-          audioObj.onloadedmetadata = () => {
-            resolve(audioObj.duration || 0);
-          };
-          audioObj.onerror = () => {
-            resolve(0); // fallback if metadata load fails
-          };
-        });
-      };
+      // Read file as Data URL (base64)
+      const reader = new FileReader();
+      reader.onload = async (uploadEvent) => {
+        const base64Data = uploadEvent.target?.result as string;
 
-      const audioDuration = await getDuration();
-      URL.revokeObjectURL(objectUrl); // clean up memory
+        // Get audio duration
+        const audioObj = new Audio(base64Data);
+        audioObj.onloadedmetadata = async () => {
+          const audioDuration = audioObj.duration || 0;
 
-      // 2. Attempt to upload the file to Firebase Storage
-      const storageRef = ref(storage, `audio_banks/${user!.uid}/${Date.now()}_${file.name}`);
-      let finalAudioUrl = '';
+          try {
+            await addDoc(collection(db, 'audio_banks'), {
+              adminId: user!.uid,
+              name: name.trim(),
+              description: description.trim(),
+              fileName: file.name,
+              audioData: base64Data,
+              duration: audioDuration,
+              allowRepeat,
+              createdAt: Date.now()
+            });
 
-      try {
-        const uploadResult = await uploadBytes(storageRef, file);
-        finalAudioUrl = await getDownloadURL(uploadResult.ref);
-      } catch (storageErr: any) {
-        console.warn("Firebase Storage upload failed, attempting Base64 fallback:", storageErr);
-        
-        // 3. Fallback to base64 ONLY if file size is safe (< 700 KB)
-        if (file.size > 716800) {
-          throw new Error('File terlalu besar (> 700 KB). Hubungkan atau aktifkan Firebase Storage Anda untuk mengunggah file tanpa batasan ukuran.');
-        }
-
-        // Read as base64
-        const readAsBase64 = (): Promise<string> => {
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => reject(new Error('Gagal membaca berkas audio sebagai Base64.'));
-            reader.readAsDataURL(file);
-          });
+            setUploading(false);
+            setIsModalOpen(false);
+            setName('');
+            setDescription('');
+            setFile(null);
+            setAllowRepeat('Ya');
+            setSuccessMsg('Audio berhasil ditambahkan ke Bank Audio.');
+            setTimeout(() => setSuccessMsg(''), 4000);
+          } catch (err: any) {
+            console.error("Gagal menyimpan audio ke database:", err);
+            setError('Gagal menyimpan ke database. ' + (err.message || ''));
+            setUploading(false);
+          }
         };
 
-        finalAudioUrl = await readAsBase64();
-      }
+        audioObj.onerror = () => {
+          // Fallback if metadata fails
+          saveToFirestore(base64Data, 0);
+        };
+      };
 
-      // 4. Save metadata to Firestore
+      reader.onerror = () => {
+        setError('Gagal membaca file audio.');
+        setUploading(false);
+      };
+
+      reader.readAsDataURL(file);
+
+    } catch (err: any) {
+      console.error("Error saving audio:", err);
+      setError('Terjadi kesalahan saat mengunggah audio.');
+      setUploading(false);
+    }
+  };
+
+  const saveToFirestore = async (base64Data: string, duration: number) => {
+    try {
       await addDoc(collection(db, 'audio_banks'), {
         adminId: user!.uid,
         name: name.trim(),
         description: description.trim(),
-        fileName: file.name,
-        audioData: finalAudioUrl,
-        duration: audioDuration,
+        fileName: file?.name || 'audio',
+        audioData: base64Data,
+        duration,
         allowRepeat,
         createdAt: Date.now()
       });
@@ -136,10 +147,8 @@ export default function AudioBank() {
       setAllowRepeat('Ya');
       setSuccessMsg('Audio berhasil ditambahkan ke Bank Audio.');
       setTimeout(() => setSuccessMsg(''), 4000);
-
     } catch (err: any) {
-      console.error("Error saving audio:", err);
-      setError(err.message || 'Terjadi kesalahan saat mengunggah audio.');
+      setError('Gagal menyimpan ke database.');
       setUploading(false);
     }
   };
