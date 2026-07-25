@@ -760,10 +760,18 @@ export default function QuestionBank() {
             }
 
             const ans = qObj.correctAnswer ? qObj.correctAnswer.trim().toUpperCase() : '';
-            if (ans && ['A', 'B', 'C', 'D', 'E'].includes(ans)) {
-              if (!availableOptions.includes(ans)) {
-                throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban '${ans}' tidak valid karena opsi tersebut kosong atau tidak tersedia.`);
-              }
+            qObj.correctAnswer = ans;
+
+            if (!ans) {
+              throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban tidak boleh kosong.`);
+            }
+
+            if (!['A', 'B', 'C', 'D', 'E'].includes(ans)) {
+              throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban '${ans}' tidak valid (harus A-E).`);
+            }
+
+            if (!availableOptions.includes(ans)) {
+              throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban '${ans}' tidak valid karena opsi tersebut kosong atau tidak tersedia.`);
             }
           }
         };

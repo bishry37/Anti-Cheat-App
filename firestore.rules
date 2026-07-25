@@ -109,7 +109,8 @@ service cloud.firestore {
              data.optionC is string && data.optionC.size() <= 5000 &&
              data.optionD is string && data.optionD.size() <= 5000 &&
              data.optionE is string && data.optionE.size() <= 5000 &&
-             data.correctAnswer is string && data.correctAnswer.matches('^[A-E]$') &&
+             data.correctAnswer is string && 
+             ((!('type' in data) || data.type == 'pilihan_ganda' || data.type == 'listening') ? data.correctAnswer.matches('^[A-E]$') : data.correctAnswer.size() <= 10000) &&
              data.weight is number &&
              data.createdAt is number &&
              data.adminId is string &&
