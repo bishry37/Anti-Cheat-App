@@ -505,7 +505,9 @@ export default function ResultReport() {
       const deletePromises = snap.docs.map(d => deleteDoc(d.ref));
       await Promise.all(deletePromises);
       
-      showToast('Seluruh hasil ujian terkait berhasil dihapus');
+      await deleteDoc(doc(db, 'exams', examId));
+      
+      showToast('File soal dan seluruh hasil ujian terkait berhasil dihapus');
       if (filterExam === examId) setFilterExam('');
       fetchResults();
     } catch (err) {
@@ -658,7 +660,7 @@ export default function ResultReport() {
                                   setConfirmDeleteExam({ isOpen: true, examId: id });
                                 }}
                                 className="absolute top-4 right-4 w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors z-10"
-                                title="Hapus seluruh hasil ujian"
+                                title="Hapus file soal & hasil ujian"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -873,10 +875,10 @@ export default function ResultReport() {
               <Trash2 className="w-6 h-6" />
             </div>
             <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-1">
-              Hapus Seluruh Hasil
+              Hapus File Soal & Hasil
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed mb-5">
-              Apakah Anda yakin ingin menghapus <strong>semua hasil ujian</strong> untuk jadwal ini? Tindakan ini tidak dapat dibatalkan.
+              Apakah Anda yakin ingin menghapus <strong>file soal beserta semua hasil ujiannya</strong>? Tindakan ini tidak dapat dibatalkan.
             </p>
             <div className="flex gap-2 w-full">
               <button 
