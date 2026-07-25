@@ -3,7 +3,7 @@ import { db, handleFirestoreError, OperationType, auth } from '../../lib/firebas
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, addDoc, onSnapshot } from 'firebase/firestore';
 import { StudentSession, Exam, Question, Setting, Violation, AudioItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
-import { ShieldAlert, Maximize, Clock, Save, AlertTriangle, LogOut, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { ShieldAlert, Maximize, Clock, Save, AlertTriangle, LogOut, Loader2, Wifi, WifiOff, Play, Check, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { formatHTML, calculateSmartPoints } from '../../utils/textFormat';
@@ -16,6 +16,69 @@ const isOptionEmpty = (val: string | undefined | null): boolean => {
   }
   const plainText = str.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, '').trim();
   return plainText === '';
+};
+
+const CustomAudioPlayer = ({ audioItem, hasPlayedAudio, setHasPlayedAudio }: { audioItem: AudioItem, hasPlayedAudio: boolean, setHasPlayedAudio: (val: boolean) => void }) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const isOneTime = audioItem.allowRepeat === 'Tidak';
+
+  if (!isOneTime) {
+    return (
+      <audio 
+        src={audioItem.audioData || (audioItem as any).data}
+        controls
+        controlsList="nodownload noplaybackrate"
+        className="w-full h-10 accent-blue-600 outline-none"
+      />
+    );
+  }
+
+  return (
+    <div>
+      <audio 
+        ref={audioRef}
+        src={audioItem.audioData || (audioItem as any).data}
+        className="hidden"
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onTimeUpdate={(e) => {
+           const el = e.currentTarget;
+           if (el.duration) {
+             setProgress((el.currentTime / el.duration) * 100);
+           }
+        }}
+        onEnded={() => {
+           setIsPlaying(false);
+           setHasPlayedAudio(true);
+           setProgress(100);
+        }}
+      />
+      <div className="flex items-center gap-4 bg-white p-3 rounded-xl border border-blue-100 shadow-sm">
+        <button 
+          onClick={() => {
+             if (!hasPlayedAudio && !isPlaying && audioRef.current) {
+                audioRef.current.play().catch(e => console.error(e));
+             }
+          }}
+          disabled={hasPlayedAudio || isPlaying}
+          className={`shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${hasPlayedAudio ? 'bg-slate-100 text-slate-400' : isPlaying ? 'bg-blue-100 text-blue-500' : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md'} transition-all`}
+        >
+           {hasPlayedAudio ? <Check className="w-5 h-5" /> : isPlaying ? <Volume2 className="w-5 h-5 animate-pulse" /> : <Play className="w-5 h-5 ml-1" />}
+        </button>
+        <div className="flex-1 flex flex-col gap-1.5">
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+            {hasPlayedAudio ? 'Audio Selesai Diputar' : isPlaying ? 'Memutar Audio...' : 'Putar Audio (Sekali Putar)'}
+          </div>
+          <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+             <div className="h-full bg-blue-500 transition-all duration-200" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default function StudentExam() {
@@ -1153,30 +1216,16 @@ export default function StudentExam() {
                             <div>
                               <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wide">Audio Listening: {audioItem.name}</h4>
                               <p className="text-[10px] text-blue-600 font-medium">
-                                {audioItem.allowRepeat ? 'Pengulangan Diizinkan (Bisa diputar kembali)' : 'Sekali Putar (Audio hanya dapat diputar sekali)'}
+                                {audioItem.allowRepeat === 'Ya' ? 'Pengulangan Diizinkan (Bisa diputar kembali)' : 'Sekali Putar (Audio hanya dapat diputar sekali)'}
                               </p>
                             </div>
                           </div>
                         </div>
                         <div>
-                          <audio 
-                            src={audioItem.data}
-                            controls
-                            controlsList="nodownload noplaybackrate"
-                            onPlay={(e) => {
-                              const audioEl = e.currentTarget;
-                              if (!audioItem.allowRepeat && hasPlayedAudio) {
-                                audioEl.pause();
-                                audioEl.currentTime = 0;
-                                alert('Audio ini hanya diizinkan diputar sekali!');
-                              }
-                            }}
-                            onEnded={() => {
-                              if (!audioItem.allowRepeat) {
-                                setHasPlayedAudio(true);
-                              }
-                            }}
-                            className="w-full h-10 accent-blue-600"
+                          <CustomAudioPlayer 
+                            audioItem={audioItem} 
+                            hasPlayedAudio={hasPlayedAudio} 
+                            setHasPlayedAudio={setHasPlayedAudio} 
                           />
                         </div>
                       </div>
