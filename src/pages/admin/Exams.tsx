@@ -147,7 +147,7 @@ export default function Exams() {
 
       for (let i = 0; i < newList.length; i++) {
         const exam = newList[i];
-        if (exam.isActive && exam.autoResetInterval && exam.autoResetInterval !== 'manual') {
+        if (exam.adminId === user.uid && exam.isActive && exam.autoResetInterval && exam.autoResetInterval !== 'manual') {
           const intervalMinutes = parseInt(exam.autoResetInterval, 10);
           if (!isNaN(intervalMinutes)) {
             const lastUpdated = exam.tokenUpdatedAt || 0;
