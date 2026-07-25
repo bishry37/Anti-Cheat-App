@@ -738,39 +738,56 @@ export default function QuestionBank() {
         let questionsToUpload: any[] = [];
         
         const parseTypeAndCode = (val: string, numberStr: string) => {
-          const v = val.trim();
-          if (!v) {
-            return { type: 'pilihan_ganda' as const, typeCode: 1 };
-          }
-          const vLower = v.toLowerCase();
+          // Replace non-breaking spaces and other special spaces with regular space
+          let cleaned = val.replace(/[\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]/g, ' ');
+          cleaned = cleaned.trim();
           
-          if (vLower === '1') {
+          if (!cleaned) {
             return { type: 'pilihan_ganda' as const, typeCode: 1 };
           }
-          if (vLower === '2') {
+          
+          const vLower = cleaned.toLowerCase();
+          
+          // Match digits 1-4 with any surrounding punctuation or text (e.g. "1.", "1 - Pilihan Ganda", "Kode 1", "[1]")
+          const has1 = /(^|\b)1(\b|$)/.test(vLower) || vLower === '1' || vLower.startsWith('1.');
+          const has2 = /(^|\b)2(\b|$)/.test(vLower) || vLower === '2' || vLower.startsWith('2.');
+          const has3 = /(^|\b)3(\b|$)/.test(vLower) || vLower === '3' || vLower.startsWith('3.');
+          const has4 = /(^|\b)4(\b|$)/.test(vLower) || vLower === '4' || vLower.startsWith('4.');
+
+          if (has1 && !has2 && !has3 && !has4) {
+            return { type: 'pilihan_ganda' as const, typeCode: 1 };
+          }
+          if (has2 && !has1 && !has3 && !has4) {
             return { type: 'listening' as const, typeCode: 2 };
           }
-          if (vLower === '3') {
+          if (has3 && !has1 && !has2 && !has4) {
             return { type: 'isian_singkat' as const, typeCode: 3 };
           }
-          if (vLower === '4') {
+          if (has4 && !has1 && !has2 && !has3) {
             return { type: 'essay' as const, typeCode: 4 };
           }
 
-          if (vLower.includes('listening') || vLower.includes('dengar')) {
+          // If no unique digit, check keywords
+          if (vLower.includes('listening') || vLower.includes('dengar') || vLower.includes('audio')) {
             return { type: 'listening' as const, typeCode: 2 };
           }
-          if (vLower.includes('ganda') || vLower.includes('pilihan') || vLower.includes('pg')) {
+          if (vLower.includes('ganda') || vLower.includes('pilihan') || vLower.includes('pg') || vLower.includes('multiple')) {
             return { type: 'pilihan_ganda' as const, typeCode: 1 };
           }
-          if (vLower.includes('singkat') || vLower.includes('isian')) {
+          if (vLower.includes('singkat') || vLower.includes('isian') || vLower.includes('short')) {
             return { type: 'isian_singkat' as const, typeCode: 3 };
           }
           if (vLower.includes('essay') || vLower.includes('essai') || vLower.includes('uraian') || vLower.includes('paragraf') || vLower.includes('panjang')) {
             return { type: 'essay' as const, typeCode: 4 };
           }
 
-          throw new Error(`Soal No. ${numberStr}: Kode soal ${v} tidak dikenali. Gunakan kode 1, 2, 3, atau 4.`);
+          // Check if there is any '1', '2', '3', '4' anywhere as a last resort
+          if (vLower.includes('1')) return { type: 'pilihan_ganda' as const, typeCode: 1 };
+          if (vLower.includes('2')) return { type: 'listening' as const, typeCode: 2 };
+          if (vLower.includes('3')) return { type: 'isian_singkat' as const, typeCode: 3 };
+          if (vLower.includes('4')) return { type: 'essay' as const, typeCode: 4 };
+
+          throw new Error(`Soal No. ${numberStr}: Kode soal ${val} tidak dikenali. Gunakan kode 1, 2, 3, atau 4.`);
         };
 
         const validateAndCleanupQuestion = (qObj: any) => {
