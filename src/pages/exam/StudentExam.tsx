@@ -257,7 +257,27 @@ export default function StudentExam() {
             try {
               const audioSnap = await getDoc(doc(db, 'audio_banks', exData.audioId));
               if (audioSnap.exists()) {
-                setAudioItem({ id: audioSnap.id, ...(audioSnap.data() as any) } as AudioItem);
+                const audioDataRaw = audioSnap.data();
+                if (audioDataRaw.isChunked) {
+                  const chunksSnap = await getDocs(collection(db, 'audio_banks', exData.audioId, 'chunks'));
+                  const sortedChunks = chunksSnap.docs
+                    .map(d => d.data() as { chunkIndex: number; data: string })
+                    .sort((a, b) => a.chunkIndex - b.chunkIndex);
+                  
+                  const fullAudioData = sortedChunks.map(c => c.data).join('');
+                  setAudioItem({
+                    id: audioSnap.id,
+                    ...(audioDataRaw as any),
+                    audioData: fullAudioData,
+                    data: fullAudioData
+                  } as AudioItem);
+                } else {
+                  setAudioItem({
+                    id: audioSnap.id,
+                    ...(audioDataRaw as any),
+                    data: audioDataRaw.audioData || audioDataRaw.data
+                  } as AudioItem);
+                }
               }
             } catch (e) {
               console.error("Gagal load audio item", e);

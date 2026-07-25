@@ -38,6 +38,7 @@ export interface AudioItem {
   duration: number; // in seconds
   allowRepeat: 'Ya' | 'Tidak';
   createdAt: number;
+  isChunked?: boolean;
 }
 
 export interface Question {

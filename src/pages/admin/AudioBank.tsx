@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../lib/firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, where, orderBy, onSnapshot, setDoc } from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
 import { AudioItem } from '../../types';
 import { Headphones, Upload, Play, Pause, Trash2, Plus, Search, Music, Clock, AlertCircle, X, CheckCircle2 } from 'lucide-react';
@@ -26,6 +26,8 @@ export default function AudioBank() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
+  const [audioCache, setAudioCache] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -78,37 +80,12 @@ export default function AudioBank() {
         const audioObj = new Audio(base64Data);
         audioObj.onloadedmetadata = async () => {
           const audioDuration = audioObj.duration || 0;
-
-          try {
-            await addDoc(collection(db, 'audio_banks'), {
-              adminId: user!.uid,
-              name: name.trim(),
-              description: description.trim(),
-              fileName: file.name,
-              audioData: base64Data,
-              duration: audioDuration,
-              allowRepeat,
-              createdAt: Date.now()
-            });
-
-            setUploading(false);
-            setIsModalOpen(false);
-            setName('');
-            setDescription('');
-            setFile(null);
-            setAllowRepeat('Ya');
-            setSuccessMsg('Audio berhasil ditambahkan ke Bank Audio.');
-            setTimeout(() => setSuccessMsg(''), 4000);
-          } catch (err: any) {
-            console.error("Gagal menyimpan audio ke database:", err);
-            setError('Gagal menyimpan ke database. ' + (err.message || ''));
-            setUploading(false);
-          }
+          await saveToFirestore(base64Data, audioDuration);
         };
 
-        audioObj.onerror = () => {
+        audioObj.onerror = async () => {
           // Fallback if metadata fails
-          saveToFirestore(base64Data, 0);
+          await saveToFirestore(base64Data, 0);
         };
       };
 
@@ -128,16 +105,48 @@ export default function AudioBank() {
 
   const saveToFirestore = async (base64Data: string, duration: number) => {
     try {
-      await addDoc(collection(db, 'audio_banks'), {
-        adminId: user!.uid,
-        name: name.trim(),
-        description: description.trim(),
-        fileName: file?.name || 'audio',
-        audioData: base64Data,
-        duration,
-        allowRepeat,
-        createdAt: Date.now()
-      });
+      const CHUNK_SIZE = 700000;
+      if (base64Data.length <= CHUNK_SIZE) {
+        await addDoc(collection(db, 'audio_banks'), {
+          adminId: user!.uid,
+          name: name.trim(),
+          description: description.trim(),
+          fileName: file?.name || 'audio',
+          audioData: base64Data,
+          duration,
+          allowRepeat,
+          createdAt: Date.now(),
+          isChunked: false
+        });
+      } else {
+        // Split into chunks
+        const chunks: string[] = [];
+        for (let i = 0; i < base64Data.length; i += CHUNK_SIZE) {
+          chunks.push(base64Data.substring(i, i + CHUNK_SIZE));
+        }
+
+        // Add parent doc first with isChunked: true
+        const docRef = await addDoc(collection(db, 'audio_banks'), {
+          adminId: user!.uid,
+          name: name.trim(),
+          description: description.trim(),
+          fileName: file?.name || 'audio',
+          audioData: '',
+          duration,
+          allowRepeat,
+          createdAt: Date.now(),
+          isChunked: true
+        });
+
+        // Add chunks to chunks subcollection
+        const chunkPromises = chunks.map((chunk, index) => {
+          return setDoc(doc(db, 'audio_banks', docRef.id, 'chunks', String(index)), {
+            chunkIndex: index,
+            data: chunk
+          });
+        });
+        await Promise.all(chunkPromises);
+      }
 
       setUploading(false);
       setIsModalOpen(false);
@@ -148,7 +157,8 @@ export default function AudioBank() {
       setSuccessMsg('Audio berhasil ditambahkan ke Bank Audio.');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: any) {
-      setError('Gagal menyimpan ke database.');
+      console.error("Gagal menyimpan audio:", err);
+      setError('Gagal menyimpan ke database. ' + (err.message || ''));
       setUploading(false);
     }
   };
@@ -170,38 +180,73 @@ export default function AudioBank() {
     }
   };
 
-  const togglePlay = (item: AudioItem) => {
-    if (!item.id || !item.audioData) return;
+  const togglePlay = async (item: AudioItem) => {
+    if (!item.id) return;
 
     if (playingId === item.id) {
       if (audioRef.current) {
         audioRef.current.pause();
         setPlayingId(null);
       }
-    } else {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-      const audio = new Audio(item.audioData);
-      audioRef.current = audio;
-      setPlayingId(item.id);
-      setDuration(item.duration || 0);
-      setCurrentTime(0);
-
-      audio.ontimeupdate = () => {
-        setCurrentTime(audio.currentTime);
-      };
-
-      audio.onended = () => {
-        setPlayingId(null);
-        setCurrentTime(0);
-      };
-
-      audio.play().catch(err => {
-        console.error("Gagal memutar audio:", err);
-        setPlayingId(null);
-      });
+      return;
     }
+
+    let audioSrc = '';
+    if (item.isChunked) {
+      if (audioCache[item.id]) {
+        audioSrc = audioCache[item.id];
+      } else {
+        setLoadingAudioId(item.id);
+        try {
+          const chunksSnap = await getDocs(collection(db, 'audio_banks', item.id, 'chunks'));
+          const sortedChunks = chunksSnap.docs
+            .map(d => d.data() as { chunkIndex: number; data: string })
+            .sort((a, b) => a.chunkIndex - b.chunkIndex);
+          
+          const fullAudioData = sortedChunks.map(c => c.data).join('');
+          setAudioCache(prev => ({ ...prev, [item.id!]: fullAudioData }));
+          audioSrc = fullAudioData;
+        } catch (err) {
+          console.error("Gagal memuat chunks audio:", err);
+          alert("Gagal memuat file audio.");
+          setLoadingAudioId(null);
+          return;
+        } finally {
+          setLoadingAudioId(null);
+        }
+      }
+    } else {
+      audioSrc = item.audioData;
+    }
+
+    if (!audioSrc) {
+      alert("Data audio tidak ditemukan.");
+      return;
+    }
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+
+    const audio = new Audio(audioSrc);
+    audioRef.current = audio;
+    setPlayingId(item.id);
+    setDuration(item.duration || 0);
+    setCurrentTime(0);
+
+    audio.ontimeupdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
+
+    audio.onended = () => {
+      setPlayingId(null);
+      setCurrentTime(0);
+    };
+
+    audio.play().catch(err => {
+      console.error("Gagal memutar audio:", err);
+      setPlayingId(null);
+    });
   };
 
   const formatDuration = (secs: number) => {
@@ -343,14 +388,27 @@ export default function AudioBank() {
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
                   <button
                     onClick={() => togglePlay(item)}
+                    disabled={loadingAudioId !== null && loadingAudioId !== item.id}
                     className={`flex items-center justify-center gap-2 flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
                       isPlaying 
                         ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm' 
                         : 'bg-slate-900 hover:bg-slate-800 text-white shadow-sm'
-                    }`}
+                    } ${(loadingAudioId === item.id) ? 'opacity-70 cursor-wait' : ''}`}
                   >
-                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    <span>{isPlaying ? 'Jeda Audio' : 'Putar Audio'}</span>
+                    {loadingAudioId === item.id ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : isPlaying ? (
+                      <Pause className="w-4 h-4" />
+                    ) : (
+                      <Play className="w-4 h-4" />
+                    )}
+                    <span>
+                      {loadingAudioId === item.id 
+                        ? 'Memuat...' 
+                        : isPlaying 
+                          ? 'Jeda Audio' 
+                          : 'Putar Audio'}
+                    </span>
                   </button>
                 </div>
               </div>
