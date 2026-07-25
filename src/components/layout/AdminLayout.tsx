@@ -40,7 +40,7 @@ export default function AdminLayout() {
     { name: 'Manajemen Kelas', path: '/admin/classes', icon: Users },
     { name: 'Manajemen Soal', path: '/admin/questions', icon: Database },
     { name: 'Mata Pelajaran', path: '/admin/subjects', icon: BookOpen },
-    { name: 'Bank Audio', path: '/admin/audio', icon: Headphones },
+    { name: 'Manajemen Audio', path: '/admin/audio', icon: Headphones },
     { name: 'Monitoring Peserta', path: '/admin/monitor', icon: MonitorPlay },
     { name: 'Hasil Ujian', path: '/admin/results', icon: FileBarChart },
     { name: 'Pengaturan', path: '/admin/settings', icon: Settings },

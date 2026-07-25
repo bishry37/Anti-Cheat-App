@@ -154,7 +154,7 @@ export default function AudioBank() {
       setDescription('');
       setFile(null);
       setAllowRepeat('Ya');
-      setSuccessMsg('Audio berhasil ditambahkan ke Bank Audio.');
+      setSuccessMsg('Audio berhasil ditambahkan ke Manajemen Audio.');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: any) {
       console.error("Gagal menyimpan audio:", err);
@@ -270,7 +270,7 @@ export default function AudioBank() {
             <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
               <Headphones className="w-6 h-6" />
             </div>
-            <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">Bank Audio Listening</h1>
+            <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">Manajemen Audio Listening</h1>
           </div>
           <p className="text-xs text-slate-500 font-medium">
             Kelola seluruh berkas audio listening ujian Anda di satu tempat terpusat.
