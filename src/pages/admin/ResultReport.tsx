@@ -651,19 +651,17 @@ export default function ResultReport() {
                               onClick={() => setFilterExam(id)}
                               className="relative flex flex-col items-start p-5 bg-white border border-slate-200 rounded-[1.5rem] hover:border-blue-500 hover:shadow-2xl hover:shadow-blue-100 transition-all group text-left cursor-pointer"
                             >
-                              {ex.isDeleted && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setConfirmDeleteExam({ isOpen: true, examId: id });
-                                  }}
-                                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors z-10"
-                                  title="Hapus seluruh hasil ujian"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirmDeleteExam({ isOpen: true, examId: id });
+                                }}
+                                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors z-10"
+                                title="Hapus seluruh hasil ujian"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                               <div className="w-11 h-11 rounded-2xl bg-slate-50 text-slate-400 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center mb-4 transition-all duration-300 transform group-hover:scale-110 shadow-sm">
                                 <FileSpreadsheet className="w-5.5 h-5.5" />
                               </div>
