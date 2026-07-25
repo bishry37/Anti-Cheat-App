@@ -28,6 +28,18 @@ export interface Class {
   createdAt: number;
 }
 
+export interface AudioItem {
+  id?: string;
+  adminId?: string;
+  name: string;
+  description?: string;
+  fileName: string;
+  audioData: string;
+  duration: number; // in seconds
+  allowRepeat: 'Ya' | 'Tidak';
+  createdAt: number;
+}
+
 export interface Question {
   id?: string;
   adminId?: string;
@@ -46,22 +58,12 @@ export interface Question {
   createdAt: number;
 }
 
-export interface AudioPacket {
-  id?: string;
-  adminId: string;
-  subjectId: string;
-  packetName: string;
-  audioUrl: string;
-  allowRepetition: boolean;
-  fileName: string;
-  createdAt: number;
-}
-
 export interface Exam {
   id?: string;
   adminId?: string;
   title: string;
   subjectId: string;
+  audioId?: string;
   duration: number; // in minutes
   date: string;
   startTime: string;

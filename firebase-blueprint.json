@@ -36,6 +36,22 @@
       },
       "required": ["name", "createdAt"]
     },
+    "AudioBank": {
+      "title": "Audio Bank",
+      "description": "Audio listening assets",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "fileName": { "type": "string" },
+        "audioData": { "type": "string" },
+        "duration": { "type": "number" },
+        "allowRepeat": { "type": "string", "enum": ["Ya", "Tidak"] },
+        "createdAt": { "type": "number" },
+        "adminId": { "type": "string" }
+      },
+      "required": ["name", "fileName", "audioData", "duration", "allowRepeat", "createdAt", "adminId"]
+    },
     "Question": {
       "title": "Question",
       "description": "Bank of questions",
@@ -114,21 +130,6 @@
         "status": { "type": "string" }
       },
       "required": ["sessionId", "studentName", "subjectId", "type", "timestamp", "status"]
-    },
-    "AudioPacket": {
-      "title": "AudioPacket",
-      "description": "Listening audio configuration for a question packet",
-      "type": "object",
-      "properties": {
-        "adminId": { "type": "string" },
-        "subjectId": { "type": "string" },
-        "packetName": { "type": "string" },
-        "audioUrl": { "type": "string" },
-        "allowRepetition": { "type": "boolean" },
-        "fileName": { "type": "string" },
-        "createdAt": { "type": "number" }
-      },
-      "required": ["adminId", "subjectId", "packetName", "audioUrl", "allowRepetition", "fileName", "createdAt"]
     }
   },
   "firestore": {
@@ -143,6 +144,10 @@
     "subjects/{subjectId}": {
       "schema": { "$ref": "#/entities/Subject" },
       "description": "List of subjects"
+    },
+    "audio_banks/{audioId}": {
+      "schema": { "$ref": "#/entities/AudioBank" },
+      "description": "Audio listening assets bank"
     },
     "questions/{questionId}": {
       "schema": { "$ref": "#/entities/Question" },
@@ -159,10 +164,6 @@
     "violations/{violationId}": {
       "schema": { "$ref": "#/entities/Violation" },
       "description": "Violation logs"
-    },
-    "audio_packets/{packetId}": {
-      "schema": { "$ref": "#/entities/AudioPacket" },
-      "description": "Audio files for listening sections"
     }
   }
 }

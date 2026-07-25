@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db, handleFirestoreError, OperationType, auth } from '../../lib/firebase';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, addDoc, onSnapshot } from 'firebase/firestore';
-import { StudentSession, Exam, Question, Setting, Violation } from '../../types';
+import { StudentSession, Exam, Question, Setting, Violation, AudioItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { ShieldAlert, Maximize, Clock, Save, AlertTriangle, LogOut, Loader2, Wifi, WifiOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { formatHTML, calculateSmartPoints } from '../../utils/textFormat';
-import { AudioPlayer } from '../../components/AudioPlayer';
 
 export default function StudentExam() {
   const { user, logout } = useAuth();
@@ -15,11 +14,12 @@ export default function StudentExam() {
 
   const [session, setSession] = useState<StudentSession | null>(null);
   const [exam, setExam] = useState<Exam | null>(null);
-  const [audioPacket, setAudioPacket] = useState<any | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [settings, setSettings] = useState<Setting | null>(null);
   const [loadError, setLoadError] = useState('');
   const [subjectName, setSubjectName] = useState('');
+  const [audioItem, setAudioItem] = useState<AudioItem | null>(null);
+  const [hasPlayedAudio, setHasPlayedAudio] = useState(false);
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -253,6 +253,17 @@ export default function StudentExam() {
           const exData = exSnap.data() as Exam;
           setExam(exData);
 
+          if (exData.audioId) {
+            try {
+              const audioSnap = await getDoc(doc(db, 'audio_banks', exData.audioId));
+              if (audioSnap.exists()) {
+                setAudioItem({ id: audioSnap.id, ...(audioSnap.data() as any) } as AudioItem);
+              }
+            } catch (e) {
+              console.error("Gagal load audio item", e);
+            }
+          }
+
           try {
             const subSnap = await getDoc(doc(db, 'subjects', exData.subjectId));
             if (subSnap.exists()) {
@@ -278,16 +289,6 @@ export default function StudentExam() {
               where('subjectId', '==', sessData.subjectId),
               where('packetName', '==', exData.packetName)
             );
-            
-            // Fetch audio packet
-            const audioQuery = query(collection(db, 'audio_packets'), 
-              where('subjectId', '==', sessData.subjectId),
-              where('packetName', '==', exData.packetName)
-            );
-            const audioSnap = await getDocs(audioQuery);
-            if (!audioSnap.empty) {
-              setAudioPacket(audioSnap.docs[0].data());
-            }
           } else {
             qQuery = query(collection(db, 'questions'), where('subjectId', '==', sessData.subjectId));
           }
@@ -295,7 +296,7 @@ export default function StudentExam() {
           const qSnap = await getDocs(qQuery);
           let qs = qSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
           
-          const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'isian_singkat': 2, 'essay': 3 };
+          const typeOrder: Record<string, number> = { 'listening': 1, 'pilihan_ganda': 2, 'isian_singkat': 3, 'essay': 4 };
           
           let shouldSaveRandomization = false;
           let generatedQuestionOrder: string[] = [];
@@ -313,28 +314,30 @@ export default function StudentExam() {
                 return idxA - idxB;
               });
             } else {
-              // Group by type and shuffle within each group
-              const groups: Record<number, Question[]> = { 0: [], 1: [], 2: [], 3: [] };
+              // Listening questions are kept in original order and placed first. Other types are shuffled.
+              const listeningGroup = qs.filter(q => (q.type || 'pilihan_ganda') === 'listening');
+              listeningGroup.sort((a, b) => (a.number || 0) - (b.number || 0));
+
+              const groups: Record<number, Question[]> = { 2: [], 3: [], 4: [] };
               qs.forEach(q => {
-                // Kode 4 (listening) will have order 0 to keep them at the top
-                const order = q.type === 'listening' ? 0 : (typeOrder[q.type || 'pilihan_ganda'] || 1);
-                groups[order].push(q);
-              });
-              
-              // Shuffle each group except for listening (0)
-              Object.values(groups).forEach((group, order) => {
-                if (order !== 0) {
-                  group.sort(() => Math.random() - 0.5);
+                const t = q.type || 'pilihan_ganda';
+                if (t !== 'listening') {
+                  const order = typeOrder[t] || 2;
+                  if (!groups[order]) groups[order] = [];
+                  groups[order].push(q);
                 }
               });
               
-              // Combine in order: 0 (Listening), 1 (PG), 2 (IS), 3 (Essay)
-              qs = [...groups[0], ...groups[1], ...groups[2], ...groups[3]];
+              Object.values(groups).forEach(group => {
+                group.sort(() => Math.random() - 0.5);
+              });
+              
+              qs = [...listeningGroup, ...groups[2], ...groups[3], ...groups[4]];
               generatedQuestionOrder = qs.map(q => q.id!);
               shouldSaveRandomization = true;
             }
           } else {
-            // Respect the question sequence but grouped by type
+            // Respect the question sequence but grouped by type (listening first)
             qs = qs.sort((a, b) => {
               const aType = a.type || 'pilihan_ganda';
               const bType = b.type || 'pilihan_ganda';
@@ -1088,11 +1091,46 @@ export default function StudentExam() {
                      <span className="text-slate-400 text-[10px] font-bold uppercase">Bobot: {currentQ.weight}</span>
                   </div>
                   
-                  <div className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed ql-editor whitespace-pre-wrap px-0 py-0" dangerouslySetInnerHTML={{ __html: formatHTML(currentQ.question) }} />
-
-                  {currentQ.type === 'listening' && audioPacket && (
-                    <AudioPlayer audioUrl={audioPacket.audioUrl} allowRepetition={audioPacket.allowRepetition} />
-                  )}
+                                     {currentQ.type === 'listening' && audioItem && (
+                      <div className="mb-6 bg-blue-50/80 border border-blue-200 rounded-xl p-4 flex flex-col gap-3 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                              🎧
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wide">Audio Listening: {audioItem.name}</h4>
+                              <p className="text-[10px] text-blue-600 font-medium">
+                                {audioItem.allowRepeat ? 'Pengulangan Diizinkan (Bisa diputar kembali)' : 'Sekali Putar (Audio hanya dapat diputar sekali)'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <audio 
+                            src={audioItem.data}
+                            controls
+                            controlsList="nodownload noplaybackrate"
+                            onPlay={(e) => {
+                              const audioEl = e.currentTarget;
+                              if (!audioItem.allowRepeat && hasPlayedAudio) {
+                                audioEl.pause();
+                                audioEl.currentTime = 0;
+                                alert('Audio ini hanya diizinkan diputar sekali!');
+                              }
+                            }}
+                            onEnded={() => {
+                              if (!audioItem.allowRepeat) {
+                                setHasPlayedAudio(true);
+                              }
+                            }}
+                            className="w-full h-10 accent-blue-600"
+                          />
+                        </div>
+                      </div>
+                   )}
+                   
+                   <div className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed ql-editor whitespace-pre-wrap px-0 py-0" dangerouslySetInnerHTML={{ __html: formatHTML(currentQ.question) }} />
 
                   {currentQ.type === 'essay' ? (
                      <div className="mt-4 flex flex-col flex-1">

@@ -140,7 +140,7 @@ export default function Home() {
 
   // Background token auto-reset check
   useEffect(() => {
-    if (activeExams.length === 0) return;
+    if (!user || !isAdmin || activeExams.length === 0) return;
 
     const generateNewToken = () => {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -202,7 +202,7 @@ export default function Home() {
     const interval = setInterval(checkAndResetTokens, 10000); // Check every 10 seconds
 
     return () => clearInterval(interval);
-  }, [activeExams]);
+  }, [activeExams, user, isAdmin]);
 
   // Fetch student lists based on valid token or linked active exam
   useEffect(() => {

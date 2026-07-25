@@ -16,6 +16,7 @@ import Subjects from './pages/admin/Subjects';
 import Classes from './pages/admin/Classes';
 import Exams from './pages/admin/Exams';
 import QuestionBank from './pages/admin/QuestionBank';
+import AudioBank from './pages/admin/AudioBank';
 import StudentExam from './pages/exam/StudentExam';
 
 function ProtectedAdminRoute({ children }: { children: React.ReactNode }) {
@@ -65,6 +66,10 @@ const router = createHashRouter([
       {
         path: "subjects",
         element: <Subjects />,
+      },
+      {
+        path: "audio",
+        element: <AudioBank />,
       },
       {
         path: "classes",

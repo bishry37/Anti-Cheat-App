@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot } from 'firebase/firestore';
-import { Exam, Subject, Class } from '../../types';
+import { Exam, Subject, Class, AudioItem } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Calendar, Clock, Copy, CheckCircle2, Search, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -31,6 +31,7 @@ export default function Exams() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classesData, setClassesData] = useState<Class[]>([]);
+  const [audioList, setAudioList] = useState<AudioItem[]>([]);
   const [availablePackets, setAvailablePackets] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -81,7 +82,16 @@ export default function Exams() {
       handleFirestoreError(error, OperationType.GET, 'exams');
     });
 
-    return unsub;
+    const qAudio = query(collection(db, 'audio_banks'), where('adminId', '==', user.uid));
+    const unsubAudio = onSnapshot(qAudio, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as AudioItem));
+      setAudioList(list);
+    });
+
+    return () => {
+      unsub();
+      unsubAudio();
+    };
   }, [user]);
 
   useEffect(() => {
@@ -113,7 +123,7 @@ export default function Exams() {
 
   // Background token auto-reset check
   useEffect(() => {
-    if (exams.length === 0) return;
+    if (!user || exams.length === 0) return;
 
     const generateNewToken = () => {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -148,9 +158,7 @@ export default function Exams() {
               const newToken = generateNewToken();
               const now = Date.now();
               try {
-                const { id, ...examData } = exam;
                 await updateDoc(doc(db, 'exams', exam.id!), {
-                  ...examData,
                   activeToken: newToken,
                   tokenUpdatedAt: now
                 });
@@ -177,7 +185,7 @@ export default function Exams() {
     const interval = setInterval(checkAndResetTokens, 10000); // Check every 10 seconds
 
     return () => clearInterval(interval);
-  }, [exams]);
+  }, [exams, user]);
 
   const fetchPackets = async (subId: string) => {
     if (!user) return;
@@ -439,6 +447,21 @@ export default function Exams() {
                         {formData.subjectId && availablePackets.length === 0 && (
                            <p className="text-[10px] text-red-500 font-bold mt-1 uppercase">* Upload soal di Bank Soal terlebih dahulu</p>
                         )}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Audio Listening (Opsional)</label>
+                        <select
+                          value={formData.audioId || ''}
+                          onChange={e => setFormData({...formData, audioId: e.target.value || undefined})}
+                          className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none"
+                        >
+                          <option value="">-- Tanpa Audio Listening --</option>
+                          {audioList.map(audio => (
+                            <option key={audio.id} value={audio.id}>
+                              {audio.name} ({Math.floor(audio.duration / 60)}:{(Math.floor(audio.duration % 60) < 10 ? '0' : '') + Math.floor(audio.duration % 60)})
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                          <div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Database, BookOpen, Users, MonitorPlay, AlertTriangle, FileBarChart, Settings, LogOut, ShieldCheck, UserCircle, Menu, X } from 'lucide-react';
+import { LayoutDashboard, FileText, Database, BookOpen, Users, MonitorPlay, AlertTriangle, FileBarChart, Settings, LogOut, ShieldCheck, UserCircle, Menu, X, Headphones } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -40,6 +40,7 @@ export default function AdminLayout() {
     { name: 'Manajemen Kelas', path: '/admin/classes', icon: Users },
     { name: 'Manajemen Soal', path: '/admin/questions', icon: Database },
     { name: 'Mata Pelajaran', path: '/admin/subjects', icon: BookOpen },
+    { name: 'Bank Audio', path: '/admin/audio', icon: Headphones },
     { name: 'Monitoring Peserta', path: '/admin/monitor', icon: MonitorPlay },
     { name: 'Hasil Ujian', path: '/admin/results', icon: FileBarChart },
     { name: 'Pengaturan', path: '/admin/settings', icon: Settings },

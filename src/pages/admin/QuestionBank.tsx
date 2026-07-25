@@ -4,7 +4,6 @@ import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, deleteDoc, doc, orderBy, where, writeBatch, updateDoc, addDoc } from 'firebase/firestore';
 import { Question, Subject } from '../../types';
 import { Edit2, Trash2, Loader2, X, Upload, Download, FileSpreadsheet, Search, Check, Plus, FileText } from 'lucide-react';
-import { AudioUploadModal } from '../../components/AudioUploadModal';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBlocker } from 'react-router-dom';
@@ -74,7 +73,6 @@ export default function QuestionBank() {
   const [selectedTemplateFilter, setSelectedTemplateFilter] = useState<string | null>(null);
   const [searchTemplateQuery, setSearchTemplateQuery] = useState<string>('');
   const [searchQuestionQuery, setSearchQuestionQuery] = useState<string>('');
-  const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
@@ -366,15 +364,6 @@ export default function QuestionBank() {
                       new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
                       new TextRun({ text: "Paragraf / Essay (Kunci Jawaban sebagai acuan koreksi)", bold: true, size: 18 })
                     ]
-                  }),
-                  new Paragraph({
-                    spacing: { before: 20, after: 20 },
-                    children: [
-                      new TextRun({ text: "• Kode ", size: 18 }),
-                      new TextRun({ text: "4", bold: true, size: 18, color: "db2777" }),
-                      new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
-                      new TextRun({ text: "Listening (Pilihan Ganda dengan Audio)", bold: true, size: 18 })
-                    ]
                   })
                 ]
               })
@@ -648,10 +637,10 @@ export default function QuestionBank() {
         
         const parseType = (val: string) => {
           const v = val.toLowerCase().trim();
+          if (v === '4' || v.includes('listening') || v.includes('dengar')) return 'listening';
           if (v === '1' || v.includes('ganda') || v.includes('pilihan') || v.includes('pg')) return 'pilihan_ganda';
           if (v === '2' || v.includes('singkat') || v.includes('isian')) return 'isian_singkat';
           if (v === '3' || v.includes('essay') || v.includes('essai') || v.includes('uraian') || v.includes('paragraf') || v.includes('panjang')) return 'essay';
-          if (v === '4' || v.includes('listening') || v.includes('dengar')) return 'listening';
           return 'pilihan_ganda';
         };
 
@@ -1127,21 +1116,6 @@ export default function QuestionBank() {
           >
             {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
             <span>Import Word (DOCX)</span>
-          </button>
-          
-          <button 
-            onClick={() => {
-              if (selectedTemplateFilter && selectedTemplateFilter !== 'all') {
-                setIsAudioModalOpen(true);
-              } else {
-                showCustomAlert('Perhatian', 'Pilih file soal terlebih dahulu.', false);
-              }
-            }}
-            disabled={processing || !selectedTemplateFilter || selectedTemplateFilter === 'all'}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded flex items-center space-x-1.5 transition-colors text-xs font-bold uppercase shadow-sm disabled:opacity-50 disabled:hover:bg-blue-600"
-          >
-            <Upload className="w-4 h-4" />
-            <span>Upload Audio</span>
           </button>
         </div>
       </div>
@@ -1709,15 +1683,6 @@ export default function QuestionBank() {
             </div>
           </div>
         </div>
-      )}
-
-      {isAudioModalOpen && (
-        <AudioUploadModal
-          isOpen={isAudioModalOpen}
-          onClose={() => setIsAudioModalOpen(false)}
-          subjectId={selectedSubject}
-          packetName={selectedTemplateFilter || ''}
-        />
       )}
 
       {/* Reusable modal confirmation overlay */}
