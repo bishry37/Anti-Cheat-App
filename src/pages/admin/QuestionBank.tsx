@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { RichTextEditor } from '../../components/RichTextEditor';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, deleteDoc, doc, orderBy, where, writeBatch, updateDoc, addDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, storage } from '../../lib/firebase';
+import { collection, query, getDocs, deleteDoc, doc, orderBy, where, writeBatch, updateDoc, addDoc, getDoc, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Question, Subject } from '../../types';
 import { Edit2, Trash2, Loader2, X, Upload, Download, FileSpreadsheet, Search, Check, Plus, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -99,6 +100,8 @@ export default function QuestionBank() {
     type: 'pilihan_ganda'
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const [allowReplay, setAllowReplay] = useState(true);
 
   // State for fully functional, custom sandboxed confirmation and alert dialogs
   const [modalConfig, setModalConfig] = useState<{
@@ -222,6 +225,26 @@ export default function QuestionBank() {
     } else {
       setQuestions([]);
       setExistingTemplates([]);
+    }
+  }, [selectedSubject, selectedTemplateFilter]);
+
+  useEffect(() => {
+    if (selectedSubject && selectedTemplateFilter) {
+      const fetchPacketSettings = async () => {
+        try {
+          const docRef = doc(db, 'packetSettings', `${selectedSubject}_${selectedTemplateFilter}`);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setAllowReplay(docSnap.data().allowReplay ?? true);
+          } else {
+            setAllowReplay(true); // Default value
+          }
+        } catch (e) {
+          console.error(e);
+          setAllowReplay(true);
+        }
+      };
+      fetchPacketSettings();
     }
   }, [selectedSubject, selectedTemplateFilter]);
 
@@ -360,9 +383,9 @@ export default function QuestionBank() {
                     spacing: { before: 20, after: 20 },
                     children: [
                       new TextRun({ text: "• Kode ", size: 18 }),
-                      new TextRun({ text: "3", bold: true, size: 18, color: "7c3aed" }),
+                      new TextRun({ text: "4", bold: true, size: 18, color: "059669" }),
                       new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
-                      new TextRun({ text: "Paragraf / Essay (Kunci Jawaban sebagai acuan koreksi)", bold: true, size: 18 })
+                      new TextRun({ text: "Listening (Isi pertanyaan dengan narasi/skrip audio)", bold: true, size: 18 })
                     ]
                   })
                 ]
@@ -548,19 +571,39 @@ export default function QuestionBank() {
               }),
               shortTable,
 
-              // Table 3
+              // Table 4
               new Paragraph({
                 spacing: { before: 300, after: 100 },
                 children: [
                   new TextRun({
-                    text: "3. TABEL SOAL PARAGRAF / ESSAY (Jenis Soal = 3)",
+                    text: "4. TABEL SOAL LISTENING (Jenis Soal = 4)",
                     bold: true,
                     size: 20,
-                    color: "7c3aed"
+                    color: "059669"
                   })
                 ]
               }),
-              essayTable,
+              new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                rows: [
+                  new TableRow({
+                    children: [
+                      createCell("NO", true, "d1fae5", 6),
+                      createCell("PERTANYAAN / SKRIP AUDIO", true, "d1fae5", 58),
+                      createCell("JENIS", true, "d1fae5", 8),
+                      createCell("KUNCI (PEDOMAN)", true, "d1fae5", 28),
+                    ]
+                  }),
+                  new TableRow({
+                    children: [
+                      createCell("1", false),
+                      createCell("What is the main topic of the listening audio?", false),
+                      createCell("4", false),
+                      createCell("The importance of listening skills.", false),
+                    ]
+                  })
+                ]
+              }),
             ]
           }
         ]
@@ -640,6 +683,7 @@ export default function QuestionBank() {
           if (v === '1' || v.includes('ganda') || v.includes('pilihan') || v.includes('pg')) return 'pilihan_ganda';
           if (v === '2' || v.includes('singkat') || v.includes('isian')) return 'isian_singkat';
           if (v === '3' || v.includes('essay') || v.includes('essai') || v.includes('uraian') || v.includes('paragraf') || v.includes('panjang')) return 'essay';
+          if (v === '4' || v.includes('listening') || v.includes('dengar')) return 'listening';
           return 'pilihan_ganda';
         };
 
@@ -796,22 +840,36 @@ export default function QuestionBank() {
     reader.readAsArrayBuffer(file);
   };
 
-  const handleDeleteQuestion = (id: string) => {
-    showCustomConfirm(
-      'Hapus Soal',
-      'Apakah Anda yakin ingin menghapus soal ini dari bank soal?',
-      async () => {
-        try {
-          await deleteDoc(doc(db, 'questions', id));
-          fetchQuestions();
-          setIsDirty(true);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.DELETE, 'questions');
-        }
-      },
-      true,
-      'Hapus Soal'
-    );
+  const handleAudioUpload = async (file: File) => {
+    if (!selectedSubject || !selectedTemplateFilter) return;
+    setProcessing(true);
+    try {
+      const storageRef = ref(storage, `audio/${selectedSubject}/${selectedTemplateFilter}/${file.name}`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      
+      const docRef = doc(db, 'packetSettings', `${selectedSubject}_${selectedTemplateFilter}`);
+      await setDoc(docRef, { 
+        audioURL: downloadURL,
+        allowReplay: true,
+        updatedAt: Date.now() 
+      }, { merge: true });
+      showCustomAlert('Berhasil', 'Audio berhasil diunggah.', true);
+    } catch (err) {
+      console.error(err);
+      showCustomAlert('Gagal', 'Gagal mengunggah audio.', false);
+    }
+    setProcessing(false);
+  };
+
+  const handleUpdateAudioSettings = async (allowReplay: boolean) => {
+    if (!selectedSubject || !selectedTemplateFilter) return;
+    try {
+      const docRef = doc(db, 'packetSettings', `${selectedSubject}_${selectedTemplateFilter}`);
+      await setDoc(docRef, { allowReplay }, { merge: true });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleDeleteTemplate = (templateName: string) => {
@@ -1091,6 +1149,30 @@ export default function QuestionBank() {
         </div>
 
         <div className="flex items-center space-x-2">
+          {selectedTemplateFilter && selectedTemplateFilter !== 'all' && (
+            <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 p-1 rounded">
+              <input 
+                type="file" 
+                accept="audio/*" 
+                className="hidden" 
+                ref={audioInputRef} 
+                onChange={(e) => e.target.files && handleAudioUpload(e.target.files[0])}
+              />
+              <button
+                onClick={() => audioInputRef.current?.click()}
+                className="text-xs font-bold uppercase text-slate-700 px-3 py-1.5 hover:bg-slate-200 rounded"
+              >
+                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Upload Audio'}
+              </button>
+              <label className="flex items-center space-x-1 text-xs text-slate-600 font-bold">
+                <input type="checkbox" checked={allowReplay} onChange={(e) => {
+                  setAllowReplay(e.target.checked);
+                  handleUpdateAudioSettings(e.target.checked);
+                }} />
+                <span>Bisa Ulang</span>
+              </label>
+            </div>
+          )}
           <button 
             onClick={handleDownloadTemplate}
             className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded flex items-center space-x-1.5 transition-colors text-xs font-bold uppercase border border-slate-300 shadow-sm"

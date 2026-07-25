@@ -42,7 +42,9 @@ export interface Question {
   correctAnswer: string;
   weight: number;
   packetName?: string;
-  type?: 'pilihan_ganda' | 'isian_singkat' | 'essay';
+  type?: 'pilihan_ganda' | 'isian_singkat' | 'essay' | 'listening';
+  audioURL?: string;
+  allowReplay?: boolean;
   createdAt: number;
 }
 
