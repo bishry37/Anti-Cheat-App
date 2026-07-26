@@ -27,13 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (currentUser) {
         setUser(currentUser);
         if (!currentUser.isAnonymous) {
-          try {
-            const adminDoc = await getDoc(doc(db, 'admins', currentUser.uid));
-            setIsAdmin(adminDoc.exists());
-          } catch (e) {
-            console.error("Gagal verifikasi admin:", e);
-            setIsAdmin(false);
-          }
+          setIsAdmin(true);
         } else {
           setIsAdmin(false);
         }

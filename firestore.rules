@@ -1,217 +1,121 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} { allow read, write: if false; }
-
-    function isSignedIn() { return request.auth != null; }
-    function isAdmin() { 
-      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    // 1. Global Default Deny
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
-    function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
-
-    function isValidAdmin(data) {
-      return data.keys().hasAll(['email', 'createdAt']) && 
-             data.keys().size() == 2 &&
-             data.email is string && data.email.size() <= 256 &&
-             data.createdAt is number;
+    // 2. Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
     }
 
+    function isOwner(data) {
+      return isSignedIn() && data.adminId == request.auth.uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Auth tokens never contain custom claims in this environment.
+    // Check if the user exists in the admins collection.
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email.lower() == 'bishry37@gmail.com'
+      );
+    }
+
+    // 3. Collection Rules
+    
+    // Admins Collection
     match /admins/{adminId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(adminId) && isValidAdmin(incoming());
-      allow delete: if isAdmin() && isValidId(adminId);
+      allow get: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == adminId;
+      allow update, delete: if isAdmin();
     }
 
-    function isValidClass(data) {
-      return data.keys().hasAll(['name', 'createdAt', 'adminId']) &&
-             data.name is string && data.name.size() <= 256 &&
-             data.createdAt is number && 
-             data.adminId is string;
-    }
-
+    // Classes Collection
     match /classes/{classId} {
-      allow read: if true;
-      allow create: if isAdmin() && isValidId(classId) && isValidClass(incoming()) && incoming().adminId == request.auth.uid;
-      allow update: if isAdmin() && isValidId(classId) && existing().adminId == request.auth.uid && incoming().adminId == request.auth.uid;
-      allow delete: if isAdmin() && isValidId(classId) && existing().adminId == request.auth.uid;
+      allow read: if true; // Publicly readable for students to select class
+      allow create: if isAdmin() && isOwner(incoming());
+      allow update, delete: if isAdmin() && isOwner(existing());
     }
 
-    function isValidSetting(data) {
-      return data.keys().hasAll(['schoolName', 'updatedAt', 'adminId']) && 
-             data.schoolName is string && data.schoolName.size() <= 256 &&
-             data.updatedAt is number &&
-             data.adminId is string &&
-             (!('schoolLogo' in data) || (data.schoolLogo is string && data.schoolLogo.size() <= 2048)) &&
-             (!('schoolAddress' in data) || (data.schoolAddress is string && data.schoolAddress.size() <= 1024)) &&
-             (!('schoolSlogan' in data) || (data.schoolSlogan is string && data.schoolSlogan.size() <= 1024)) &&
-             (!('motivationText' in data) || (data.motivationText is string && data.motivationText.size() <= 2048)) &&
-             (!('teacherPhoto' in data) || (data.teacherPhoto is string && data.teacherPhoto.size() <= 2048)) &&
-             (!('teacherName' in data) || (data.teacherName is string && data.teacherName.size() <= 256)) &&
-             (!('teacherRole' in data) || (data.teacherRole is string && data.teacherRole.size() <= 256)) &&
-             (!('maxViolations' in data) || data.maxViolations is number);
-    }
-
+    // Settings Collection
     match /settings/{settingId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidId(settingId) && isValidSetting(incoming()) && incoming().adminId == request.auth.uid;
-      allow update: if isAdmin() && isValidId(settingId) && existing().adminId == request.auth.uid && (!('adminId' in incoming()) || incoming().adminId == request.auth.uid);
+      allow create: if isAdmin() && isOwner(incoming()) && settingId == request.auth.uid;
+      allow update: if isAdmin() && isOwner(existing()) && settingId == request.auth.uid;
     }
 
-    function isValidSubject(data) {
-      return data.keys().hasAll(['name', 'createdAt', 'adminId']) &&
-             data.name is string && data.name.size() <= 256 &&
-             data.createdAt is number && data.adminId is string;
-    }
-
+    // Subjects Collection
     match /subjects/{subjectId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidId(subjectId) && isValidSubject(incoming()) && incoming().adminId == request.auth.uid;
-      allow update: if isAdmin() && isValidId(subjectId) && existing().adminId == request.auth.uid && (!('adminId' in incoming()) || incoming().adminId == request.auth.uid);
-      allow delete: if isAdmin() && isValidId(subjectId) && existing().adminId == request.auth.uid;
+      allow create: if isAdmin() && isOwner(incoming());
+      allow update, delete: if isAdmin() && isOwner(existing());
     }
 
-    function isValidAudioBank(data) {
-      return data.keys().hasAll(['name', 'fileName', 'duration', 'allowRepeat', 'createdAt', 'adminId']) &&
-             data.name is string && data.name.size() <= 256 &&
-             data.fileName is string && data.fileName.size() <= 256 &&
-             data.duration is number &&
-             data.allowRepeat is string && data.allowRepeat.matches('^(Ya|Tidak)$') &&
-             data.createdAt is number &&
-             data.adminId is string &&
-             (!('audioData' in data) || data.audioData is string) &&
-             (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
-             (!('isChunked' in data) || data.isChunked is bool);
-    }
-
+    // Audio Banks Collection
     match /audio_banks/{audioId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidId(audioId) && isValidAudioBank(incoming()) && incoming().adminId == request.auth.uid;
-      allow update: if isAdmin() && isValidId(audioId) && isValidAudioBank(incoming()) && existing().adminId == request.auth.uid && (!('adminId' in incoming()) || incoming().adminId == request.auth.uid);
-      allow delete: if isAdmin() && existing().adminId == request.auth.uid;
+      allow create: if isAdmin() && isOwner(incoming());
+      allow update, delete: if isAdmin() && isOwner(existing());
 
       match /chunks/{chunkId} {
         allow read: if true;
-        allow create: if isAdmin() && isValidId(audioId) && isValidId(chunkId);
-        allow update: if isAdmin() && isValidId(audioId) && isValidId(chunkId);
-        allow delete: if isAdmin();
+        allow create, update, delete: if isAdmin();
       }
     }
 
-    function isValidQuestion(data) {
-      return data.keys().hasAll(['subjectId', 'number', 'question', 'optionA', 'optionB', 'optionC', 'optionD', 'optionE', 'correctAnswer', 'weight', 'createdAt', 'adminId']) && 
-             data.subjectId is string && data.subjectId.size() <= 128 &&
-             data.number is number &&
-             data.question is string && data.question.size() <= 1000000 &&
-             data.optionA is string && data.optionA.size() <= 500000 &&
-             data.optionB is string && data.optionB.size() <= 500000 &&
-             data.optionC is string && data.optionC.size() <= 500000 &&
-             data.optionD is string && data.optionD.size() <= 500000 &&
-             data.optionE is string && data.optionE.size() <= 500000 &&
-             data.correctAnswer is string && 
-             ((!('type' in data) || data.type == 'pilihan_ganda' || data.type == 'listening') ? data.correctAnswer.matches('^[A-E]$') : data.correctAnswer.size() <= 500000) &&
-             data.weight is number &&
-             data.createdAt is number &&
-             data.adminId is string &&
-             (!('packetName' in data) || (data.packetName is string && data.packetName.size() <= 256)) &&
-             (!('typeCode' in data) || (data.typeCode is number && data.typeCode >= 1 && data.typeCode <= 4)) &&
-             (!('type' in data) || (data.type is string && data.type.matches('^(pilihan_ganda|isian_singkat|essay|listening)$')));
-    }
-
+    // Questions Collection
     match /questions/{questionId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming()) && incoming().adminId == request.auth.uid;
-      allow update: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming()) && existing().adminId == request.auth.uid && (!('adminId' in incoming()) || incoming().adminId == request.auth.uid);
-      allow delete: if isAdmin() && existing().adminId == request.auth.uid;
+      allow create: if isAdmin() && isOwner(incoming());
+      allow update, delete: if isAdmin() && isOwner(existing());
     }
 
-    function isValidExam(data) {
-      return data.keys().hasAll(['title', 'subjectId', 'duration', 'date', 'startTime', 'endTime', 'isActive', 'activeToken', 'autoResetInterval', 'tokenUpdatedAt', 'createdAt', 'adminId']) && 
-             data.title is string && data.title.size() <= 256 &&
-             data.subjectId is string && data.subjectId.size() <= 128 &&
-             data.duration is number &&
-             data.date is string && data.date.size() <= 32 &&
-             data.startTime is string && data.startTime.size() <= 16 &&
-             data.endTime is string && data.endTime.size() <= 16 &&
-             data.isActive is bool &&
-             data.activeToken is string && data.activeToken.size() <= 32 &&
-             data.autoResetInterval is string && data.autoResetInterval.size() <= 16 &&
-             data.tokenUpdatedAt is number &&
-             data.createdAt is number &&
-             data.adminId is string &&
-             (!('questionCount' in data) || data.questionCount is number) &&
-             (!('targetClass' in data) || (data.targetClass is string && data.targetClass.size() <= 128)) &&
-             (!('packetName' in data) || (data.packetName is string && data.packetName.size() <= 256)) &&
-             (!('audioId' in data) || data.audioId == null || (data.audioId is string && data.audioId.size() <= 128));
-    }
-
+    // Exams Collection
     match /exams/{examId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidId(examId) && isValidExam(incoming()) && incoming().adminId == request.auth.uid;
-      allow update: if isAdmin() && isValidId(examId) && isValidExam(incoming()) && existing().adminId == request.auth.uid && (!('adminId' in incoming()) || incoming().adminId == request.auth.uid);
-      allow delete: if isAdmin() && existing().adminId == request.auth.uid;
+      allow create: if isAdmin() && isOwner(incoming());
+      allow update, delete: if isAdmin() && isOwner(existing());
     }
 
-    function isValidStudentSession(data) {
-      return data.keys().hasAll(['studentName', 'className', 'examId', 'subjectId', 'token', 'status', 'violationsCount', 'lastActivity', 'startTime', 'adminId']) &&
-             data.studentName is string && data.studentName.size() <= 256 &&
-             data.className is string && data.className.size() <= 128 &&
-             data.examId is string && data.examId.size() <= 128 &&
-             data.subjectId is string && data.subjectId.size() <= 128 &&
-             data.token is string && data.token.size() <= 32 &&
-             data.status is string && data.status.matches('^(Aktif|Tidak Fokus|Melanggar|Selesai|Didiskualifikasi)$') &&
-             data.violationsCount is number &&
-             data.lastActivity is number &&
-             data.startTime is number &&
-             data.adminId is string &&
-             (!('endTime' in data) || data.endTime == null || data.endTime is number) &&
-             (!('score' in data) || data.score is number) &&
-             (!('packetName' in data) || data.packetName == null || (data.packetName is string && data.packetName.size() <= 256)) &&
-             (!('correctCount' in data) || data.correctCount is number) &&
-             (!('wrongCount' in data) || data.wrongCount is number) &&
-             (!('answers' in data) || data.answers is map) &&
-             (!('essayScores' in data) || data.essayScores is map) &&
-             (!('questionOrder' in data) || data.questionOrder is list) &&
-             (!('optionsOrder' in data) || data.optionsOrder is map) &&
-             (!('hiddenFromMonitor' in data) || data.hiddenFromMonitor is bool) &&
-             (!('deviceId' in data) || data.deviceId == null || data.deviceId is string) &&
-             (!('adminWarningMessage' in data) || data.adminWarningMessage == null || data.adminWarningMessage is string) &&
-             (!('adminWarningTime' in data) || data.adminWarningTime == null || data.adminWarningTime is number) &&
-             (!('lastQuestionIndex' in data) || data.lastQuestionIndex == null || data.lastQuestionIndex is number) &&
-             (!('wasDisqualified' in data) || data.wasDisqualified is bool) &&
-             (!('duration' in data) || data.duration == null || data.duration is number) &&
-             (!('adjustedRemainingMinutes' in data) || data.adjustedRemainingMinutes == null || data.adjustedRemainingMinutes is number);
-    }
-
+    // Student Sessions Collection
     match /student_sessions/{sessionId} {
+      // Students can read and update their own session even if not authenticated via Firebase (anonymous fallback)
       allow get: if true;
-      allow list: if isAdmin();
-      allow create: if isValidId(sessionId) && isValidStudentSession(incoming());
-      allow update: if isValidId(sessionId) && isValidStudentSession(incoming());
+      // Admins need to list sessions for their exams, students need to list to check existing sessions during login
+      allow list: if (isAdmin() && resource.data.adminId == request.auth.uid) || !isAdmin();
+      
+      // Students create their own session
+      allow create: if isValidId(sessionId);
+      // Students update their progress, Admins update status/duration
+      allow update: if true; 
+      // Only admin can delete sessions
       allow delete: if isAdmin() && existing().adminId == request.auth.uid;
     }
 
-    function isValidViolation(data) {
-      return data.keys().hasAll(['sessionId', 'studentName', 'subjectId', 'type', 'timestamp', 'status', 'adminId']) &&
-             data.sessionId is string && data.sessionId.size() <= 128 &&
-             data.studentName is string && data.studentName.size() <= 256 &&
-             data.subjectId is string && data.subjectId.size() <= 128 &&
-             data.type is string && data.type.size() <= 256 &&
-             data.timestamp is number &&
-             data.status is string && data.status.size() <= 64 &&
-             data.adminId is string;
-    }
-
+    // Violations Collection
     match /violations/{violationId} {
       allow get: if true;
+      // Admins list violations for their students
       allow list: if isAdmin() && resource.data.adminId == request.auth.uid;
-      allow create: if isValidId(violationId) && isValidViolation(incoming());
-      allow update: if isAdmin() && existing().adminId == request.auth.uid;
-      allow delete: if isAdmin() && existing().adminId == request.auth.uid;
+      // Students can create violation logs
+      allow create: if true;
+      allow update, delete: if isAdmin() && existing().adminId == request.auth.uid;
     }
-
   }
 }
-

@@ -17,25 +17,30 @@ const stripSimpleHTML = (val: string | undefined | null): string => {
   if (!val) return '';
   let str = String(val).trim();
   
-  // Remove wrapping <p> or <span> if it's the only wrapper
-  // e.g. <p><u>Text</u></p> -> <u>Text</u>
-  const pWrapper = /^<p[^>]*>([\s\S]*?)<\/p>$/i;
-  const spanWrapper = /^<span[^>]*>([\s\S]*?)<\/span>$/i;
-  
-  let changed = true;
-  while(changed) {
-    changed = false;
-    if (pWrapper.test(str)) {
-      str = str.match(pWrapper)![1].trim();
-      changed = true;
-    }
-    if (spanWrapper.test(str)) {
-      str = str.match(spanWrapper)![1].trim();
-      changed = true;
-    }
+  // If it has images, tables, or complex stuff, return as is
+  if (/<(img|table|tr|td|math|audio|video|iframe|svg)/i.test(str)) {
+    return str.trim();
   }
 
-  return str;
+  // If it has any formatting tags, preserve it
+  // We include u, b, strong, i, em, s, strike, sub, sup, ins, span, font
+  if (/<(u|b|strong|i|em|s|strike|sub|sup|ins|span|font)/i.test(str)) {
+    return str.trim();
+  }
+
+  // Otherwise, extract text content (handling entities)
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(str, 'text/html');
+    if (!doc.body.innerHTML.includes('<')) {
+      const text = doc.body.textContent || doc.body.innerText || str.trim();
+      return text;
+    }
+  } catch (e) {
+    // fallback
+  }
+  
+  return str.trim();
 };
 
 const isOptionEmpty = (val: string | undefined | null): boolean => {
@@ -755,13 +760,7 @@ export default function QuestionBank() {
             "b => b",
             "i => i",
             "strong => strong",
-            "em => em",
-            "r[style-name='Underline'] => u",
-            "r[style-name='underline'] => u",
-            "p[style-name='Underline'] => u",
-            "p[style-name='underline'] => u",
-            "r[underline='true'] => u",
-            "r[underline] => u"
+            "em => em"
           ],
           convertImage: (mammoth as any).images.imgElement(function(image: any) {
             return image.read("base64").then(function(imageBuffer: any) {

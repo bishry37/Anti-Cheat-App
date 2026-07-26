@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db } from '../../lib/firebase';
 import { collection, query, getDocs, where, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { 
   Users, 
@@ -271,8 +271,8 @@ export default function AdminDashboard() {
             ...prev,
             totalViolations: snapshot.size
           }));
-        }, (error) => {
-          handleFirestoreError(error, OperationType.LIST, 'violations');
+        }, (err) => {
+          console.error("Error watching violations in real-time:", err);
         });
 
       } catch (e) {

@@ -110,26 +110,6 @@ export default function StudentExam() {
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
 
   useEffect(() => {
-    // Run math rendering on current question and options whenever question or questions change
-    if (typeof katex !== 'undefined') {
-      const containers = document.querySelectorAll('.ql-editor');
-      containers.forEach(container => {
-        try {
-          const formulas = container.querySelectorAll('.ql-formula');
-          formulas.forEach(f => {
-            const tex = f.getAttribute('data-value');
-            if (tex) {
-              katex.render(tex, f as HTMLElement, { throwOnError: false, displayMode: false });
-            }
-          });
-        } catch (e) {
-          console.warn('KaTeX rendering failed', e);
-        }
-      });
-    }
-  }, [currentQuestionIndex, questions]);
-
-  useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
@@ -1020,6 +1000,24 @@ export default function StudentExam() {
   }
 
   const currentQ = questions[currentQuestionIndex];
+
+  useEffect(() => {
+    // Run math rendering on current question and options
+    const containers = document.querySelectorAll('.ql-editor');
+    containers.forEach(container => {
+      try {
+        const formulas = container.querySelectorAll('.ql-formula');
+        formulas.forEach(f => {
+          const tex = f.getAttribute('data-value');
+          if (tex) {
+            katex.render(tex, f as HTMLElement, { throwOnError: false, displayMode: false });
+          }
+        });
+      } catch (e) {
+        console.warn('KaTeX rendering failed', e);
+      }
+    });
+  }, [currentQuestionIndex, questions, currentQ]);
 
   return (
     <div ref={containerRef} className="h-screen overflow-hidden bg-slate-50 flex flex-col select-none">

@@ -2,11 +2,10 @@
 @import "quill/dist/quill.snow.css";
 @import "katex/dist/katex.min.css";
 
-/* Ensure underlines are clearly visible globally */
-u, ins, [style*="text-decoration: underline"], [style*="text-decoration:underline"] {
+.ql-editor u, .prose u, .ql-editor ins, .prose ins, [style*="text-decoration: underline"], [style*="text-decoration:underline"] {
   text-decoration: underline !important;
   text-decoration-thickness: 1.5px !important;
-  text-underline-offset: 3px !important;
+  text-underline-offset: 2px !important;
   text-decoration-color: currentColor !important;
 }
 

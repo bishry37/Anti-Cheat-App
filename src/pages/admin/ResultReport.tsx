@@ -537,7 +537,11 @@ export default function ResultReport() {
     setConfirmDeleteExam(prev => ({ ...prev, isOpen: false }));
     setLoading(true);
     try {
-      const q = query(collection(db, 'student_sessions'), where('examId', '==', examId));
+      const q = query(
+        collection(db, 'student_sessions'), 
+        where('adminId', '==', user.uid),
+        where('examId', '==', examId)
+      );
       const snap = await getDocs(q);
       const deletePromises = snap.docs.map(d => deleteDoc(d.ref));
       await Promise.all(deletePromises);

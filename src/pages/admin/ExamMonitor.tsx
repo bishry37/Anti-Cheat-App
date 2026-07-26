@@ -265,10 +265,14 @@ export default function ExamMonitor() {
     setSelectedSession(session);
     // Fetch violations for this session
     try {
-      const vSnap = await getDocs(query(collection(db, 'violations')));
+      const vQuery = query(
+        collection(db, 'violations'), 
+        where('adminId', '==', user.uid),
+        where('sessionId', '==', session.id)
+      );
+      const vSnap = await getDocs(vQuery);
       const vols = vSnap.docs
         .map(d => d.data() as Violation)
-        .filter(v => v.sessionId === session.id)
         .sort((a, b) => b.timestamp - a.timestamp);
       setSessionViolations(vols);
     } catch (e) { console.error(e); }
