@@ -2,13 +2,15 @@
 @import "quill/dist/quill.snow.css";
 @import "katex/dist/katex.min.css";
 
-.ql-editor u, .prose u {
+.ql-editor u, .prose u, .ql-editor ins, .prose ins {
   text-decoration: underline !important;
+  text-decoration-thickness: 1px !important;
+  text-underline-offset: 2px !important;
 }
 
 /* Improve readability for Arabic and complex scripts */
 .ql-editor, .prose {
-  line-height: 1.7;
+  line-height: 1.8 !important;
   font-variant-numeric: tabular-nums;
 }
 

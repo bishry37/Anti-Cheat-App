@@ -7,6 +7,8 @@ import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatHTML, calculateSmartPoints, normalizeTextForGrading } from '../../utils/textFormat';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 const isOptionEmpty = (val: string | undefined | null): boolean => {
   if (!val) return true;
@@ -308,6 +310,24 @@ export default function ResultReport() {
 
     return () => unsub();
   }, [filterExam, filterClass, user, dummyTrigger]);
+
+  useEffect(() => {
+    // Run math rendering on all elements with ql-editor class
+    const containers = document.querySelectorAll('.ql-editor');
+    containers.forEach(container => {
+      try {
+        const formulas = container.querySelectorAll('.ql-formula');
+        formulas.forEach(f => {
+          const tex = f.getAttribute('data-value');
+          if (tex) {
+            katex.render(tex, f as HTMLElement, { throwOnError: false, displayMode: false });
+          }
+        });
+      } catch (e) {
+        console.warn('KaTeX rendering failed', e);
+      }
+    });
+  }, [selectedSession, sessions, exams, sessionQuestions]);
 
   const fetchClasses = async () => {
     if (!user) return;
