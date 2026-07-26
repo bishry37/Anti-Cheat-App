@@ -331,8 +331,7 @@ export default function Home() {
       let existingSessionData: StudentSession | null = null;
 
       if (!sessionSnap.empty) {
-        // Sort sessions to prioritize active status, then latest activity time,
-        // to handle duplicate records safely (which can happen on production deploys if deleteDoc was restricted)
+        // Sort sessions to prioritize active status, then latest activity time
         const sortedDocs = [...sessionSnap.docs].sort((a, b) => {
           const sa = a.data() as StudentSession;
           const sb = b.data() as StudentSession;
@@ -340,6 +339,7 @@ export default function Home() {
           const getPriority = (status: string) => {
             if (status === 'Aktif') return 3;
             if (status === 'Melanggar') return 2;
+            if (status === 'Didiskualifikasi') return 1;
             if (status === 'Selesai') return 0;
             return 1;
           };
@@ -350,6 +350,15 @@ export default function Home() {
           
           return (sb.lastActivity || 0) - (sa.lastActivity || 0);
         });
+
+        // 1. Strict finished check: if ANY existing session doc for this candidate is finished
+        const hasFinished = sessionSnap.docs.some(d => (d.data() as StudentSession).status === 'Selesai');
+        if (hasFinished) {
+          setErrorMessage('Anda sudah menyelesaikan ujian ini sebelumnya.');
+          setLoading(false);
+          setIsLoggingInStudent(false);
+          return;
+        }
 
         const docSnap = sortedDocs[0];
         existingSessionData = docSnap.data() as StudentSession;
@@ -377,7 +386,15 @@ export default function Home() {
           localStorage.setItem('cbt_device_id', currentDeviceId);
         }
 
-        if (existingSessionData.status === 'Aktif' || existingSessionData.status === 'Melanggar') {
+        // Multi-device access check:
+        // If teacher granted permission after disqualification (wasDisqualified === true or deviceId is null)
+        // OR if lastActivity is 0/offline, allow logging in on ANY device.
+        const isRestoredOrInactive = existingSessionData.wasDisqualified || 
+          !existingSessionData.deviceId || 
+          existingSessionData.lastActivity === 0 || 
+          (Date.now() - existingSessionData.lastActivity) > 30000;
+
+        if (!isRestoredOrInactive && (existingSessionData.status === 'Aktif' || existingSessionData.status === 'Melanggar')) {
           if (existingSessionData.deviceId && existingSessionData.deviceId !== currentDeviceId) {
             setErrorMessage('Akun Anda sedang digunakan di perangkat/browser lain.');
             setLoading(false);
@@ -396,15 +413,55 @@ export default function Home() {
       // Login to Firebase (Anonymous)
       const uid = await loginAsStudent();
       
+      // Time recovery logic for power outage / unexpected crash / browser exit
+      let resumeRemainingSecs: number | undefined = undefined;
+      let resumeDurationMinutes = matchingExam.duration;
+
+      if (isResume && existingSessionData) {
+        // Priority 1: Check saved remainingSeconds from Firestore
+        if (typeof existingSessionData.remainingSeconds === 'number' && existingSessionData.remainingSeconds > 0) {
+          resumeRemainingSecs = existingSessionData.remainingSeconds;
+        } else {
+          // Priority 2: Check local backup remaining time
+          try {
+            const localSaved = localStorage.getItem(`cbt_remaining_time_${targetUid}_${matchingExam.id}`) ||
+                               localStorage.getItem(`cbt_remaining_time_${uid}_${matchingExam.id}`);
+            if (localSaved) {
+              const parsedSecs = parseInt(localSaved, 10);
+              if (!isNaN(parsedSecs) && parsedSecs > 0) {
+                resumeRemainingSecs = parsedSecs;
+              }
+            }
+          } catch (e) {
+            console.error("Gagal membaca local remaining time backup:", e);
+          }
+        }
+
+        if (resumeRemainingSecs !== undefined && resumeRemainingSecs > 0) {
+          resumeDurationMinutes = resumeRemainingSecs / 60;
+        } else if (existingSessionData.duration) {
+          // Fallback: calculate elapsed time if no remainingSeconds was saved
+          const elapsedSecs = Math.floor((Date.now() - existingSessionData.startTime) / 1000);
+          const totalSecs = Math.round(existingSessionData.duration * 60);
+          resumeRemainingSecs = Math.max(0, totalSecs - elapsedSecs);
+          resumeDurationMinutes = resumeRemainingSecs / 60;
+        } else {
+          resumeRemainingSecs = Math.round(matchingExam.duration * 60);
+          resumeDurationMinutes = matchingExam.duration;
+        }
+      }
+
       const sessionData: StudentSession = isResume ? {
         ...existingSessionData!,
         status: 'Aktif',
         lastActivity: Date.now(),
+        startTime: Date.now(), // Reset startTime to NOW so countdown starts smoothly with remaining duration
+        duration: resumeDurationMinutes,
+        remainingSeconds: resumeRemainingSecs,
         token: examToken, // update token in case it changed
-        deviceId: currentDeviceId,
+        deviceId: currentDeviceId, // Always bind new deviceId on resume so student can use ANY device
         examTitle: existingSessionData?.examTitle || matchingExam.title,
         packetName: existingSessionData?.packetName || matchingExam.packetName,
-        duration: existingSessionData?.duration || matchingExam.duration,
       } : {
         studentName: upperName,
         className: matchingExam.targetClass || 'Tidak Diketahui',
@@ -413,6 +470,7 @@ export default function Home() {
         packetName: matchingExam.packetName || '',
         examTitle: matchingExam.title,
         duration: matchingExam.duration,
+        remainingSeconds: Math.round(matchingExam.duration * 60),
         token: examToken,
         status: 'Aktif',
         violationsCount: 0,

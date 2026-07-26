@@ -245,6 +245,7 @@ export default function StudentExam() {
       // Clear local backup
       if (examVal.id && user?.uid) {
         localStorage.removeItem(`cbt_answers_${user.uid}_${examVal.id}`);
+        localStorage.removeItem(`cbt_remaining_time_${user.uid}_${examVal.id}`);
       }
 
       // Safety: Exit fullscreen
@@ -373,9 +374,19 @@ export default function StudentExam() {
           
           // Calculate initial time left
           const activeDuration = typeof sessData.duration === 'number' ? sessData.duration : exData.duration;
-          const elapsed = Math.floor((Date.now() - sessData.startTime) / 1000);
-          const totalSecs = Math.round(activeDuration * 60);
-          const calculatedTimeLeft = Math.max(0, totalSecs - elapsed);
+          let calculatedTimeLeft = 0;
+          if (typeof sessData.remainingSeconds === 'number' && sessData.remainingSeconds > 0) {
+            calculatedTimeLeft = sessData.remainingSeconds;
+          } else {
+            const localSaved = localStorage.getItem(`cbt_remaining_time_${user.uid}_${exData.id}`);
+            if (localSaved && !isNaN(parseInt(localSaved, 10)) && parseInt(localSaved, 10) > 0) {
+              calculatedTimeLeft = parseInt(localSaved, 10);
+            } else {
+              const elapsed = Math.floor((Date.now() - sessData.startTime) / 1000);
+              const totalSecs = Math.round(activeDuration * 60);
+              calculatedTimeLeft = Math.max(0, totalSecs - elapsed);
+            }
+          }
 
           // Fetch questions
           let qQuery;
@@ -615,6 +626,11 @@ export default function StudentExam() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       isUnloading.current = true;
+      if (user?.uid && session?.examId && timeLeftRef.current > 0) {
+        try {
+          localStorage.setItem(`cbt_remaining_time_${user.uid}_${session.examId}`, String(timeLeftRef.current));
+        } catch (e) {}
+      }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('unload', handleBeforeUnload); // Fallback
@@ -622,7 +638,7 @@ export default function StudentExam() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('unload', handleBeforeUnload);
     };
-  }, []);
+  }, [user?.uid, session?.examId]);
 
   const recordViolation = async (type: string, message: string) => {
     if (isUnloading.current) return;
@@ -849,29 +865,46 @@ export default function StudentExam() {
     }
   };
 
+  // Keep timeLeftRef in sync with state
+  const timeLeftRef = useRef<number>(timeLeft);
+  useEffect(() => {
+    timeLeftRef.current = timeLeft;
+  }, [timeLeft]);
+
   // Timer & Heartbeat
   useEffect(() => {
     if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 1) {
+        const next = prev - 1;
+        timeLeftRef.current = Math.max(0, next);
+        if (next <= 0) {
           clearInterval(timer);
           submitExam();
           return 0;
         }
-        return prev - 1;
+        return next;
       });
     }, 1000);
 
     const heartbeat = setInterval(() => {
-      updateDoc(doc(db, 'student_sessions', user!.uid), {
-        lastActivity: Date.now()
-      }).catch(()=>{});
-    }, 10000); // every 10s
+      const curSecs = timeLeftRef.current;
+      if (user?.uid) {
+        updateDoc(doc(db, 'student_sessions', user.uid), {
+          lastActivity: Date.now(),
+          remainingSeconds: curSecs
+        }).catch(()=>{});
+        if (session.examId) {
+          try {
+            localStorage.setItem(`cbt_remaining_time_${user.uid}_${session.examId}`, String(curSecs));
+          } catch (e) {}
+        }
+      }
+    }, 5000); // every 5s for high precision
 
     return () => { clearInterval(timer); clearInterval(heartbeat); };
-  }, [session?.status, isFullscreen, isSubmittingOrFinished]);
+  }, [session?.status, session?.examId, user?.uid, isFullscreen, isSubmittingOrFinished, submitExam]);
 
   // Handle question change and persistence
   const changeQuestion = async (newIndex: number) => {
@@ -880,7 +913,8 @@ export default function StudentExam() {
       try {
         await updateDoc(doc(db, 'student_sessions', user.uid), {
           lastQuestionIndex: newIndex,
-          lastActivity: Date.now()
+          lastActivity: Date.now(),
+          remainingSeconds: timeLeftRef.current
         });
       } catch (e) {
         console.error("Gagal simpan progress soal", e);
@@ -896,11 +930,16 @@ export default function StudentExam() {
     // Backup answers locally in case of electricity / connection loss (scoped by student UID)
     if (session?.examId && user?.uid) {
       localStorage.setItem(`cbt_answers_${user.uid}_${session.examId}`, JSON.stringify(newAnswers));
+      localStorage.setItem(`cbt_remaining_time_${user.uid}_${session.examId}`, String(timeLeftRef.current));
     }
 
     // Auto save answers immediately for safety
     try {
-      await updateDoc(doc(db, 'student_sessions', user!.uid), { answers: newAnswers });
+      await updateDoc(doc(db, 'student_sessions', user!.uid), {
+        answers: newAnswers,
+        remainingSeconds: timeLeftRef.current,
+        lastActivity: Date.now()
+      });
     } catch(e) { 
       console.error("Gagal simpan jawaban sementara ke server, tersimpan lokal."); 
     }
