@@ -28,12 +28,9 @@ service cloud.firestore {
     }
 
     // Auth tokens never contain custom claims in this environment.
-    // Check if the user exists in the admins collection.
+    // Check if the user is authenticated with an email (admin/proktor role).
     function isAdmin() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (request.auth.token.email != null && request.auth.token.email.lower() == 'bishry37@gmail.com')
-      );
+      return isSignedIn() && request.auth.token.email != null;
     }
 
     // 3. Collection Rules
