@@ -915,6 +915,26 @@ export default function StudentExam() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const currentQ = questions[currentQuestionIndex];
+
+  useEffect(() => {
+    // Run math rendering on current question and options
+    const containers = document.querySelectorAll('.ql-editor');
+    containers.forEach(container => {
+      try {
+        const formulas = container.querySelectorAll('.ql-formula');
+        formulas.forEach(f => {
+          const tex = f.getAttribute('data-value');
+          if (tex) {
+            katex.render(tex, f as HTMLElement, { throwOnError: false, displayMode: false });
+          }
+        });
+      } catch (e) {
+        console.warn('KaTeX rendering failed', e);
+      }
+    });
+  }, [currentQuestionIndex, questions, currentQ]);
+
   if (loadError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
@@ -998,26 +1018,6 @@ export default function StudentExam() {
       </div>
     );
   }
-
-  const currentQ = questions[currentQuestionIndex];
-
-  useEffect(() => {
-    // Run math rendering on current question and options
-    const containers = document.querySelectorAll('.ql-editor');
-    containers.forEach(container => {
-      try {
-        const formulas = container.querySelectorAll('.ql-formula');
-        formulas.forEach(f => {
-          const tex = f.getAttribute('data-value');
-          if (tex) {
-            katex.render(tex, f as HTMLElement, { throwOnError: false, displayMode: false });
-          }
-        });
-      } catch (e) {
-        console.warn('KaTeX rendering failed', e);
-      }
-    });
-  }, [currentQuestionIndex, questions, currentQ]);
 
   return (
     <div ref={containerRef} className="h-screen overflow-hidden bg-slate-50 flex flex-col select-none">
