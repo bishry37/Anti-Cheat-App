@@ -109,6 +109,7 @@ export interface StudentSession {
   lastQuestionIndex?: number;
   wasDisqualified?: boolean;
   duration?: number;
+  remainingSeconds?: number;
   deviceId?: string;
   adjustedRemainingMinutes?: number;
   adjustedAt?: number;

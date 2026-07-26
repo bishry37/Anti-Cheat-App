@@ -378,7 +378,10 @@ export default function Home() {
         }
 
         if (existingSessionData.status === 'Aktif' || existingSessionData.status === 'Melanggar') {
-          if (existingSessionData.deviceId && existingSessionData.deviceId !== currentDeviceId) {
+          // If restored by teacher (wasDisqualified === true, lastActivity === 0, or !deviceId), allow login on ANY device!
+          const isAllowedNewDevice = !existingSessionData.deviceId || existingSessionData.wasDisqualified || existingSessionData.lastActivity === 0;
+
+          if (!isAllowedNewDevice && existingSessionData.deviceId && existingSessionData.deviceId !== currentDeviceId) {
             setErrorMessage('Akun Anda sedang digunakan di perangkat/browser lain.');
             setLoading(false);
             setIsLoggingInStudent(false);
@@ -400,11 +403,17 @@ export default function Home() {
         ...existingSessionData!,
         status: 'Aktif',
         lastActivity: Date.now(),
+        startTime: Date.now(),
         token: examToken, // update token in case it changed
         deviceId: currentDeviceId,
         examTitle: existingSessionData?.examTitle || matchingExam.title,
         packetName: existingSessionData?.packetName || matchingExam.packetName,
-        duration: existingSessionData?.duration || matchingExam.duration,
+        duration: existingSessionData?.remainingSeconds && existingSessionData.remainingSeconds > 0
+          ? existingSessionData.remainingSeconds / 60
+          : (existingSessionData?.duration || matchingExam.duration),
+        remainingSeconds: existingSessionData?.remainingSeconds && existingSessionData.remainingSeconds > 0
+          ? existingSessionData.remainingSeconds
+          : ((existingSessionData?.duration || matchingExam.duration) * 60)
       } : {
         studentName: upperName,
         className: matchingExam.targetClass || 'Tidak Diketahui',
@@ -413,6 +422,7 @@ export default function Home() {
         packetName: matchingExam.packetName || '',
         examTitle: matchingExam.title,
         duration: matchingExam.duration,
+        remainingSeconds: matchingExam.duration * 60,
         token: examToken,
         status: 'Aktif',
         violationsCount: 0,
