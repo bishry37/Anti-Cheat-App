@@ -757,7 +757,11 @@ export default function QuestionBank() {
             "strong => strong",
             "em => em",
             "r[style-name='Underline'] => u",
-            "p[style-name='Underline'] => u"
+            "r[style-name='underline'] => u",
+            "p[style-name='Underline'] => u",
+            "p[style-name='underline'] => u",
+            "r[underline='true'] => u",
+            "r[underline] => u"
           ],
           convertImage: (mammoth as any).images.imgElement(function(image: any) {
             return image.read("base64").then(function(imageBuffer: any) {
