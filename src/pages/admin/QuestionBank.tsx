@@ -748,28 +748,24 @@ export default function QuestionBank() {
           throw new Error("File array buffer is empty");
         }
         
-        const result = await (mammoth as any).convertToHtml({ 
-          arrayBuffer,
-          styleMap: [
-            "u => u",
-            "underline => u",
-            "ins => u",
-            "strike => s",
-            "sub => sub",
-            "sup => sup",
-            "b => b",
-            "i => i",
-            "strong => strong",
-            "em => em"
-          ],
-          convertImage: (mammoth as any).images.imgElement(function(image: any) {
-            return image.read("base64").then(function(imageBuffer: any) {
-              return {
-                src: "data:" + image.contentType + ";base64," + imageBuffer
-              };
-            });
-          })
-        });
+        const result = await (mammoth as any).convertToHtml(
+          { arrayBuffer },
+          { 
+            styleMap: [
+              "u => u",
+              "strike => s",
+              "b => strong",
+              "i => em"
+            ],
+            convertImage: (mammoth as any).images.imgElement(function(image: any) {
+              return image.read("base64").then(function(imageBuffer: any) {
+                return {
+                  src: "data:" + image.contentType + ";base64," + imageBuffer
+                };
+              });
+            })
+          }
+        );
         const html = result.value;
         
         // Debugging logs for import

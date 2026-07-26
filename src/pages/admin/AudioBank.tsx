@@ -20,6 +20,8 @@ export default function AudioBank() {
   const [file, setFile] = useState<File | null>(null);
   const [allowRepeat, setAllowRepeat] = useState<'Ya' | 'Tidak'>('Ya');
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStage, setUploadStage] = useState('');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -71,11 +73,23 @@ export default function AudioBank() {
 
     setUploading(true);
     setError('');
+    setUploadProgress(5);
+    setUploadStage('Membaca file audio...');
 
     try {
       // Read file as Data URL (base64)
       const reader = new FileReader();
+
+      reader.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) {
+          const percent = Math.round((event.loaded / event.total) * 40);
+          setUploadProgress(Math.min(percent, 40));
+        }
+      };
+
       reader.onload = async (uploadEvent) => {
+        setUploadProgress(45);
+        setUploadStage('Memproses metadata audio...');
         const base64Data = uploadEvent.target?.result as string;
 
         // Get audio duration
@@ -107,8 +121,11 @@ export default function AudioBank() {
 
   const saveToFirestore = async (base64Data: string, duration: number) => {
     try {
+      setUploadStage('Menyimpan ke database...');
+      setUploadProgress(50);
       const CHUNK_SIZE = 700000;
       if (base64Data.length <= CHUNK_SIZE) {
+        setUploadProgress(75);
         await addDoc(collection(db, 'audio_banks'), {
           adminId: user!.uid,
           name: name.trim(),
@@ -120,6 +137,7 @@ export default function AudioBank() {
           createdAt: Date.now(),
           isChunked: false
         });
+        setUploadProgress(100);
       } else {
         // Split into chunks
         const chunks: string[] = [];
@@ -127,6 +145,7 @@ export default function AudioBank() {
           chunks.push(base64Data.substring(i, i + CHUNK_SIZE));
         }
 
+        setUploadProgress(55);
         // Add parent doc first with isChunked: true
         const docRef = await addDoc(collection(db, 'audio_banks'), {
           adminId: user!.uid,
@@ -140,14 +159,21 @@ export default function AudioBank() {
           isChunked: true
         });
 
-        // Add chunks to chunks subcollection
-        const chunkPromises = chunks.map((chunk, index) => {
-          return setDoc(doc(db, 'audio_banks', docRef.id, 'chunks', String(index)), {
+        setUploadProgress(60);
+        let completed = 0;
+        const totalChunks = chunks.length;
+
+        for (let index = 0; index < chunks.length; index++) {
+          await setDoc(doc(db, 'audio_banks', docRef.id, 'chunks', String(index)), {
             chunkIndex: index,
-            data: chunk
+            data: chunks[index]
           });
-        });
-        await Promise.all(chunkPromises);
+          completed++;
+          const currentPct = 60 + Math.round((completed / totalChunks) * 38);
+          setUploadProgress(currentPct);
+          setUploadStage(`Mengunggah bagian audio (${completed}/${totalChunks})...`);
+        }
+        setUploadProgress(100);
       }
 
       setUploading(false);
@@ -156,6 +182,8 @@ export default function AudioBank() {
       setDescription('');
       setFile(null);
       setAllowRepeat('Ya');
+      setUploadProgress(0);
+      setUploadStage('');
       setSuccessMsg('Audio berhasil ditambahkan ke Manajemen Audio.');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: any) {
@@ -327,6 +355,8 @@ export default function AudioBank() {
             setDescription('');
             setFile(null);
             setAllowRepeat('Ya');
+            setUploadProgress(0);
+            setUploadStage('');
             setIsModalOpen(true);
           }}
           className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
@@ -577,11 +607,30 @@ export default function AudioBank() {
                 </div>
               </div>
 
+              {uploading && (
+                <div className="bg-blue-50 border border-blue-200/80 p-3.5 rounded-xl space-y-2 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between text-xs font-bold text-blue-900">
+                    <span className="flex items-center gap-1.5">
+                      <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                      <span>{uploadStage || 'Mengunggah audio...'}</span>
+                    </span>
+                    <span className="text-blue-700 font-extrabold">{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-blue-200/80 rounded-full h-2.5 overflow-hidden">
+                    <div 
+                      className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out shadow-2xs"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
+                  disabled={uploading}
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
                 >
                   Batal
                 </button>
@@ -593,7 +642,7 @@ export default function AudioBank() {
                   {uploading ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Menyimpan...</span>
+                      <span>Mengunggah ({uploadProgress}%)</span>
                     </>
                   ) : (
                     <span>Simpan Audio</span>
