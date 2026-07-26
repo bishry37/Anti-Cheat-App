@@ -103,14 +103,14 @@ service cloud.firestore {
       return data.keys().hasAll(['subjectId', 'number', 'question', 'optionA', 'optionB', 'optionC', 'optionD', 'optionE', 'correctAnswer', 'weight', 'createdAt', 'adminId']) && 
              data.subjectId is string && data.subjectId.size() <= 128 &&
              data.number is number &&
-             data.question is string && data.question.size() <= 10000 &&
-             data.optionA is string && data.optionA.size() <= 5000 &&
-             data.optionB is string && data.optionB.size() <= 5000 &&
-             data.optionC is string && data.optionC.size() <= 5000 &&
-             data.optionD is string && data.optionD.size() <= 5000 &&
-             data.optionE is string && data.optionE.size() <= 5000 &&
+             data.question is string && data.question.size() <= 1000000 &&
+             data.optionA is string && data.optionA.size() <= 500000 &&
+             data.optionB is string && data.optionB.size() <= 500000 &&
+             data.optionC is string && data.optionC.size() <= 500000 &&
+             data.optionD is string && data.optionD.size() <= 500000 &&
+             data.optionE is string && data.optionE.size() <= 500000 &&
              data.correctAnswer is string && 
-             ((!('type' in data) || data.type == 'pilihan_ganda' || data.type == 'listening') ? data.correctAnswer.matches('^[A-E]$') : data.correctAnswer.size() <= 10000) &&
+             ((!('type' in data) || data.type == 'pilihan_ganda' || data.type == 'listening') ? data.correctAnswer.matches('^[A-E]$') : data.correctAnswer.size() <= 500000) &&
              data.weight is number &&
              data.createdAt is number &&
              data.adminId is string &&
