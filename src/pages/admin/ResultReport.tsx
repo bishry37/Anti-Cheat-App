@@ -673,7 +673,17 @@ export default function ResultReport() {
                               <div className="w-11 h-11 rounded-2xl bg-slate-50 text-slate-400 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center mb-4 transition-all duration-300 transform group-hover:scale-110 shadow-sm">
                                 <FileSpreadsheet className="w-5.5 h-5.5" />
                               </div>
-                              <h5 className="text-[11px] font-black text-slate-800 group-hover:text-blue-700 transition-colors uppercase leading-snug line-clamp-2 mb-2 tracking-tight pr-6">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirmDeleteExam({ isOpen: true, examId: id });
+                                }}
+                                className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 z-10"
+                                title="Hapus File Soal & Hasil"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                              <h5 className="text-[11px] font-black text-slate-800 group-hover:text-blue-700 transition-colors uppercase leading-snug line-clamp-2 mb-2 tracking-tight pr-10">
                                 {ex.title}
                               </h5>
                               {(() => {
