@@ -2,29 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot } from 'firebase/firestore';
 import { Exam, Subject, Class, AudioItem } from '../../types';
-import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Calendar, Clock, Copy, CheckCircle2, Search, Filter, Music } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Clock, Copy, CheckCircle2, Search, Filter, Music } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
-
-const formatIndonesianDate = (dateStr: string): string => {
-  if (!dateStr) return '';
-  const parts = dateStr.split('-');
-  if (parts.length !== 3) return dateStr;
-  const year = parts[0];
-  const monthIdx = parseInt(parts[1], 10) - 1;
-  const day = parseInt(parts[2], 10);
-  
-  const months = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ];
-  
-  if (monthIdx >= 0 && monthIdx < 12) {
-    return `${day} ${months[monthIdx]} ${year}`;
-  }
-  return dateStr;
-};
 
 export default function Exams() {
   const { user } = useAuth();
@@ -57,9 +38,6 @@ export default function Exams() {
     subjectId: '',
     packetName: '',
     duration: 90,
-    date: format(new Date(), 'yyyy-MM-dd'),
-    startTime: '08:00',
-    endTime: '10:00',
     isActive: false,
     activeToken: '',
     autoResetInterval: 'manual',
@@ -101,25 +79,6 @@ export default function Exams() {
       setAvailablePackets([]);
     }
   }, [formData.subjectId]);
-
-  // Automatically recalculate exam duration based on Start and End times
-  useEffect(() => {
-    if (formData.startTime && formData.endTime) {
-      const [startH, startM] = formData.startTime.split(':').map(Number);
-      const [endH, endM] = formData.endTime.split(':').map(Number);
-      if (!isNaN(startH) && !isNaN(startM) && !isNaN(endH) && !isNaN(endM)) {
-        let startMin = startH * 60 + startM;
-        let endMin = endH * 60 + endM;
-        if (endMin < startMin) {
-          endMin += 24 * 60; // handle cross-midnight duration gracefully
-        }
-        const calculatedDiff = endMin - startMin;
-        if (calculatedDiff >= 0 && formData.duration !== calculatedDiff) {
-          setFormData(prev => ({ ...prev, duration: calculatedDiff }));
-        }
-      }
-    }
-  }, [formData.startTime, formData.endTime]);
 
   // Background token auto-reset check
   useEffect(() => {
@@ -320,9 +279,6 @@ export default function Exams() {
       subjectId: '',
       packetName: '',
       duration: 90,
-      date: format(new Date(), 'yyyy-MM-dd'),
-      startTime: '08:00',
-      endTime: '10:00',
       isActive: false,
       activeToken: generateToken(),
       autoResetInterval: 'manual',
@@ -465,42 +421,13 @@ export default function Exams() {
                           ))}
                         </select>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                         <div>
-                          <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Tanggal *</label>
-                          <input 
-                            type="date" required
-                            value={formData.date}
-                            onChange={e => setFormData({...formData, date: e.target.value})}
-                            className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
-                          />
-                        </div>
+                      <div className="grid grid-cols-1 gap-3">
                         <div>
                           <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Durasi (Menit) *</label>
                           <input 
                             type="number" required min={5}
                             value={formData.duration}
                             onChange={e => setFormData({...formData, duration: Number(e.target.value)})}
-                            className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                         <div>
-                          <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Jam Mulai *</label>
-                          <input 
-                            type="time" required
-                            value={formData.startTime}
-                            onChange={e => setFormData({...formData, startTime: e.target.value})}
-                            className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Jam Selesai *</label>
-                          <input 
-                            type="time" required
-                            value={formData.endTime}
-                            onChange={e => setFormData({...formData, endTime: e.target.value})}
                             className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
                           />
                         </div>
@@ -692,7 +619,7 @@ export default function Exams() {
                 <th className="px-4 py-3">Mata Pelajaran</th>
                 <th className="px-4 py-3">File Soal</th>
                 <th className="px-4 py-3">Konfigurasi</th>
-                <th className="px-4 py-3">Jadwal</th>
+                <th className="px-4 py-3">Durasi</th>
                 <th className="px-4 py-3">Token</th>
                 <th className="px-4 py-3 text-center">Status</th>
                 <th className="px-4 py-3 text-right">Aksi</th>
@@ -782,13 +709,9 @@ export default function Exams() {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-xs text-slate-600 font-medium">
-                      <div className="flex items-center mb-1 text-slate-700 font-semibold">
-                        <Calendar className="w-3.5 h-3.5 mr-1.5 text-slate-400 shrink-0" />
-                        {formatIndonesianDate(exam.date || '')}
-                      </div>
-                      <div className="flex items-center text-slate-500 font-semibold">
+                      <div className="flex items-center text-slate-500 font-semibold uppercase tracking-wider">
                         <Clock className="w-3.5 h-3.5 mr-1.5 text-slate-400 shrink-0" />
-                        {exam.startTime} - {exam.endTime} ({exam.duration}m)
+                        {exam.duration} Menit
                       </div>
                     </td>
                     <td className="px-4 py-4">

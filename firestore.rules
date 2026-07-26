@@ -32,7 +32,11 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        request.auth.token.email.lower() == 'bishry37@gmail.com'
+        (request.auth.token.email != null && (
+          request.auth.token.email.lower() == 'bishry37@gmail.com' ||
+          request.auth.token.email == 'bishry37@gmail.com' ||
+          request.auth.token.email == 'Bishry37@gmail.com'
+        ))
       );
     }
 
@@ -112,10 +116,10 @@ service cloud.firestore {
     match /violations/{violationId} {
       allow get: if true;
       // Admins list violations for their students
-      allow list: if isAdmin() && resource.data.adminId == request.auth.uid;
+      allow list: if isAdmin() && isOwner(resource.data);
       // Students can create violation logs
       allow create: if true;
-      allow update, delete: if isAdmin() && existing().adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && isOwner(existing());
     }
   }
 }

@@ -67,9 +67,9 @@ export interface Exam {
   subjectId: string;
   audioId?: string;
   duration: number; // in minutes
-  date: string;
-  startTime: string;
-  endTime: string;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
   questionCount?: number;
   isActive: boolean;
   activeToken: string;
