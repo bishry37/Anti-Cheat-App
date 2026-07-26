@@ -226,8 +226,9 @@ export default function Settings() {
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, 'settings');
       triggerToast('Gagal menyimpan pengaturan.', 'error');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const removeLogo = () => {

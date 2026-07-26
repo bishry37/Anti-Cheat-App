@@ -240,8 +240,9 @@ export default function Exams() {
       await fetchData();
     } catch (err) {
       handleFirestoreError(err, editingId ? OperationType.UPDATE : OperationType.CREATE, 'exams');
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const handleDelete = (id: string) => {
@@ -261,8 +262,9 @@ export default function Exams() {
       await fetchData();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'exams');
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const startEdit = (exam: Exam) => {

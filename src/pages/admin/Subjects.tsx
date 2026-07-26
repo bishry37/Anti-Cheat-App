@@ -58,8 +58,9 @@ export default function Subjects() {
       await fetchSubjects();
     } catch (err) {
       handleFirestoreError(err, editingId ? OperationType.UPDATE : OperationType.CREATE, 'subjects');
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const handleDelete = (id: string) => {
@@ -79,8 +80,9 @@ export default function Subjects() {
       await fetchSubjects();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'subjects');
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const startEdit = (subject: Subject) => {

@@ -32,11 +32,7 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (request.auth.token.email != null && (
-          request.auth.token.email.lower() == 'bishry37@gmail.com' ||
-          request.auth.token.email == 'bishry37@gmail.com' ||
-          request.auth.token.email == 'Bishry37@gmail.com'
-        ))
+        (request.auth.token.email != null && request.auth.token.email.lower() == 'bishry37@gmail.com')
       );
     }
 
@@ -53,29 +49,29 @@ service cloud.firestore {
     // Classes Collection
     match /classes/{classId} {
       allow read: if true; // Publicly readable for students to select class
-      allow create: if isAdmin() && isOwner(incoming());
-      allow update, delete: if isAdmin() && isOwner(existing());
+      allow create: if isAdmin() && incoming().adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && existing().adminId == request.auth.uid;
     }
 
     // Settings Collection
     match /settings/{settingId} {
       allow read: if true;
-      allow create: if isAdmin() && isOwner(incoming()) && settingId == request.auth.uid;
-      allow update: if isAdmin() && isOwner(existing()) && settingId == request.auth.uid;
+      allow create: if isAdmin() && incoming().adminId == request.auth.uid && settingId == request.auth.uid;
+      allow update: if isAdmin() && existing().adminId == request.auth.uid && settingId == request.auth.uid;
     }
 
     // Subjects Collection
     match /subjects/{subjectId} {
       allow read: if true;
-      allow create: if isAdmin() && isOwner(incoming());
-      allow update, delete: if isAdmin() && isOwner(existing());
+      allow create: if isAdmin() && incoming().adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && existing().adminId == request.auth.uid;
     }
 
     // Audio Banks Collection
     match /audio_banks/{audioId} {
       allow read: if true;
-      allow create: if isAdmin() && isOwner(incoming());
-      allow update, delete: if isAdmin() && isOwner(existing());
+      allow create: if isAdmin() && incoming().adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && existing().adminId == request.auth.uid;
 
       match /chunks/{chunkId} {
         allow read: if true;
@@ -86,15 +82,15 @@ service cloud.firestore {
     // Questions Collection
     match /questions/{questionId} {
       allow read: if true;
-      allow create: if isAdmin() && isOwner(incoming());
-      allow update, delete: if isAdmin() && isOwner(existing());
+      allow create: if isAdmin() && incoming().adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && existing().adminId == request.auth.uid;
     }
 
     // Exams Collection
     match /exams/{examId} {
       allow read: if true;
-      allow create: if isAdmin() && isOwner(incoming());
-      allow update, delete: if isAdmin() && isOwner(existing());
+      allow create: if isAdmin() && incoming().adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && existing().adminId == request.auth.uid;
     }
 
     // Student Sessions Collection
@@ -102,10 +98,10 @@ service cloud.firestore {
       // Students can read and update their own session even if not authenticated via Firebase (anonymous fallback)
       allow get: if true;
       // Admins need to list sessions for their exams, students need to list to check existing sessions during login
-      allow list: if (isAdmin() && resource.data.adminId == request.auth.uid) || !isAdmin();
+      allow list: if true; 
       
       // Students create their own session
-      allow create: if isValidId(sessionId);
+      allow create: if true;
       // Students update their progress, Admins update status/duration
       allow update: if true; 
       // Only admin can delete sessions
@@ -116,10 +112,10 @@ service cloud.firestore {
     match /violations/{violationId} {
       allow get: if true;
       // Admins list violations for their students
-      allow list: if isAdmin() && isOwner(resource.data);
+      allow list: if true;
       // Students can create violation logs
       allow create: if true;
-      allow update, delete: if isAdmin() && isOwner(existing());
+      allow update, delete: if isAdmin() && existing().adminId == request.auth.uid;
     }
   }
 }

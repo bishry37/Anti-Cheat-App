@@ -105,8 +105,9 @@ export default function Classes() {
       await fetchClasses();
     } catch (err) {
       handleFirestoreError(err, editingId ? OperationType.UPDATE : OperationType.CREATE, 'classes');
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const handleDelete = (id: string) => {
@@ -139,8 +140,9 @@ export default function Classes() {
       await fetchClasses();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'classes');
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const startEdit = (classData: Class) => {
