@@ -416,10 +416,13 @@ export default function Home() {
         deviceId: currentDeviceId
       };
 
-      // If resuming and the old session was under a different ID, cleanup old doc
+      // If resuming and the old session was under a different ID, hide old doc from monitor
       if (isResume && targetUid && targetUid !== uid) {
           try {
-              await deleteDoc(doc(db, 'student_sessions', targetUid));
+              // We use updateDoc because students might not have permission to delete
+              await updateDoc(doc(db, 'student_sessions', targetUid), {
+                  hiddenFromMonitor: true
+              });
           } catch (e) {
               console.warn("Cleanup old session doc failed", e);
           }

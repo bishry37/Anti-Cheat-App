@@ -246,15 +246,17 @@ export default function ExamMonitor() {
       } else {
         const existing = acc[existingIdx];
         // Give priority to status and then activity time
-        const getPriority = (status: string) => {
-          if (status === 'Aktif') return 3;
-          if (status === 'Selesai') return 2;
-          return 1;
+        const getPriority = (s: StudentSession) => {
+          if (s.status === 'Selesai') return 4;
+          if (s.status === 'Aktif' && s.lastActivity > 0) return 3;
+          if (s.status === 'Didiskualifikasi') return 2;
+          if (s.status === 'Aktif' && s.lastActivity === 0) return 1; // Placeholder/Waiting Login
+          return 0;
         };
         
-        if (getPriority(current.status) > getPriority(existing.status)) {
+        if (getPriority(current) > getPriority(existing)) {
           acc[existingIdx] = current;
-        } else if (getPriority(current.status) === getPriority(existing.status) && (current.lastActivity || 0) > (existing.lastActivity || 0)) {
+        } else if (getPriority(current) === getPriority(existing) && (current.lastActivity || 0) > (existing.lastActivity || 0)) {
           acc[existingIdx] = current;
         }
       }
