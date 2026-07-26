@@ -1,6 +1,6 @@
 {
-  "name": "Anti Cheating App",
-  "description": "Sistem Ujian Online Anti-Contek yang memonitor aktivitas secara real-time dan menjamin integritas.",
+  "name": "Exam Pro Plus",
+  "description": "Professional Digital Assessment System - Sistem Ujian Online Anti-Contek yang memonitor aktivitas secara real-time dan menjamin integritas.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

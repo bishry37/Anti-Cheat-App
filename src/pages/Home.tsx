@@ -7,7 +7,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Setting, Subject, Exam, StudentSession } from '../types';
 import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import brandLogo from '../assets/images/logo.jpg';
+import brandLogo from '../assets/images/logo1.png';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -483,32 +483,32 @@ export default function Home() {
             />
             <motion.img 
               src={brandLogo} 
-              alt="ANTI CHEAT APP" 
-              className="w-full h-full object-contain scale-125 relative z-5" 
+              alt="Exam Pro Plus" 
+              className="w-full h-full object-contain relative z-5" 
               referrerPolicy="no-referrer"
               animate={{
-                scale: [1.25, 1.29, 1.25],
-                rotate: [0, 0.8, 0, -0.8, 0]
+                scale: [0.95, 1, 0.95],
+                rotate: [0, 0.5, 0, -0.5, 0]
               }}
               transition={{
                 scale: {
-                  duration: 4,
+                  duration: 5,
                   repeat: Infinity,
                   ease: "easeInOut"
                 },
                 rotate: {
-                  duration: 6,
+                  duration: 8,
                   repeat: Infinity,
                   ease: "easeInOut"
                 }
               }}
             />
           </motion.div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tighter text-slate-900 uppercase">
-            ANTI CHEAT APP
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 uppercase">
+            Exam Pro Plus
           </h1>
           <p className="text-slate-500 mt-2 text-[11px] px-4 font-bold uppercase tracking-wider opacity-60">
-            {setting?.schoolSlogan || 'Secure Online Examination System'}
+            {setting?.schoolSlogan || 'Professional Digital Assessment System'}
           </p>
         </div>
 
@@ -543,7 +543,7 @@ export default function Home() {
                 <div className="mb-2 text-center">
                   <h2 className="text-xs font-bold text-blue-600 uppercase tracking-widest flex items-center justify-center">
                     <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1.5 animate-pulse"></span>
-                    Portal Login Siswa
+                    Portal Login Peserta Ujian
                   </h2>
                 </div>
 
@@ -556,7 +556,7 @@ export default function Home() {
                 ) : (
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 text-center">
                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Informasi</p>
-                     <p className="text-sm font-medium text-slate-600">Masukkan Token Ujian dari Guru Anda untuk mengakses ruangan.</p>
+                     <p className="text-sm font-medium text-slate-600">Masukkan Token Ujian.</p>
                   </div>
                 )}                <div className="space-y-4">
                   {/* Token Ujian / Password Input */}

@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { Setting } from '../../types';
-import brandLogo from '../../assets/images/logo.jpg';
+import brandLogo from '../../assets/images/logo1.png';
 import ChangePasswordModal from '../auth/ChangePasswordModal';
 
 export default function AdminLayout() {
@@ -65,7 +65,7 @@ export default function AdminLayout() {
               <img src={setting?.schoolLogo || brandLogo} alt={setting?.schoolName || "SYSTEM"} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
             </div>
             <h1 className="text-sm font-bold text-white tracking-widest uppercase leading-tight">
-              {setting?.schoolName || 'ANTI CHEATING APP'}
+              {setting?.schoolName || 'Exam Pro Plus'}
             </h1>
           </div>
               <button 
@@ -133,7 +133,7 @@ export default function AdminLayout() {
             <img src={setting?.schoolLogo || brandLogo} alt={setting?.schoolName || "SYSTEM"} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
           </div>
           <h1 className="text-sm font-bold text-white tracking-widest leading-tight uppercase">
-            {setting?.schoolName || 'ANTI CHEATING APP'}
+            {setting?.schoolName || 'Exam Pro Plus'}
           </h1>
         </div>
 
@@ -205,7 +205,7 @@ export default function AdminLayout() {
                   <img src={setting?.schoolLogo || brandLogo} alt={setting?.schoolName || "SYSTEM"} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                </div>
                <span className="font-bold text-slate-800 tracking-widest text-[10px] uppercase leading-tight">
-                 {setting?.schoolName || 'ANTI CHEATING APP'}
+                 {setting?.schoolName || 'Exam Pro Plus'}
                </span>
             </div>
             <span className="hidden lg:inline-flex px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded uppercase tracking-wider">System Active</span>
