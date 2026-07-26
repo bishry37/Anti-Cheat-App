@@ -405,8 +405,7 @@ export default function ExamMonitor() {
           violationsCount: 0, // Reset violations on restore
           endTime: null,
           wasDisqualified: true, // Keep true for history
-          lastActivity: 0, // Reset activity to force "Waiting for Login" status UI
-          deviceId: null // Reset deviceId so student can login from ANY device
+          lastActivity: 0 // Reset activity to force "Waiting for Login" status UI
         });
         showToast('Murid diizinkan melanjutkan ujian');
       } catch (err) {

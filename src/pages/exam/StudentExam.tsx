@@ -373,36 +373,9 @@ export default function StudentExam() {
           
           // Calculate initial time left
           const activeDuration = typeof sessData.duration === 'number' ? sessData.duration : exData.duration;
-          let calculatedTimeLeft: number;
-
-          let chosenRemainingSecs: number | null = null;
-          if (typeof sessData.remainingSeconds === 'number' && sessData.remainingSeconds > 0) {
-            chosenRemainingSecs = sessData.remainingSeconds;
-          }
-
-          try {
-            const localSecsStr = localStorage.getItem(`cbt_remaining_secs_${user.uid}_${sessData.examId}`);
-            if (localSecsStr) {
-              const localSecs = parseInt(localSecsStr, 10);
-              if (!isNaN(localSecs) && localSecs > 0) {
-                if (chosenRemainingSecs === null || localSecs < chosenRemainingSecs) {
-                  chosenRemainingSecs = localSecs;
-                }
-              }
-            }
-          } catch (e) {
-            console.error("Gagal membaca backup remaining time lokal", e);
-          }
-
-          if (chosenRemainingSecs !== null) {
-            calculatedTimeLeft = chosenRemainingSecs;
-          } else {
-            const elapsed = Math.floor((Date.now() - sessData.startTime) / 1000);
-            const totalSecs = Math.round(activeDuration * 60);
-            calculatedTimeLeft = Math.max(0, totalSecs - elapsed);
-          }
-
-          timeLeftRef.current = calculatedTimeLeft;
+          const elapsed = Math.floor((Date.now() - sessData.startTime) / 1000);
+          const totalSecs = Math.round(activeDuration * 60);
+          const calculatedTimeLeft = Math.max(0, totalSecs - elapsed);
 
           // Fetch questions
           let qQuery;
@@ -876,11 +849,6 @@ export default function StudentExam() {
     }
   };
 
-  const timeLeftRef = useRef<number>(timeLeft);
-  useEffect(() => {
-    timeLeftRef.current = timeLeft;
-  }, [timeLeft]);
-
   // Timer & Heartbeat
   useEffect(() => {
     if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
@@ -892,27 +860,18 @@ export default function StudentExam() {
           submitExam();
           return 0;
         }
-        const nextSec = prev - 1;
-        timeLeftRef.current = nextSec;
-        return nextSec;
+        return prev - 1;
       });
     }, 1000);
 
     const heartbeat = setInterval(() => {
-      if (user?.uid && timeLeftRef.current > 0) {
-        updateDoc(doc(db, 'student_sessions', user.uid), {
-          lastActivity: Date.now(),
-          remainingSeconds: timeLeftRef.current
-        }).catch(() => {});
-
-        if (session?.examId) {
-          localStorage.setItem(`cbt_remaining_secs_${user.uid}_${session.examId}`, String(timeLeftRef.current));
-        }
-      }
-    }, 5000); // every 5s
+      updateDoc(doc(db, 'student_sessions', user!.uid), {
+        lastActivity: Date.now()
+      }).catch(()=>{});
+    }, 10000); // every 10s
 
     return () => { clearInterval(timer); clearInterval(heartbeat); };
-  }, [session?.status, isFullscreen, isSubmittingOrFinished, user, session?.examId, submitExam]);
+  }, [session?.status, isFullscreen, isSubmittingOrFinished]);
 
   // Handle question change and persistence
   const changeQuestion = async (newIndex: number) => {
@@ -921,7 +880,6 @@ export default function StudentExam() {
       try {
         await updateDoc(doc(db, 'student_sessions', user.uid), {
           lastQuestionIndex: newIndex,
-          remainingSeconds: timeLeftRef.current,
           lastActivity: Date.now()
         });
       } catch (e) {
@@ -935,19 +893,14 @@ export default function StudentExam() {
     setAnswers(newAnswers);
     answersRef.current = newAnswers;
 
-    // Backup answers & remaining time locally in case of electricity / connection loss (scoped by student UID)
+    // Backup answers locally in case of electricity / connection loss (scoped by student UID)
     if (session?.examId && user?.uid) {
       localStorage.setItem(`cbt_answers_${user.uid}_${session.examId}`, JSON.stringify(newAnswers));
-      localStorage.setItem(`cbt_remaining_secs_${user.uid}_${session.examId}`, String(timeLeftRef.current));
     }
 
-    // Auto save answers & remaining time immediately for safety
+    // Auto save answers immediately for safety
     try {
-      await updateDoc(doc(db, 'student_sessions', user!.uid), {
-        answers: newAnswers,
-        remainingSeconds: timeLeftRef.current,
-        lastActivity: Date.now()
-      });
+      await updateDoc(doc(db, 'student_sessions', user!.uid), { answers: newAnswers });
     } catch(e) { 
       console.error("Gagal simpan jawaban sementara ke server, tersimpan lokal."); 
     }
