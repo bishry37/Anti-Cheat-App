@@ -347,7 +347,7 @@ export default function AdminDashboard() {
             </h1>
             
             <p className="text-slate-500 font-medium text-xs leading-relaxed max-w-lg">
-              Selamat bertugas! Panel kontrol pengawasan ujian digital ini terhubung langsung dengan sistem keamanan Anti-Cheat. Anda mengawasi <span className="font-extrabold text-slate-700">{profile?.schoolName || 'Institusi Anda'}</span>.
+              Selamat bertugas! Panel kontrol pengawasan ujian digital ini terhubung langsung dengan sistem keamanan Exam Pro Plus. Anda mengawasi <span className="font-extrabold text-slate-700">{profile?.schoolName || 'Institusi Anda'}</span>.
             </p>
           </div>
           

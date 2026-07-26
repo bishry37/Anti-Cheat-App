@@ -607,7 +607,7 @@ export default function StudentExam() {
     }
   }, [session?.duration, exam?.duration, session?.startTime, exam, submitExam, isSubmittingOrFinished, session?.status]);
 
-  // Anti-Cheat: Listeners
+  // Exam Pro Plus: Listeners
   const isUnloading = useRef(false);
 
   useEffect(() => {
@@ -984,7 +984,7 @@ export default function StudentExam() {
         <Maximize className="w-16 h-16 text-blue-400 mb-6" />
         <h1 className="text-3xl font-bold mb-4">Mulai Ujian</h1>
         <p className="max-w-md text-slate-300 mb-8 leading-relaxed">
-          Ujian ini menggunakan sistem keamanan Anti Cheating App. Layar akan diubah menjadi fullscreen. 
+          Ujian ini menggunakan sistem keamanan Exam Pro Plus. Layar akan diubah menjadi fullscreen. 
           Anda dilarang berpindah tab, membuka aplikasi lain, keluar layar penuh, atau melakukan kombinasi tombol terlarang.
         </p>
         <button 
