@@ -25,6 +25,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { StudentSession, Violation, Setting, Exam } from '../../types';
+import { deduplicateStudentSessions } from '../../utils/sessionUtils';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -245,9 +246,9 @@ export default function AdminDashboard() {
           setActiveSessions(activeList);
 
           // Filter completed (Selesai, Didiskualifikasi)
-          const completedList = allSessions.filter(
+          const completedList = deduplicateStudentSessions(allSessions.filter(
             s => ['Selesai', 'Didiskualifikasi'].includes(s.status)
-          );
+          ));
 
           setStats(prev => ({
             ...prev,

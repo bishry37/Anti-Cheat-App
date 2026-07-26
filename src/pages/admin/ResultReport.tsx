@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatHTML, calculateSmartPoints, normalizeTextForGrading } from '../../utils/textFormat';
+import { deduplicateStudentSessions } from '../../utils/sessionUtils';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -279,7 +280,7 @@ export default function ResultReport() {
       );
       getDocs(baseQ).then(baseSnap => {
         const allClassSess = baseSnap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
-        setAllClassSessions(allClassSess);
+        setAllClassSessions(deduplicateStudentSessions(allClassSess));
       }).catch(e => console.error(e));
     } else {
       setAllClassSessions([]);
@@ -299,9 +300,10 @@ export default function ResultReport() {
 
     const unsub = onSnapshot(q, (snap) => {
       let data = snap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
+      let deduplicatedData = deduplicateStudentSessions(data);
       // Manual sort since compound index might fail without setup
-      data.sort((a,b) => b.endTime! - a.endTime!);
-      setSessions(data);
+      deduplicatedData.sort((a,b) => (b.endTime || 0) - (a.endTime || 0));
+      setSessions(deduplicatedData);
       setLoading(false);
     }, (err) => {
       console.error(err);
@@ -718,7 +720,8 @@ export default function ResultReport() {
                                 {ex.title}
                               </h5>
                               {(() => {
-                                const participantCount = allClassSessions.filter(s => s.examId === id).length;
+                                const examSessions = deduplicateStudentSessions(allClassSessions.filter(s => s.examId === id));
+                                const participantCount = examSessions.length;
                                 return (
                                   <div className="flex flex-wrap items-center gap-1.5 mb-4">
                                     <div className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[9px] font-bold uppercase flex items-center gap-1">
