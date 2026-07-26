@@ -7,6 +7,8 @@ import { ShieldAlert, Maximize, Clock, Save, AlertTriangle, LogOut, Loader2, Wif
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { formatHTML, calculateSmartPoints } from '../../utils/textFormat';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 const isOptionEmpty = (val: string | undefined | null): boolean => {
   if (!val) return true;
@@ -999,6 +1001,24 @@ export default function StudentExam() {
 
   const currentQ = questions[currentQuestionIndex];
 
+  useEffect(() => {
+    // Run math rendering on current question and options
+    const containers = document.querySelectorAll('.ql-editor');
+    containers.forEach(container => {
+      try {
+        const formulas = container.querySelectorAll('.ql-formula');
+        formulas.forEach(f => {
+          const tex = f.getAttribute('data-value');
+          if (tex) {
+            katex.render(tex, f as HTMLElement, { throwOnError: false, displayMode: false });
+          }
+        });
+      } catch (e) {
+        console.warn('KaTeX rendering failed', e);
+      }
+    });
+  }, [currentQuestionIndex, questions, currentQ]);
+
   return (
     <div ref={containerRef} className="h-screen overflow-hidden bg-slate-50 flex flex-col select-none">
 
@@ -1231,7 +1251,7 @@ export default function StudentExam() {
                       </div>
                    )}
                    
-                   <div className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed ql-editor whitespace-pre-wrap px-0 py-0" dangerouslySetInnerHTML={{ __html: formatHTML(currentQ.question) }} />
+                   <div dir="auto" className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed ql-editor px-0 py-0" dangerouslySetInnerHTML={{ __html: formatHTML(currentQ.question) }} />
 
                   {currentQ.type === 'essay' ? (
                      <div className="mt-4 flex flex-col flex-1">
@@ -1302,7 +1322,7 @@ export default function StudentExam() {
                             <span className={`shrink-0 w-6 h-6 rounded-full border flex items-center justify-center font-bold text-[11px] mr-3 ${isSelected ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-300 text-slate-500'}`}>
                               {displayLabel}
                             </span>
-                            <div className="flex-1 text-sm text-slate-700 ql-editor p-0 [&_p]:m-0 [&_p]:p-0 leading-6" dangerouslySetInnerHTML={{ __html: formatHTML(optItem.text) }} />
+                            <div dir="auto" className="flex-1 text-sm text-slate-700 ql-editor p-0 [&_p]:m-0 [&_p]:p-0 leading-6" dangerouslySetInnerHTML={{ __html: formatHTML(optItem.text) }} />
                           </label>
                         );
                       })}

@@ -10,6 +10,8 @@ import { useBlocker } from 'react-router-dom';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType, VerticalMergeType } from 'docx';
 import * as mammoth from 'mammoth';
 import { formatHTML } from '../../utils/textFormat';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 const stripSimpleHTML = (val: string | undefined | null): string => {
   if (!val) return '';
@@ -39,13 +41,19 @@ const stripSimpleHTML = (val: string | undefined | null): string => {
   }
 
   // 3. Check if there are any remaining interactive/rich HTML tags (like img, table, math, etc.)
-  // If not, we can safely decode html entities or extract plain text using DOMParser
+  // We MUST keep formatting tags like b, i, u, em, strong
   if (!/<(img|table|tr|td|math|audio|video|iframe|svg)/i.test(str)) {
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(str, 'text/html');
+      // If there are NO images, tables, or complex structures, 
+      // but there are formatting tags like <u>, we SHOULD NOT use textContent directly
+      // as it would strip the <u>.
       if (!doc.querySelector('img, table, math, audio, video, iframe, svg')) {
-        str = doc.body.textContent || doc.body.innerText || str;
+        // Only return textContent if there are truly NO tags at all
+        if (!doc.body.innerHTML.includes('<')) {
+          str = doc.body.textContent || doc.body.innerText || str;
+        }
       }
     } catch (e) {
       // fallback
@@ -234,6 +242,32 @@ export default function QuestionBank() {
       setExistingTemplates([]);
     }
   }, [selectedSubject, selectedTemplateFilter]);
+
+  useEffect(() => {
+    // Run math rendering on all elements with ql-editor class
+    const containers = document.querySelectorAll('.ql-editor');
+    containers.forEach(container => {
+      try {
+        // Render Quill formulas
+        const formulas = container.querySelectorAll('.ql-formula');
+        formulas.forEach(f => {
+          const tex = f.getAttribute('data-value');
+          if (tex) {
+            katex.render(tex, f as HTMLElement, { throwOnError: false, displayMode: false });
+          }
+        });
+        
+        // Also look for standard delimiters if any
+        const text = container.innerHTML;
+        if (text.includes('$') || text.includes('\\(') || text.includes('\\[')) {
+          // Note: for full auto-render we might need the extension, 
+          // but for now let's focus on Quill's output which is most common here.
+        }
+      } catch (e) {
+        console.warn('KaTeX rendering failed', e);
+      }
+    });
+  }, [questions, editingData, addingData, selectedTemplateFilter]);
 
   const fetchExistingTemplates = async () => {
     if (!selectedSubject) return;
@@ -742,7 +776,22 @@ export default function QuestionBank() {
           throw new Error("File array buffer is empty");
         }
         
-        const result = await mammoth.convertToHtml({ arrayBuffer });
+        const result = await (mammoth as any).convertToHtml({ 
+          arrayBuffer,
+          styleMap: [
+            "u => u",
+            "strike => s",
+            "sub => sub",
+            "sup => sup"
+          ],
+          convertImage: (mammoth as any).images.imgElement(function(image: any) {
+            return image.read("base64").then(function(imageBuffer: any) {
+              return {
+                src: "data:" + image.contentType + ";base64," + imageBuffer
+              };
+            });
+          })
+        });
         const html = result.value;
         
         const parser = new DOMParser();
@@ -1855,7 +1904,7 @@ export default function QuestionBank() {
                            {questions.findIndex(item => item.id === q.id) + 1}
                         </div>
                         <div className="flex-1">
-                          <div className="font-semibold text-slate-800 text-sm leading-snug pr-20 py-0 pl-0 ql-editor whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatHTML(q.question) }} />
+                          <div dir="auto" className="font-semibold text-slate-800 text-sm leading-snug pr-20 py-0 pl-0 ql-editor" dangerouslySetInnerHTML={{ __html: formatHTML(q.question) }} />
                           <div className="flex items-center space-x-2 mt-1.5">
                             {selectedTemplateFilter === 'all' && q.packetName && (
                               <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 font-bold uppercase rounded border border-slate-200">
@@ -1917,6 +1966,7 @@ export default function QuestionBank() {
                                 </span>
                                 <div 
                                   className="ql-editor p-0 text-[11px] flex-1 leading-normal text-left [&_p]:m-0 [&_p]:p-0" 
+                                  dir="auto"
                                   dangerouslySetInnerHTML={{ __html: formatHTML(String(val)) }} 
                                 />
                               </div>

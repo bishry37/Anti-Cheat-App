@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Quill from 'quill';
+import katex from 'katex';
 import { Trash2 } from 'lucide-react';
+
+// Attach katex to window so Quill can find it
+if (typeof window !== 'undefined') {
+  (window as any).katex = katex;
+}
 import 'quill/dist/quill.snow.css';
 
 interface RichTextEditorProps {
@@ -95,7 +101,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
           toolbar: {
             container: [
               [{ 'header': [1, 2, false] }],
-              ['bold', 'italic', 'underline', 'strike'],
+              ['bold', 'italic', 'underline', 'strike', 'formula'],
               [{ 'list': 'ordered'}, { 'list': 'bullet' }],
               ['link', 'image'],
               ['clean']
