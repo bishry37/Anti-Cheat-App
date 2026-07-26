@@ -326,22 +326,42 @@ export default function Home() {
       );
       
       const sessionSnap = await getDocs(sessionQuery);
+
+      // Check if student already has a finished result record in exam_results
+      const resultsQuery = query(
+        collection(db, 'exam_results'),
+        where('examId', '==', matchingExam.id),
+        where('studentName', '==', upperName),
+        where('adminId', '==', matchingExam.adminId)
+      );
+      const resultsSnap = await getDocs(resultsQuery);
+
+      const hasFinishedInSession = !sessionSnap.empty && sessionSnap.docs.some(doc => doc.data().status === 'Selesai');
+      const hasFinishedInResults = !resultsSnap.empty;
+
+      if (hasFinishedInSession || hasFinishedInResults) {
+        setErrorMessage('Anda sudah menyelesaikan ujian ini sebelumnya.');
+        setLoading(false);
+        setIsLoggingInStudent(false);
+        return;
+      }
+
       let targetUid = '';
       let isResume = false;
       let existingSessionData: StudentSession | null = null;
 
       if (!sessionSnap.empty) {
-        // Sort sessions to prioritize active status, then latest activity time,
-        // to handle duplicate records safely (which can happen on production deploys if deleteDoc was restricted)
+        // Sort sessions to prioritize Selesai/Didiskualifikasi first to handle validation, then active status
         const sortedDocs = [...sessionSnap.docs].sort((a, b) => {
           const sa = a.data() as StudentSession;
           const sb = b.data() as StudentSession;
           
           const getPriority = (status: string) => {
-            if (status === 'Aktif') return 3;
-            if (status === 'Melanggar') return 2;
-            if (status === 'Selesai') return 0;
-            return 1;
+            if (status === 'Selesai') return 4;
+            if (status === 'Didiskualifikasi') return 3;
+            if (status === 'Aktif') return 2;
+            if (status === 'Melanggar') return 1;
+            return 0;
           };
           
           const pA = getPriority(sa.status);
