@@ -9,14 +9,14 @@ import brandLogo from '../../assets/images/logo1.png';
 import ChangePasswordModal from '../auth/ChangePasswordModal';
 
 export default function AdminLayout() {
-  const { logout, user } = useAuth();
+  const { logout, user, isAdmin, loading } = useAuth();
   const location = useLocation();
   const [setting, setSetting] = useState<Setting | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isAdmin) return;
     
     // Listen to settings changes in real-time
     const unsubProductSettings = onSnapshot(doc(db, 'settings', user.uid), (snap) => {
@@ -28,7 +28,40 @@ export default function AdminLayout() {
     });
 
     return () => unsubProductSettings();
-  }, [user]);
+  }, [user, isAdmin]);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
+          <p className="text-sm font-medium text-slate-500">Memuat Sesi Admin...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || !isAdmin) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-slate-50 p-6">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center border border-slate-100">
+          <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <ShieldCheck className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Akses Ditolak</h2>
+          <p className="text-slate-600 mb-8">
+            Maaf, Anda tidak memiliki izin untuk mengakses halaman Admin. Silakan login dengan akun Administrator yang valid.
+          </p>
+          <button 
+            onClick={() => logout()}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-blue-600/20 cursor-pointer"
+          >
+            Logout & Kembali
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogout = async () => {
     await logout();

@@ -5,8 +5,9 @@ service cloud.firestore {
 
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
-      return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
+
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
@@ -19,8 +20,8 @@ service cloud.firestore {
     }
 
     match /admins/{adminId} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == adminId);
-      allow create: if isAdmin() && isValidId(adminId) && isValidAdmin(incoming());
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(adminId) && isValidAdmin(incoming());
       allow delete: if isAdmin() && isValidId(adminId);
     }
 
@@ -186,7 +187,7 @@ service cloud.firestore {
 
     match /student_sessions/{sessionId} {
       allow get: if true;
-      allow list: if true;
+      allow list: if isAdmin();
       allow create: if isValidId(sessionId) && isValidStudentSession(incoming());
       allow update: if isValidId(sessionId) && isValidStudentSession(incoming());
       allow delete: if isAdmin() && existing().adminId == request.auth.uid;
@@ -205,11 +206,12 @@ service cloud.firestore {
 
     match /violations/{violationId} {
       allow get: if true;
-      allow list: if isAdmin();
+      allow list: if isAdmin() && resource.data.adminId == request.auth.uid;
       allow create: if isValidId(violationId) && isValidViolation(incoming());
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow update: if isAdmin() && existing().adminId == request.auth.uid;
+      allow delete: if isAdmin() && existing().adminId == request.auth.uid;
     }
+
   }
 }
 
