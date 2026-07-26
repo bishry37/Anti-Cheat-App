@@ -248,7 +248,7 @@ export default function Exams() {
   const handleDelete = (id: string) => {
     setModalConfig({
       title: 'Hapus Jadwal Ujian',
-      description: 'Apakah Anda yakin ingin menghapus jadwal ujian ini? Data nilai siswa yang berhubungan dengan ujian ini mungkin tidak dapat diakses lagi.',
+      description: 'Apakah Anda yakin ingin menghapus jadwal ujian ini dari Manajemen Ujian? Data nilai dan hasil pengerjaan siswa akan tetap tersimpan aman di menu Hasil Ujian.',
       idToDelete: id
     });
   };

@@ -401,12 +401,18 @@ export default function Home() {
         status: 'Aktif',
         lastActivity: Date.now(),
         token: examToken, // update token in case it changed
-        deviceId: currentDeviceId
+        deviceId: currentDeviceId,
+        examTitle: existingSessionData?.examTitle || matchingExam.title,
+        packetName: existingSessionData?.packetName || matchingExam.packetName,
+        duration: existingSessionData?.duration || matchingExam.duration,
       } : {
         studentName: upperName,
         className: matchingExam.targetClass || 'Tidak Diketahui',
         examId: matchingExam.id!,
         subjectId: matchingExam.subjectId,
+        packetName: matchingExam.packetName || '',
+        examTitle: matchingExam.title,
+        duration: matchingExam.duration,
         token: examToken,
         status: 'Aktif',
         violationsCount: 0,

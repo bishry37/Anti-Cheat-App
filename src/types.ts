@@ -92,6 +92,7 @@ export interface StudentSession {
   examId: string;
   subjectId: string;
   packetName?: string;
+  examTitle?: string;
   token: string;
   status: 'Aktif' | 'Tidak Fokus' | 'Melanggar' | 'Selesai' | 'Didiskualifikasi';
   violationsCount: number;

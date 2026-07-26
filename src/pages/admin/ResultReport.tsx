@@ -100,11 +100,12 @@ export default function ResultReport() {
     setSessionQuestions([]);
     try {
       const examObj = exams[session.examId];
+      const targetPacket = session.packetName || examObj?.packetName;
       let qQuery;
-      if (examObj && examObj.packetName) {
+      if (targetPacket) {
         qQuery = query(collection(db, 'questions'), 
           where('subjectId', '==', session.subjectId),
-          where('packetName', '==', examObj.packetName)
+          where('packetName', '==', targetPacket)
         );
       } else {
         qQuery = query(collection(db, 'questions'), where('subjectId', '==', session.subjectId));
@@ -441,7 +442,7 @@ export default function ResultReport() {
         idx + 1,
         s.studentName.toUpperCase(),
         s.className,
-        exams[s.examId]?.title || 'Ujian Terhapus',
+        s.examTitle || exams[s.examId]?.title || (subjectsMap[s.subjectId] ? `Ujian ${subjectsMap[s.subjectId]}` : 'Ujian'),
         s.status === 'Didiskualifikasi' ? 'DIDISKUALIFIKASI' : s.status.toUpperCase(),
         s.score !== undefined ? Number(s.score.toFixed(2)) : 0,
         s.correctCount || 0,
@@ -665,13 +666,14 @@ export default function ResultReport() {
                           ...classExams,
                           ...deletedExamIds.map(id => {
                             const session = allClassSessions.find(s => s.examId === id);
+                            const subjName = session?.subjectId ? subjectsMap[session.subjectId] : '';
                             return [id, {
                               id,
-                              title: 'Ujian Terhapus',
+                              title: session?.examTitle || session?.packetName || (subjName ? `Ujian ${subjName}` : 'Hasil Ujian Tersimpan'),
                               targetClass: filterClass,
-                              duration: '-',
+                              duration: session?.duration || '-',
                               subjectId: session?.subjectId || '',
-                              packetName: '',
+                              packetName: session?.packetName || '',
                               isDeleted: true
                             }] as [string, any];
                           })
@@ -733,8 +735,8 @@ export default function ResultReport() {
                                       <span>{participantCount} Siswa</span>
                                     </div>
                                     {ex.isDeleted && (
-                                      <div className="px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-100/40 text-[9px] font-bold uppercase flex items-center gap-1">
-                                        <span>Terhapus</span>
+                                      <div className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-100/40 text-[9px] font-bold uppercase flex items-center gap-1">
+                                        <span>Arsip Ujian</span>
                                       </div>
                                     )}
                                   </div>
@@ -837,7 +839,7 @@ export default function ResultReport() {
                         <div className="text-[10px] text-slate-500">Kelas {s.className}</div>
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="font-medium text-slate-700 leading-snug">{exams[s.examId]?.title || 'Ujian Terhapus'}</div>
+                        <div className="font-medium text-slate-700 leading-snug">{s.examTitle || exams[s.examId]?.title || (subjectsMap[s.subjectId] ? `Ujian ${subjectsMap[s.subjectId]}` : 'Ujian')}</div>
                         <div className="flex flex-col gap-0.5 mt-0.5">
                           <div className="text-[10px] text-slate-500 font-medium">{new Date(s.endTime || 0).toLocaleDateString()}</div>
                           {exams[s.examId]?.audioId && (
@@ -991,7 +993,7 @@ export default function ResultReport() {
               <div className="bg-white rounded-xl p-4 border border-slate-200 flex items-center justify-between shadow-xs shrink-0">
                 <div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Ujian</p>
-                  <p className="text-xs font-bold text-slate-700 uppercase tracking-tight">{exams[selectedSession.examId]?.title || 'Ujian Terhapus'}</p>
+                  <p className="text-xs font-bold text-slate-700 uppercase tracking-tight">{selectedSession.examTitle || exams[selectedSession.examId]?.title || (subjectsMap[selectedSession.subjectId] ? `Ujian ${subjectsMap[selectedSession.subjectId]}` : 'Ujian')}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Nilai Terkoreksi</p>
