@@ -38,7 +38,7 @@ export default function ExamMonitor() {
   // Custom Confirmation Dialog Modal state
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
-    type: 'warning' | 'end_exam' | 'delete' | 'restore';
+    type: 'warning' | 'end_exam' | 'delete' | 'restore' | 'clear_history';
     candidateId?: string;
     candidateName: string;
     session?: StudentSession;
@@ -311,6 +311,14 @@ export default function ExamMonitor() {
     });
   };
 
+  const triggerClearHistory = () => {
+    setConfirmDialog({
+      isOpen: true,
+      type: 'clear_history',
+      candidateName: 'Semua Riwayat Selesai & Diskualifikasi'
+    });
+  };
+
   const executeConfirmedAction = async () => {
     const { type, session, candidateId } = confirmDialog;
     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -405,6 +413,34 @@ export default function ExamMonitor() {
         showToast('Siswa berhasil dihilangkan dari monitoring');
       } catch (err) {
         handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
+      }
+    } else if (type === 'clear_history') {
+      try {
+        const finishedSessions = sessions.filter(s => s.status === 'Selesai' || s.status === 'Didiskualifikasi');
+        if (finishedSessions.length === 0) {
+          showToast('Tidak ada riwayat selesai untuk dihapus');
+          return;
+        }
+        
+        setLoading(true);
+        let count = 0;
+        await Promise.all(finishedSessions.map(async (s) => {
+          try {
+            await updateDoc(doc(db, 'student_sessions', s.id!), {
+              hiddenFromMonitor: true
+            });
+            count++;
+          } catch (e) {
+            console.error(`Gagal menghapus riwayat ${s.studentName}`, e);
+          }
+        }));
+        
+        setLoading(false);
+        showToast(`Berhasil menghapus ${count} riwayat dari monitoring`);
+      } catch (err) {
+        console.error(err);
+        setLoading(false);
+        showToast('Gagal menghapus riwayat');
       }
     }
   };
@@ -547,6 +583,17 @@ export default function ExamMonitor() {
                    <option key={ex.id} value={ex.id}>{ex.title}</option>
                 ))}
              </select>
+
+             {/* Clear Finished History Button */}
+             <button 
+                onClick={triggerClearHistory}
+                className="bg-white hover:bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg flex items-center space-x-1.5 text-xs font-bold uppercase transition-all cursor-pointer shadow-xs group/clear"
+                title="Hapus semua riwayat peserta yang sudah selesai atau didiskualifikasi dari daftar monitoring"
+             >
+                <Trash2 className="w-3.5 h-3.5 group-hover/clear:animate-bounce" />
+                <span className="hidden sm:inline">Hapus Riwayat Selesai</span>
+                <span className="sm:hidden">Hapus</span>
+             </button>
 
              {/* Reset Filter Button */}
              {(searchQuery || filterClass || filterStatus !== 'online' || filterExam) && (
@@ -950,11 +997,11 @@ export default function ExamMonitor() {
             confirmDialog.type === 'warning' ? 'max-w-md text-left' : 'max-w-sm text-center'
           }`}>
             <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
-              confirmDialog.type === 'delete' ? 'bg-red-50 text-red-600' :
+              confirmDialog.type === 'delete' || confirmDialog.type === 'clear_history' ? 'bg-red-50 text-red-600' :
               confirmDialog.type === 'end_exam' ? 'bg-red-50 text-red-600' : 
               confirmDialog.type === 'restore' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
             } ${confirmDialog.type === 'warning' ? 'self-start' : 'mx-auto'}`}>
-              {confirmDialog.type === 'delete' || confirmDialog.type === 'end_exam' ? (
+              {confirmDialog.type === 'delete' || confirmDialog.type === 'end_exam' || confirmDialog.type === 'clear_history' ? (
                 <ShieldAlert className="w-6 h-6" />
               ) : confirmDialog.type === 'restore' ? (
                 <Play className="w-6 h-6" />
@@ -964,6 +1011,7 @@ export default function ExamMonitor() {
             </div>
             <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-1 w-full">
               {confirmDialog.type === 'delete' ? 'Hapus Sesi Ujian' :
+               confirmDialog.type === 'clear_history' ? 'Hapus Riwayat Monitoring' :
                confirmDialog.type === 'end_exam' ? 'Akhiri Paksa Ujian' : 
                confirmDialog.type === 'restore' ? 'Pulihkan Sesi Ujian' : 'Kirim Teguran'}
             </h4>
@@ -971,6 +1019,7 @@ export default function ExamMonitor() {
             {confirmDialog.type !== 'warning' ? (
               <p className="text-xs text-slate-500 leading-relaxed mb-5">
                 {confirmDialog.type === 'delete' && `Apakah Anda yakin ingin menghapus data sesi ujian untuk ${confirmDialog.candidateName}? Tindakan ini tidak dapat dibatalkan.`}
+                {confirmDialog.type === 'clear_history' && `Apakah Anda yakin ingin menghapus semua riwayat peserta yang sudah Selesai atau Didiskualifikasi dari daftar monitoring? Data hasil ujian tetap tersimpan aman di menu Laporan.`}
                 {confirmDialog.type === 'end_exam' && `Apakah Anda yakin ingin mengakhiri paksa ujian untuk ${confirmDialog.candidateName}? Mereka akan didiskualifikasi.`}
                 {confirmDialog.type === 'restore' && `Izinkan ${confirmDialog.candidateName} untuk melanjutkan kembali ujian yang sebelumnya didiskualifikasi?`}
               </p>
@@ -1012,14 +1061,14 @@ export default function ExamMonitor() {
               <button 
                 onClick={executeConfirmedAction} 
                 className={`flex-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-colors cursor-pointer text-center ${
-                  confirmDialog.type === 'delete' || confirmDialog.type === 'end_exam' 
+                  confirmDialog.type === 'delete' || confirmDialog.type === 'end_exam' || confirmDialog.type === 'clear_history'
                     ? 'bg-red-600 hover:bg-red-700' 
                     : confirmDialog.type === 'restore'
                       ? 'bg-emerald-600 hover:bg-emerald-700'
                       : 'bg-amber-500 hover:bg-amber-600'
                 }`}
               >
-                {confirmDialog.type === 'delete' ? 'Hapus' :
+                {confirmDialog.type === 'delete' || confirmDialog.type === 'clear_history' ? 'Hapus' :
                  confirmDialog.type === 'end_exam' ? 'Akhiri' : 
                  confirmDialog.type === 'restore' ? 'Izinkan' : 'Kirim'}
               </button>
