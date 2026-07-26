@@ -17,58 +17,25 @@ const stripSimpleHTML = (val: string | undefined | null): string => {
   if (!val) return '';
   let str = String(val).trim();
   
-  let stripped = true;
-  while (stripped) {
-    stripped = false;
-    
-    // 1. If it's wrapped in a single <p...> ... </p>
-    if (/^<p[^>]*>([\s\S]*?)<\/p>$/i.test(str)) {
-      const match = str.match(/^<p[^>]*>([\s\S]*?)<\/p>$/i);
-      if (match) {
-        str = match[1].trim();
-        stripped = true;
-      }
+  // Remove wrapping <p> or <span> if it's the only wrapper
+  // e.g. <p><u>Text</u></p> -> <u>Text</u>
+  const pWrapper = /^<p[^>]*>([\s\S]*?)<\/p>$/i;
+  const spanWrapper = /^<span[^>]*>([\s\S]*?)<\/span>$/i;
+  
+  let changed = true;
+  while(changed) {
+    changed = false;
+    if (pWrapper.test(str)) {
+      str = str.match(pWrapper)![1].trim();
+      changed = true;
     }
-    
-    // 2. If it's wrapped in a single <span...> ... </span>
-    if (/^<span[^>]*>([\s\S]*?)<\/span>$/i.test(str)) {
-      const match = str.match(/^<span[^>]*>([\s\S]*?)<\/span>$/i);
-      if (match) {
-        str = match[1].trim();
-        stripped = true;
-      }
+    if (spanWrapper.test(str)) {
+      str = str.match(spanWrapper)![1].trim();
+      changed = true;
     }
   }
 
-  // 3. Check if there are any remaining interactive/rich HTML tags (like img, table, math, etc.)
-  // We MUST keep formatting tags like b, i, u, em, strong
-  if (!/<(img|table|tr|td|math|audio|video|iframe|svg)/i.test(str)) {
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(str, 'text/html');
-      // If there are NO images, tables, or complex structures, 
-      // but there are formatting tags like <u>, we SHOULD NOT use textContent directly
-      // as it would strip the <u>.
-      if (!doc.querySelector('img, table, math, audio, video, iframe, svg')) {
-        // Only return textContent if there are truly NO tags at all
-        if (!doc.body.innerHTML.includes('<')) {
-          str = doc.body.textContent || doc.body.innerText || str;
-        }
-      }
-    } catch (e) {
-      // fallback
-    }
-    
-    str = str
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'");
-  }
-  
-  return str.trim();
+  return str;
 };
 
 const isOptionEmpty = (val: string | undefined | null): boolean => {
@@ -780,9 +747,17 @@ export default function QuestionBank() {
           arrayBuffer,
           styleMap: [
             "u => u",
+            "underline => u",
+            "ins => u",
             "strike => s",
             "sub => sub",
-            "sup => sup"
+            "sup => sup",
+            "b => b",
+            "i => i",
+            "strong => strong",
+            "em => em",
+            "r[style-name='Underline'] => u",
+            "p[style-name='Underline'] => u"
           ],
           convertImage: (mammoth as any).images.imgElement(function(image: any) {
             return image.read("base64").then(function(imageBuffer: any) {
@@ -793,6 +768,13 @@ export default function QuestionBank() {
           })
         });
         const html = result.value;
+        
+        // Debugging logs for import
+        console.log("DOCX Import - Raw HTML from Mammoth length:", html.length);
+        const hasBold = /<(strong|b)/i.test(html);
+        const hasItalic = /<(em|i)/i.test(html);
+        const hasUnderline = /<(u|ins)/i.test(html);
+        console.log(`DOCX Content Detection - Bold: ${hasBold}, Italic: ${hasItalic}, Underline: ${hasUnderline}`);
         
         const parser = new DOMParser();
         const docDom = parser.parseFromString(html, 'text/html');

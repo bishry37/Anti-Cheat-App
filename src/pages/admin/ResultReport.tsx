@@ -544,6 +544,13 @@ export default function ResultReport() {
       
       await deleteDoc(doc(db, 'exams', examId));
       
+      // Update local exams state immediately
+      setExams(prev => {
+        const newExams = { ...prev };
+        delete newExams[examId];
+        return newExams;
+      });
+      
       showToast('File soal dan seluruh hasil ujian terkait berhasil dihapus');
       if (filterExam === examId) setFilterExam('');
       fetchResults();

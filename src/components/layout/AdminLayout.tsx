@@ -188,7 +188,7 @@ export default function AdminLayout() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header Placeholder / Mobile Header */}
-        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 font-sans">
+        <header className="lg:hidden h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 font-sans">
           <div className="flex items-center gap-4">
             {/* Hamburger Button for mobile */}
             <button 
@@ -199,7 +199,6 @@ export default function AdminLayout() {
               <Menu className="w-5 h-5" />
             </button>
 
-            <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider hidden lg:block">Dashboard Admin</h2>
             <div className="lg:hidden flex items-center">
                <div className="w-11 h-11 flex items-center justify-center mr-3 shrink-0 bg-slate-100 rounded-xl p-1.5">
                   <img src={setting?.schoolLogo || brandLogo} alt={setting?.schoolName || "SYSTEM"} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
@@ -208,7 +207,6 @@ export default function AdminLayout() {
                  {setting?.schoolName || 'Exam Pro Plus'}
                </span>
             </div>
-            <span className="hidden lg:inline-flex px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded uppercase tracking-wider">System Active</span>
           </div>
 
           {/* Mobile Profile Indicator */}
