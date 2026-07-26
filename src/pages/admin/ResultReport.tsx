@@ -528,6 +528,7 @@ export default function ResultReport() {
       await deleteDoc(doc(db, 'student_sessions', id));
       // Refresh local list
       setSessions(prev => prev.filter(s => s.id !== id));
+      setAllClassSessions(prev => prev.filter(s => s.id !== id));
       showToast('Hasil ujian berhasil dihapus');
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'student_sessions');
@@ -549,21 +550,29 @@ export default function ResultReport() {
       const deletePromises = snap.docs.map(d => deleteDoc(d.ref));
       await Promise.all(deletePromises);
       
-      await deleteDoc(doc(db, 'exams', examId));
+      try {
+        await deleteDoc(doc(db, 'exams', examId));
+      } catch (examErr) {
+        console.warn("Exam doc already deleted or permission skipped:", examErr);
+      }
       
-      // Update local exams state immediately
+      // Update local states immediately
       setExams(prev => {
         const newExams = { ...prev };
         delete newExams[examId];
         return newExams;
       });
+
+      setSessions(prev => prev.filter(s => s.examId !== examId));
+      setAllClassSessions(prev => prev.filter(s => s.examId !== examId));
       
-      showToast('File soal dan seluruh hasil ujian terkait berhasil dihapus');
       if (filterExam === examId) setFilterExam('');
-      fetchResults();
+
+      showToast('File soal dan seluruh hasil ujian terkait berhasil dihapus');
     } catch (err) {
       console.error(err);
       showToast('Gagal menghapus hasil ujian');
+    } finally {
       setLoading(false);
     }
   };
