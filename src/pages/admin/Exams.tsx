@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot, deleteField } from 'firebase/firestore';
 import { Exam, Subject, Class, AudioItem } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Clock, Copy, CheckCircle2, Search, Filter, Music } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -220,12 +220,33 @@ export default function Exams() {
     setProcessing(true);
     setErrorMsg(null);
     try {
-      const payload = {
+      const cleanAudioId = formData.audioId && formData.audioId.trim() !== '' ? formData.audioId : null;
+
+      const payload: any = {
         ...formData,
         duration: Number(formData.duration),
         tokenUpdatedAt: Date.now(),
         adminId: user.uid
       };
+
+      delete payload.id;
+
+      if (cleanAudioId) {
+        payload.audioId = cleanAudioId;
+      } else {
+        if (editingId) {
+          payload.audioId = deleteField();
+        } else {
+          delete payload.audioId;
+        }
+      }
+
+      // Remove any undefined properties before sending to Firestore
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === undefined) {
+          delete payload[key];
+        }
+      });
 
       if (editingId) {
         await updateDoc(doc(db, 'exams', editingId), payload);
@@ -394,19 +415,29 @@ export default function Exams() {
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Pilih File Soal *</label>
-                        <select
-                          required
-                          value={formData.packetName}
-                          onChange={e => setFormData({...formData, packetName: e.target.value})}
-                          disabled={!formData.subjectId}
-                          className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none disabled:opacity-50"
-                        >
-                          <option value="">-- {formData.subjectId ? (availablePackets.length > 0 ? 'Pilih File' : 'Belum ada file soal') : 'Pilih Mapel Terlebih Dahulu'} --</option>
-                          {availablePackets.map(p => <option key={p} value={p}>{p}</option>)}
-                        </select>
-                        {formData.subjectId && availablePackets.length === 0 && (
-                           <p className="text-[10px] text-red-500 font-bold mt-1 uppercase">* Upload soal di Bank Soal terlebih dahulu</p>
-                        )}
+                        {(() => {
+                          const packetOptions = Array.from(new Set([
+                            ...(formData.packetName ? [formData.packetName] : []),
+                            ...availablePackets
+                          ])).filter(Boolean).sort();
+                          return (
+                            <>
+                              <select
+                                required
+                                value={formData.packetName || ''}
+                                onChange={e => setFormData({...formData, packetName: e.target.value})}
+                                disabled={!formData.subjectId}
+                                className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none disabled:opacity-50"
+                              >
+                                <option value="">-- {formData.subjectId ? (packetOptions.length > 0 ? 'Pilih File' : 'Belum ada file soal') : 'Pilih Mapel Terlebih Dahulu'} --</option>
+                                {packetOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                              </select>
+                              {formData.subjectId && packetOptions.length === 0 && (
+                                 <p className="text-[10px] text-red-500 font-bold mt-1 uppercase">* Upload soal di Bank Soal terlebih dahulu</p>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Audio Listening (Opsional)</label>
