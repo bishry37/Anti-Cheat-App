@@ -5,7 +5,7 @@ import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { collection, query, where, getDocs, doc, setDoc, updateDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Setting, Subject, Exam, StudentSession } from '../types';
-import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2 } from 'lucide-react';
+import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2, Key } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import brandLogo from '../assets/images/logo1.png';
 
@@ -750,22 +750,6 @@ export default function Home() {
                     </>
                   )}
                 </button>
-
-                {!hasStudentLink && (
-                  <div className="pt-5 border-t border-slate-100 flex justify-center mt-6">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveTab('admin');
-                        setErrorMessage('');
-                        setSuccessMessage('');
-                      }}
-                      className="text-[11px] font-extrabold text-slate-400 hover:text-blue-600 hover:underline transition-all uppercase tracking-wider cursor-pointer"
-                    >
-                      Masuk Sebagai Admin / Proktor
-                    </button>
-                  </div>
-                )}
               </motion.form>
             )}
             
@@ -926,6 +910,20 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Floating Key Icon Button in bottom-right corner for Admin / Proktor Login */}
+      <button
+        type="button"
+        onClick={() => {
+          setActiveTab(activeTab === 'admin' ? 'student' : 'admin');
+          setErrorMessage('');
+          setSuccessMessage('');
+        }}
+        title={activeTab === 'admin' ? 'Kembali ke Portal Siswa' : 'Masuk Portal Admin / Proktor'}
+        aria-label="Portal Admin"
+        className="fixed bottom-4 right-4 sm:bottom-5 sm:right-5 z-50 p-2.5 rounded-xl text-slate-300 hover:text-blue-600 hover:bg-white/90 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/25 active:scale-95 transition-all duration-300 border border-transparent cursor-pointer group"
+      >
+        <Key className="w-4 h-4 text-slate-300/80 group-hover:text-blue-600 transition-colors duration-300 filter group-hover:drop-shadow-[0_0_6px_rgba(37,99,235,0.7)]" />
+      </button>
 
     </div>
   );
