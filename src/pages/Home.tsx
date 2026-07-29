@@ -331,34 +331,37 @@ export default function Home() {
       let existingSessionData: StudentSession | null = null;
 
       if (!sessionSnap.empty) {
-        // Sort sessions to prioritize active status, then latest activity time
-        const sortedDocs = [...sessionSnap.docs].sort((a, b) => {
-          const sa = a.data() as StudentSession;
-          const sb = b.data() as StudentSession;
-          
-          const getPriority = (status: string) => {
-            if (status === 'Aktif') return 3;
-            if (status === 'Melanggar') return 2;
-            if (status === 'Didiskualifikasi') return 1;
-            if (status === 'Selesai') return 0;
-            return 1;
-          };
-          
-          const pA = getPriority(sa.status);
-          const pB = getPriority(sb.status);
-          if (pA !== pB) return pB - pA;
-          
-          return (sb.lastActivity || 0) - (sa.lastActivity || 0);
-        });
+        // Filter out sessions that were hidden/superseded
+        const visibleDocs = sessionSnap.docs.filter(d => !(d.data() as StudentSession).hiddenFromMonitor);
+        const docsToEvaluate = visibleDocs.length > 0 ? visibleDocs : sessionSnap.docs;
 
         // 1. Strict finished check: if ANY existing session doc for this candidate is finished
-        const hasFinished = sessionSnap.docs.some(d => (d.data() as StudentSession).status === 'Selesai');
+        const hasFinished = docsToEvaluate.some(d => (d.data() as StudentSession).status === 'Selesai');
         if (hasFinished) {
           setErrorMessage('Anda sudah menyelesaikan ujian ini sebelumnya.');
           setLoading(false);
           setIsLoggingInStudent(false);
           return;
         }
+
+        // 2. Strict disqualification check: if ANY existing active session doc for this candidate is disqualified
+        const disqualifiedDoc = docsToEvaluate.find(d => (d.data() as StudentSession).status === 'Didiskualifikasi');
+        if (disqualifiedDoc) {
+          setErrorMessage('Akun Anda telah didiskualifikasi dari ujian ini. Silakan hubungi pengawas untuk memulihkan akses.');
+          setLoading(false);
+          setIsLoggingInStudent(false);
+          return;
+        }
+
+        // Sort sessions to prioritize active status, then latest activity time
+        const sortedDocs = [...docsToEvaluate].sort((a, b) => {
+          const sa = a.data() as StudentSession;
+          const sb = b.data() as StudentSession;
+          
+          const timeA = sa.lastActivity || sa.startTime || 0;
+          const timeB = sb.lastActivity || sb.startTime || 0;
+          return timeB - timeA;
+        });
 
         const docSnap = sortedDocs[0];
         existingSessionData = docSnap.data() as StudentSession;
@@ -374,7 +377,7 @@ export default function Home() {
         }
 
         if (existingSessionData.status === 'Didiskualifikasi') {
-          setErrorMessage('Akun Anda telah didiskualifikasi dari ujian ini.');
+          setErrorMessage('Akun Anda telah didiskualifikasi dari ujian ini. Silakan hubungi pengawas untuk memulihkan akses.');
           setLoading(false);
           setIsLoggingInStudent(false);
           return;
@@ -485,7 +488,8 @@ export default function Home() {
           try {
               // We use updateDoc because students might not have permission to delete
               await updateDoc(doc(db, 'student_sessions', targetUid), {
-                  hiddenFromMonitor: true
+                  hiddenFromMonitor: true,
+                  status: 'Arsip'
               });
           } catch (e) {
               console.warn("Cleanup old session doc failed", e);

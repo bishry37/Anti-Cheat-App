@@ -680,7 +680,8 @@ export default function StudentExam() {
         await updateDoc(docRef, {
           status: 'Didiskualifikasi',
           violationsCount: newCount,
-          endTime: Date.now()
+          endTime: Date.now(),
+          wasDisqualified: true
         });
 
         // Exit fullscreen immediately
