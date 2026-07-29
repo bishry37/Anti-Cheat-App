@@ -16,30 +16,31 @@ import 'katex/dist/katex.min.css';
 const stripSimpleHTML = (val: string | undefined | null): string => {
   if (!val) return '';
   let str = String(val).trim();
-  
-  // If it has images, tables, or complex stuff, return as is
+  if (!str) return '';
+
+  // Remove paragraph tags (<p...>, </p>)
+  str = str.replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '').trim();
+
+  // If it has images, tables, math, audio, video, iframe, svg, return as is
   if (/<(img|table|tr|td|math|audio|video|iframe|svg)/i.test(str)) {
     return str.trim();
   }
 
-  // If it has any formatting tags, preserve it
-  // We include u, b, strong, i, em, s, strike, sub, sup, ins, span, font
+  // If it has formatting tags (u, b, strong, i, em, s, strike, sub, sup, ins, span, font), preserve it
   if (/<(u|b|strong|i|em|s|strike|sub|sup|ins|span|font)/i.test(str)) {
     return str.trim();
   }
 
-  // Otherwise, extract text content (handling entities)
+  // Otherwise, extract plain text content (handling entities like &nbsp;, &amp;)
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(str, 'text/html');
-    if (!doc.body.innerHTML.includes('<')) {
-      const text = doc.body.textContent || doc.body.innerText || str.trim();
-      return text;
-    }
+    const text = doc.body.textContent || doc.body.innerText || '';
+    return text.trim();
   } catch (e) {
     // fallback
   }
-  
+
   return str.trim();
 };
 
@@ -842,7 +843,13 @@ export default function QuestionBank() {
         };
 
         const validateAndCleanupQuestion = (qObj: any) => {
-          if (qObj.type === 'pilihan_ganda' || qObj.type === 'listening') {
+          if (qObj.type === 'pilihan_ganda' || qObj.type === 'listening' || qObj.type === 'menjodohkan') {
+            qObj.optionA = stripSimpleHTML(qObj.optionA);
+            qObj.optionB = stripSimpleHTML(qObj.optionB);
+            qObj.optionC = stripSimpleHTML(qObj.optionC);
+            qObj.optionD = stripSimpleHTML(qObj.optionD);
+            qObj.optionE = stripSimpleHTML(qObj.optionE);
+
             const availableOptions: string[] = [];
             if (!isOptionEmpty(qObj.optionA)) availableOptions.push('A'); else qObj.optionA = '';
             if (!isOptionEmpty(qObj.optionB)) availableOptions.push('B'); else qObj.optionB = '';
@@ -1198,11 +1205,11 @@ export default function QuestionBank() {
       await updateDoc(doc(db, 'questions', editingQuestionId), {
         number: Number(editingData.number),
         question: editingData.question || '',
-        optionA: isPg ? String(editingData.optionA || '') : '',
-        optionB: isPg ? String(editingData.optionB || '') : '',
-        optionC: isPg ? String(editingData.optionC || '') : '',
-        optionD: isPg ? String(editingData.optionD || '') : '',
-        optionE: isPg ? String(editingData.optionE || '') : '',
+        optionA: isPg ? stripSimpleHTML(editingData.optionA) : '',
+        optionB: isPg ? stripSimpleHTML(editingData.optionB) : '',
+        optionC: isPg ? stripSimpleHTML(editingData.optionC) : '',
+        optionD: isPg ? stripSimpleHTML(editingData.optionD) : '',
+        optionE: isPg ? stripSimpleHTML(editingData.optionE) : '',
         correctAnswer: isPg ? String(editingData.correctAnswer?.toUpperCase() || 'A') : (editingData.correctAnswer || ''),
         type: qType,
         typeCode: mapTypeToCode(qType),
@@ -1280,11 +1287,11 @@ export default function QuestionBank() {
         adminId: user.uid,
         createdAt: Date.now(),
         question: addingData.question || '',
-        optionA: isPg ? String(addingData.optionA || '') : '',
-        optionB: isPg ? String(addingData.optionB || '') : '',
-        optionC: isPg ? String(addingData.optionC || '') : '',
-        optionD: isPg ? String(addingData.optionD || '') : '',
-        optionE: isPg ? String(addingData.optionE || '') : '',
+        optionA: isPg ? stripSimpleHTML(addingData.optionA) : '',
+        optionB: isPg ? stripSimpleHTML(addingData.optionB) : '',
+        optionC: isPg ? stripSimpleHTML(addingData.optionC) : '',
+        optionD: isPg ? stripSimpleHTML(addingData.optionD) : '',
+        optionE: isPg ? stripSimpleHTML(addingData.optionE) : '',
         correctAnswer: isPg ? String(addingData.correctAnswer?.toUpperCase() || 'A') : (addingData.correctAnswer || ''),
         type: qType,
         typeCode: mapTypeToCode(qType),
