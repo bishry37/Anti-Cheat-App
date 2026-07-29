@@ -412,13 +412,19 @@ export default function ResultReport() {
     aoa.push(['', 'REKAPITULASI DAFTAR NILAI EVALUASI BELAJAR SISWA']); // Row 1
     aoa.push([]); // Row 2 spacer
 
+    const nowFormatted = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
     aoa.push(['', 'INFORMASI AKADEMIK', '', '', 'DETAIL REKAPITULASI']); // Row 3
     aoa.push(['', 'Nama Guru Pengampu', `: ${teacherName}`, '', 'Mata Pelajaran', `: ${subjectName}`]); // Row 4
     aoa.push(['', 'Jabatan / Peran', `: ${teacherRole}`, '', 'Kelas', `: ${filterClass || 'Semua Kelas'}`]); // Row 5
-    aoa.push(['', 'Jadwal Ujian', filterExam && exams[filterExam] ? `: ${exams[filterExam].title}` : ': Semua Ujian', '', 'Total Peserta', `: ${sortedSessions.length} Siswa`]); // Row 6
-    aoa.push(['', 'Tanggal Unduh Laporan', `: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`]); // Row 7
-    aoa.push([]); // Row 8 spacer
-    aoa.push([]); // Row 9 spacer
+    if (filterExam && exams[filterExam]) {
+      aoa.push(['', 'Jadwal Ujian', `: ${exams[filterExam].title}`, '', 'Total Peserta', `: ${sortedSessions.length} Siswa`]); // Row 6
+      aoa.push(['', 'Tanggal Unduh Laporan', `: ${nowFormatted}`]); // Row 7
+    } else {
+      aoa.push(['', 'Tanggal Unduh Laporan', `: ${nowFormatted}`, '', 'Total Peserta', `: ${sortedSessions.length} Siswa`]); // Row 6
+    }
+    aoa.push([]); // Row 7/8 spacer
+    aoa.push([]); // Row 8/9 spacer
 
     // Table Headers
     aoa.push([
@@ -457,7 +463,7 @@ export default function ResultReport() {
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
     // Apply merges to look like the screenshot layout
-    ws['!merges'] = [
+    const merges: XLSX.Range[] = [
       { s: { r: 1, c: 1 }, e: { r: 1, c: 11 } },
       { s: { r: 3, c: 1 }, e: { r: 3, c: 2 } },
       { s: { r: 3, c: 4 }, e: { r: 3, c: 6 } },
@@ -467,8 +473,13 @@ export default function ResultReport() {
       { s: { r: 5, c: 5 }, e: { r: 5, c: 11 } },
       { s: { r: 6, c: 2 }, e: { r: 6, c: 3 } },
       { s: { r: 6, c: 5 }, e: { r: 6, c: 11 } },
-      { s: { r: 7, c: 2 }, e: { r: 7, c: 5 } }
     ];
+
+    if (filterExam && exams[filterExam]) {
+      merges.push({ s: { r: 7, c: 2 }, e: { r: 7, c: 5 } });
+    }
+
+    ws['!merges'] = merges;
 
     // Align column widths beautifully
     ws['!cols'] = [
