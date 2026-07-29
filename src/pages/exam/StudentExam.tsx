@@ -1340,7 +1340,7 @@ export default function StudentExam() {
                             Pilih Jawaban Anda:
                          </label>
                          <span className="text-[10px] font-bold uppercase border rounded px-1.5 py-0.5 bg-blue-50 text-blue-700 border-blue-100">
-                            Pilihan Ganda
+                            {currentQ.type === 'listening' ? 'Listening' : 'Pilihan Ganda'}
                          </span>
                       </div>
                       {((currentQ as any).shuffledOptions || []).map((optItem: any, idx: number) => {

@@ -1057,7 +1057,7 @@ export default function ResultReport() {
                             Soal {qIndex + 1} - {
                               isEssay ? 'Essay / Uraian' : 
                               q.type === 'isian_singkat' ? 'Isian Singkat' : 
-                              q.type === 'listening' ? 'Listening (Pilihan Ganda)' :
+                              q.type === 'listening' ? 'Listening' :
                               'Pilihan Ganda'
                             }
                           </span>

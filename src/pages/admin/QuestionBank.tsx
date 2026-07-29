@@ -381,7 +381,7 @@ export default function QuestionBank() {
                       new TextRun({ text: "• Kode ", size: 18 }),
                       new TextRun({ text: "1", bold: true, size: 18, color: "0284c7" }),
                       new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
-                      new TextRun({ text: "Pilihan Ganda (Kolom Pilihan A-E wajib diisi)", bold: true, size: 18 })
+                      new TextRun({ text: "Pilihan Ganda", bold: true, size: 18 })
                     ]
                   }),
                   new Paragraph({
@@ -390,7 +390,7 @@ export default function QuestionBank() {
                       new TextRun({ text: "• Kode ", size: 18 }),
                       new TextRun({ text: "2", bold: true, size: 18, color: "0284c7" }),
                       new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
-                      new TextRun({ text: "Listening (Pilihan Ganda) (Kolom Pilihan A-E wajib diisi)", bold: true, size: 18 })
+                      new TextRun({ text: "Listening", bold: true, size: 18 })
                     ]
                   }),
                   new Paragraph({
@@ -654,7 +654,7 @@ export default function QuestionBank() {
                 spacing: { before: 300, after: 100 },
                 children: [
                   new TextRun({
-                    text: "2. TABEL SOAL LISTENING (PILIHAN GANDA) (Jenis Soal = 2)",
+                    text: "2. TABEL SOAL LISTENING (Jenis Soal = 2)",
                     bold: true,
                     size: 20,
                     color: "0284c7"
@@ -1611,7 +1611,7 @@ export default function QuestionBank() {
                         className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800 cursor-pointer"
                       >
                         <option value="pilihan_ganda">Pilihan Ganda</option>
-                        <option value="listening">Listening (Pilihan Ganda)</option>
+                        <option value="listening">Listening</option>
                         <option value="isian_singkat">Isian Singkat</option>
                         <option value="menjodohkan">Menjodohkan</option>
                         <option value="essay">Paragraf / Essai</option>
@@ -1775,7 +1775,7 @@ export default function QuestionBank() {
                               className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800 cursor-pointer"
                             >
                               <option value="pilihan_ganda">Pilihan Ganda</option>
-                              <option value="listening">Listening (Pilihan Ganda)</option>
+                              <option value="listening">Listening</option>
                               <option value="isian_singkat">Isian Singkat</option>
                               <option value="menjodohkan">Menjodohkan</option>
                               <option value="essay">Paragraf / Essai</option>
@@ -1898,7 +1898,7 @@ export default function QuestionBank() {
                               </span>
                             ) : q.type === 'listening' ? (
                               <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-sky-100 text-sky-700 border-sky-200">
-                                Listening (Pilihan Ganda)
+                                Listening
                               </span>
                             ) : q.type === 'isian_singkat' ? (
                               <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-amber-100 text-amber-700 border-amber-200">
