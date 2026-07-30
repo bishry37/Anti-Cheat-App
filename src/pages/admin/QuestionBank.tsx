@@ -419,7 +419,48 @@ export default function QuestionBank() {
         ]
       });
 
-      // 2. PILIHAN GANDA TABLE (Table 1)
+      // 2. Helper to generate MCQ / Listening question rows
+      const createMcqQuestionRows = (
+        noStr: string,
+        soalText: string,
+        jenisStr: string,
+        options: { label: string; text: string }[],
+        kunciStr: string
+      ) => {
+        const rows: TableRow[] = [];
+        options.forEach((opt, idx) => {
+          if (idx === 0) {
+            rows.push(
+              new TableRow({
+                children: [
+                  createCell(noStr, false, undefined, undefined, VerticalMergeType.RESTART),
+                  createCell(soalText, false, undefined, undefined, VerticalMergeType.RESTART),
+                  createCell(jenisStr, false, undefined, undefined, VerticalMergeType.RESTART),
+                  createCell(opt.label, false),
+                  createCell(opt.text, false),
+                  createCell(kunciStr, false, undefined, undefined, VerticalMergeType.RESTART),
+                ]
+              })
+            );
+          } else {
+            rows.push(
+              new TableRow({
+                children: [
+                  createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+                  createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+                  createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+                  createCell(opt.label, false),
+                  createCell(opt.text, false),
+                  createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
+                ]
+              })
+            );
+          }
+        });
+        return rows;
+      };
+
+      // 3. PILIHAN GANDA TABLE (10 Questions)
       const mcqHeader = new TableRow({
         children: [
           createCell("NO", true, "e0f2fe", 6),
@@ -431,66 +472,48 @@ export default function QuestionBank() {
         ]
       });
 
+      const mcqRows: TableRow[] = [mcqHeader];
+      // Question 1 (Sample)
+      mcqRows.push(
+        ...createMcqQuestionRows(
+          "1",
+          "Siapakah Presiden Indonesia pada tahun 1999?",
+          "1",
+          [
+            { label: "A", text: "Soekarno" },
+            { label: "B", text: "Soeharto" },
+            { label: "C", text: "B. J. Habibie" },
+            { label: "D", text: "Abdurrahman Wahid" },
+            { label: "E", text: "Megawati Soekarnoputri" }
+          ],
+          "C"
+        )
+      );
+      // Questions 2 - 10 (Blank slots)
+      for (let i = 2; i <= 10; i++) {
+        mcqRows.push(
+          ...createMcqQuestionRows(
+            String(i),
+            "",
+            "1",
+            [
+              { label: "A", text: "" },
+              { label: "B", text: "" },
+              { label: "C", text: "" },
+              { label: "D", text: "" },
+              { label: "E", text: "" }
+            ],
+            ""
+          )
+        );
+      }
+
       const mcqTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          mcqHeader,
-          // Question Row 1 (Start merge)
-          new TableRow({
-            children: [
-              createCell("1", false, undefined, undefined, VerticalMergeType.RESTART),
-              createCell("Siapakah Presiden Indonesia pada tahun 1999?", false, undefined, undefined, VerticalMergeType.RESTART),
-              createCell("1", false, undefined, undefined, VerticalMergeType.RESTART),
-              createCell("A", false),
-              createCell("Soekarno", false),
-              createCell("B", false, undefined, undefined, VerticalMergeType.RESTART),
-            ]
-          }),
-          // Row 2-5 (Option continuation)
-          new TableRow({
-            children: [
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("B", false),
-              createCell("Soeharto", false),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-            ]
-          }),
-          new TableRow({
-            children: [
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("C", false),
-              createCell("B. J. Habibie", false),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-            ]
-          }),
-          new TableRow({
-            children: [
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("D", false),
-              createCell("Abdurrahman Wahid", false),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-            ]
-          }),
-          new TableRow({
-            children: [
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("E", false),
-              createCell("Megawati Soekarnoputri", false),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-            ]
-          }),
-        ]
+        rows: mcqRows
       });
 
-      // 3. TABLE FOR LISTENING (PILIHAN GANDA) - identical structure to MCQ
+      // 4. TABLE FOR LISTENING (10 Questions)
       const listeningHeader = new TableRow({
         children: [
           createCell("NO", true, "e0f2fe", 6),
@@ -502,64 +525,48 @@ export default function QuestionBank() {
         ]
       });
 
+      const listeningRows: TableRow[] = [listeningHeader];
+      // Question 1 (Sample)
+      listeningRows.push(
+        ...createMcqQuestionRows(
+          "1",
+          "Pertanyaan audio listening: Manakah pernyataan yang sesuai dengan percakapan?",
+          "2",
+          [
+            { label: "A", text: "Pilihan Jawaban A" },
+            { label: "B", text: "Pilihan Jawaban B" },
+            { label: "C", text: "Pilihan Jawaban C" },
+            { label: "D", text: "Pilihan Jawaban D" },
+            { label: "E", text: "Pilihan Jawaban E" }
+          ],
+          "A"
+        )
+      );
+      // Questions 2 - 10 (Blank slots)
+      for (let i = 2; i <= 10; i++) {
+        listeningRows.push(
+          ...createMcqQuestionRows(
+            String(i),
+            "",
+            "2",
+            [
+              { label: "A", text: "" },
+              { label: "B", text: "" },
+              { label: "C", text: "" },
+              { label: "D", text: "" },
+              { label: "E", text: "" }
+            ],
+            ""
+          )
+        );
+      }
+
       const listeningTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          listeningHeader,
-          new TableRow({
-            children: [
-              createCell("1", false, undefined, undefined, VerticalMergeType.RESTART),
-              createCell("Pertanyaan audio listening: Manakah pernyataan yang sesuai dengan percakapan?", false, undefined, undefined, VerticalMergeType.RESTART),
-              createCell("2", false, undefined, undefined, VerticalMergeType.RESTART),
-              createCell("A", false),
-              createCell("Pilihan Jawaban A", false),
-              createCell("A", false, undefined, undefined, VerticalMergeType.RESTART),
-            ]
-          }),
-          new TableRow({
-            children: [
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("B", false),
-              createCell("Pilihan Jawaban B", false),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-            ]
-          }),
-          new TableRow({
-            children: [
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("C", false),
-              createCell("Pilihan Jawaban C", false),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-            ]
-          }),
-          new TableRow({
-            children: [
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("D", false),
-              createCell("Pilihan Jawaban D", false),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-            ]
-          }),
-          new TableRow({
-            children: [
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-              createCell("E", false),
-              createCell("Pilihan Jawaban E", false),
-              createCell("", false, undefined, undefined, VerticalMergeType.CONTINUE),
-            ]
-          }),
-        ]
+        rows: listeningRows
       });
 
-      // 4. ISIAN SINGKAT & ESSAY follow similar logic but simpler rows
+      // 5. ISIAN SINGKAT TABLE (10 Questions)
       const shortHeader = new TableRow({
         children: [
           createCell("NO", true, "fef3c7", 6),
@@ -569,21 +576,38 @@ export default function QuestionBank() {
         ]
       });
 
-      const shortRowExample = new TableRow({
-        children: [
-          createCell("1", false),
-          createCell("Gas apa yang paling banyak terkandung di atmosfer bumi?", false),
-          createCell("3", false),
-          createCell("Nitrogen", false),
-        ]
-      });
+      const shortRows: TableRow[] = [shortHeader];
+      // Question 1 (Sample)
+      shortRows.push(
+        new TableRow({
+          children: [
+            createCell("1", false),
+            createCell("Gas apa yang paling banyak terkandung di atmosfer bumi?", false),
+            createCell("3", false),
+            createCell("Nitrogen", false),
+          ]
+        })
+      );
+      // Questions 2 - 10 (Blank slots)
+      for (let i = 2; i <= 10; i++) {
+        shortRows.push(
+          new TableRow({
+            children: [
+              createCell(String(i), false),
+              createCell("", false),
+              createCell("3", false),
+              createCell("", false),
+            ]
+          })
+        );
+      }
 
       const shortTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [shortHeader, shortRowExample]
+        rows: shortRows
       });
 
-      // 5. PARAGRAF / ESSAY TABLE
+      // 6. PARAGRAF / ESSAY TABLE (10 Questions)
       const essayHeader = new TableRow({
         children: [
           createCell("NO", true, "f3e8ff", 6),
@@ -593,18 +617,35 @@ export default function QuestionBank() {
         ]
       });
 
-      const essayRowExample = new TableRow({
-        children: [
-          createCell("1", false),
-          createCell("Jelaskan pengertian ekologi laut dan berikan 2 contoh ekosistemnya!", false),
-          createCell("4", false),
-          createCell("Ekologi laut adalah studi hubungan organisme dengan lingkungan laut. Contoh: Terumbu karang dan Padang lamun.", false),
-        ]
-      });
+      const essayRows: TableRow[] = [essayHeader];
+      // Question 1 (Sample)
+      essayRows.push(
+        new TableRow({
+          children: [
+            createCell("1", false),
+            createCell("Jelaskan pengertian ekologi laut dan berikan 2 contoh ekosistemnya!", false),
+            createCell("4", false),
+            createCell("Ekologi laut adalah studi hubungan organisme dengan lingkungan laut. Contoh: Terumbu karang dan Padang lamun.", false),
+          ]
+        })
+      );
+      // Questions 2 - 10 (Blank slots)
+      for (let i = 2; i <= 10; i++) {
+        essayRows.push(
+          new TableRow({
+            children: [
+              createCell(String(i), false),
+              createCell("", false),
+              createCell("4", false),
+              createCell("", false),
+            ]
+          })
+        );
+      }
 
       const essayTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [essayHeader, essayRowExample]
+        rows: essayRows
       });
 
       // Assemble everything!
@@ -939,7 +980,13 @@ export default function QuestionBank() {
               };
 
               // Dummy check for the sample question comparing text
-              if (cellSoalText.toLowerCase().includes("presiden indonesia pada tahun 1999")) {
+              const cellSoalTextLower = cellSoalText.toLowerCase();
+              if (
+                cellSoalTextLower.includes("presiden indonesia pada tahun 1999") ||
+                cellSoalTextLower.includes("pertanyaan audio listening: manakah") ||
+                cellSoalTextLower.includes("gas apa yang paling banyak terkandung") ||
+                cellSoalTextLower.includes("jelaskan pengertian ekologi laut")
+              ) {
                  currentQ = null; continue;
               }
             }
