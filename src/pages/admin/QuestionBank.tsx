@@ -1033,7 +1033,7 @@ export default function QuestionBank() {
         }
 
         const totalQ = questionsToUpload.length;
-        const typeUnits: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 1, 'isian_singkat': 5, 'essay': 15 };
+        const typeUnits: Record<string, number> = { 'pilihan_ganda': 1, 'menjodohkan': 1, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
         let totalUnits = 0;
         questionsToUpload.forEach(q => {
           totalUnits += typeUnits[q.type] || 1;
@@ -1073,7 +1073,7 @@ export default function QuestionBank() {
           await batch.commit();
         }
 
-        const msg = `Berhasil mengimpor ${count} soal ke dalam template "${templateName}". Bobot setiap soal telah disesuaikan secara otomatis berdasarkan tingkat kesulitan (Essay > Isian Singkat > Pilihan Ganda) dengan total skor maksimal setara 100.`;
+        const msg = `Berhasil mengimpor ${count} soal ke dalam template "${templateName}". Bobot setiap soal telah disesuaikan secara otomatis berdasarkan tingkat kesulitan (Essay > Isian Singkat > Listening > Pilihan Ganda) dengan total skor maksimal setara 100.`;
         showCustomAlert('Berhasil Impor', msg, true);
         setSelectedTemplateFilter(templateName.trim());
         fetchQuestions();
@@ -1260,7 +1260,7 @@ export default function QuestionBank() {
         correctAnswer: isPg ? String(editingData.correctAnswer?.toUpperCase() || 'A') : (editingData.correctAnswer || ''),
         type: qType,
         typeCode: mapTypeToCode(qType),
-        weight: Number(editingData.weight || 10),
+        weight: Number(editingData.weight !== undefined && editingData.weight !== null && editingData.weight !== 0 ? editingData.weight : (qType === 'essay' ? 15 : qType === 'isian_singkat' ? 10 : qType === 'listening' ? 5 : 1)),
         lastEditedAt: Date.now()
       } as any);
       
@@ -1342,7 +1342,7 @@ export default function QuestionBank() {
         correctAnswer: isPg ? String(addingData.correctAnswer?.toUpperCase() || 'A') : (addingData.correctAnswer || ''),
         type: qType,
         typeCode: mapTypeToCode(qType),
-        weight: Number(addingData.weight || 10)
+        weight: Number(addingData.weight !== undefined && addingData.weight !== null && addingData.weight !== 0 ? addingData.weight : (qType === 'essay' ? 15 : qType === 'isian_singkat' ? 10 : qType === 'listening' ? 5 : 1))
       };
       
       batch.set(qRef, docData);
@@ -1654,7 +1654,7 @@ export default function QuestionBank() {
                         value={addingData.type || 'pilihan_ganda'}
                         onChange={e => {
                           const val = e.target.value as any;
-                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 1, 'isian_singkat': 5, 'essay': 15 };
+                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'menjodohkan': 1, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
                           setAddingData({ 
                             ...addingData, 
                             type: val,
@@ -1818,7 +1818,7 @@ export default function QuestionBank() {
                               value={editingData.type || 'pilihan_ganda'}
                               onChange={e => {
                                 const val = e.target.value as any;
-                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 1, 'isian_singkat': 5, 'essay': 15 };
+                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'menjodohkan': 1, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
                                 setEditingData({ 
                                   ...editingData, 
                                   type: val,
