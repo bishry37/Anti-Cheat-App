@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, storage } from '../../lib/firebase';
+import { db } from '../../lib/firebase';
 import { collection, addDoc, getDocs, deleteDoc, doc, query, where, orderBy, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useAuth } from '../../contexts/AuthContext';
 import { AudioItem } from '../../types';
 import { Headphones, Upload, Play, Pause, Trash2, Plus, Search, Music, Clock, AlertCircle, X, CheckCircle2, Edit2 } from 'lucide-react';
@@ -75,79 +74,121 @@ export default function AudioBank() {
     setUploading(true);
     setError('');
     setUploadProgress(5);
-    setUploadStage('Mempersiapkan unggahan (Tanpa Batasan Ukuran)...');
+    setUploadStage('Membaca file audio...');
 
     try {
-      let duration = 0;
-      try {
-        const objectUrl = URL.createObjectURL(file);
-        duration = await new Promise<number>((resolve) => {
-          const audioObj = new Audio(objectUrl);
-          audioObj.onloadedmetadata = () => {
-            const dur = audioObj.duration || 0;
-            URL.revokeObjectURL(objectUrl);
-            resolve(dur);
-          };
-          audioObj.onerror = () => {
-            URL.revokeObjectURL(objectUrl);
-            resolve(0);
-          };
-          setTimeout(() => resolve(0), 4000);
-        });
-      } catch (e) {
-        console.warn("Duration extraction warning:", e);
-      }
+      // Read file as Data URL (base64)
+      const reader = new FileReader();
 
-      setUploadStage('Mengunggah file ke Cloud Storage...');
-      const storagePath = `audio_banks/${user!.uid}/${Date.now()}_${file.name}`;
-      const storageRef = ref(storage, storagePath);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 90;
-          setUploadProgress(Math.round(5 + progress));
-          setUploadStage(`Mengunggah: ${Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)}% (${(snapshot.bytesTransferred / (1024 * 1024)).toFixed(1)} MB)`);
-        },
-        (err) => {
-          console.error("Storage upload error:", err);
-          setError('Gagal mengunggah file ke Cloud Storage: ' + err.message);
-          setUploading(false);
-        },
-        async () => {
-          setUploadStage('Menyimpan metadata...');
-          setUploadProgress(95);
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-
-          await addDoc(collection(db, 'audio_banks'), {
-            adminId: user!.uid,
-            name: name.trim(),
-            description: description.trim(),
-            fileName: file.name,
-            audioUrl: downloadURL,
-            audioData: '',
-            duration,
-            allowRepeat,
-            createdAt: Date.now(),
-            isChunked: false
-          });
-
-          setUploadProgress(100);
-          setUploading(false);
-          setIsModalOpen(false);
-          setName('');
-          setDescription('');
-          setFile(null);
-          setAllowRepeat('Ya');
-          setUploadProgress(0);
-          setUploadStage('');
-          setSuccessMsg('Audio berhasil diunggah tanpa batasan ukuran!');
-          setTimeout(() => setSuccessMsg(''), 4000);
+      reader.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) {
+          const percent = Math.round((event.loaded / event.total) * 40);
+          setUploadProgress(Math.min(percent, 40));
         }
-      );
+      };
+
+      reader.onload = async (uploadEvent) => {
+        setUploadProgress(45);
+        setUploadStage('Memproses metadata audio...');
+        const base64Data = uploadEvent.target?.result as string;
+
+        // Get audio duration
+        const audioObj = new Audio(base64Data);
+        audioObj.onloadedmetadata = async () => {
+          const audioDuration = audioObj.duration || 0;
+          await saveToFirestore(base64Data, audioDuration);
+        };
+
+        audioObj.onerror = async () => {
+          // Fallback if metadata fails
+          await saveToFirestore(base64Data, 0);
+        };
+      };
+
+      reader.onerror = () => {
+        setError('Gagal membaca file audio.');
+        setUploading(false);
+      };
+
+      reader.readAsDataURL(file);
+
     } catch (err: any) {
       console.error("Error saving audio:", err);
-      setError('Terjadi kesalahan saat mengunggah audio: ' + (err.message || ''));
+      setError('Terjadi kesalahan saat mengunggah audio.');
+      setUploading(false);
+    }
+  };
+
+  const saveToFirestore = async (base64Data: string, duration: number) => {
+    try {
+      setUploadStage('Menyimpan ke database...');
+      setUploadProgress(50);
+      const CHUNK_SIZE = 700000;
+      if (base64Data.length <= CHUNK_SIZE) {
+        setUploadProgress(75);
+        await addDoc(collection(db, 'audio_banks'), {
+          adminId: user!.uid,
+          name: name.trim(),
+          description: description.trim(),
+          fileName: file?.name || 'audio',
+          audioData: base64Data,
+          duration,
+          allowRepeat,
+          createdAt: Date.now(),
+          isChunked: false
+        });
+        setUploadProgress(100);
+      } else {
+        // Split into chunks
+        const chunks: string[] = [];
+        for (let i = 0; i < base64Data.length; i += CHUNK_SIZE) {
+          chunks.push(base64Data.substring(i, i + CHUNK_SIZE));
+        }
+
+        setUploadProgress(55);
+        // Add parent doc first with isChunked: true
+        const docRef = await addDoc(collection(db, 'audio_banks'), {
+          adminId: user!.uid,
+          name: name.trim(),
+          description: description.trim(),
+          fileName: file?.name || 'audio',
+          audioData: '',
+          duration,
+          allowRepeat,
+          createdAt: Date.now(),
+          isChunked: true
+        });
+
+        setUploadProgress(60);
+        let completed = 0;
+        const totalChunks = chunks.length;
+
+        for (let index = 0; index < chunks.length; index++) {
+          await setDoc(doc(db, 'audio_banks', docRef.id, 'chunks', String(index)), {
+            chunkIndex: index,
+            data: chunks[index]
+          });
+          completed++;
+          const currentPct = 60 + Math.round((completed / totalChunks) * 38);
+          setUploadProgress(currentPct);
+          setUploadStage(`Mengunggah bagian audio (${completed}/${totalChunks})...`);
+        }
+        setUploadProgress(100);
+      }
+
+      setUploading(false);
+      setIsModalOpen(false);
+      setName('');
+      setDescription('');
+      setFile(null);
+      setAllowRepeat('Ya');
+      setUploadProgress(0);
+      setUploadStage('');
+      setSuccessMsg('Audio berhasil ditambahkan ke Manajemen Audio.');
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (err: any) {
+      console.error("Gagal menyimpan audio:", err);
+      setError('Gagal menyimpan ke database. ' + (err.message || ''));
       setUploading(false);
     }
   };
@@ -195,18 +236,9 @@ export default function AudioBank() {
   };
 
   const handleDelete = async (id: string, audioName: string) => {
-    const itemToDelete = audioList.find(i => i.id === id);
     if (window.confirm(`Apakah Anda yakin ingin menghapus audio "${audioName}"?`)) {
       try {
         await deleteDoc(doc(db, 'audio_banks', id));
-        if (itemToDelete?.audioUrl) {
-          try {
-            const storageRef = ref(storage, itemToDelete.audioUrl);
-            await deleteObject(storageRef);
-          } catch (e) {
-            console.warn("Could not delete file from storage:", e);
-          }
-        }
         if (playingId === id) {
           if (audioRef.current) audioRef.current.pause();
           setPlayingId(null);
@@ -232,9 +264,7 @@ export default function AudioBank() {
     }
 
     let audioSrc = '';
-    if (item.audioUrl) {
-      audioSrc = item.audioUrl;
-    } else if (item.isChunked) {
+    if (item.isChunked) {
       if (audioCache[item.id]) {
         audioSrc = audioCache[item.id];
       } else {
@@ -258,7 +288,7 @@ export default function AudioBank() {
         }
       }
     } else {
-      audioSrc = item.audioData || '';
+      audioSrc = item.audioData;
     }
 
     if (!audioSrc) {

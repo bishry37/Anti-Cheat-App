@@ -30,7 +30,7 @@ const CustomAudioPlayer = ({ audioItem, hasPlayedAudio, setHasPlayedAudio }: { a
   if (!isOneTime) {
     return (
       <audio 
-        src={audioItem.audioUrl || audioItem.audioData || (audioItem as any).data}
+        src={audioItem.audioData || (audioItem as any).data}
         controls
         controlsList="nodownload noplaybackrate"
         className="w-full h-10 accent-blue-600 outline-none"
@@ -42,7 +42,7 @@ const CustomAudioPlayer = ({ audioItem, hasPlayedAudio, setHasPlayedAudio }: { a
     <div>
       <audio 
         ref={audioRef}
-        src={audioItem.audioUrl || audioItem.audioData || (audioItem as any).data}
+        src={audioItem.audioData || (audioItem as any).data}
         className="hidden"
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
@@ -334,14 +334,7 @@ export default function StudentExam() {
               const audioSnap = await getDoc(doc(db, 'audio_banks', exData.audioId));
               if (audioSnap.exists()) {
                 const audioDataRaw = audioSnap.data();
-                if (audioDataRaw.audioUrl) {
-                  setAudioItem({
-                    id: audioSnap.id,
-                    ...(audioDataRaw as any),
-                    audioUrl: audioDataRaw.audioUrl,
-                    audioData: audioDataRaw.audioUrl
-                  } as AudioItem);
-                } else if (audioDataRaw.isChunked) {
+                if (audioDataRaw.isChunked) {
                   const chunksSnap = await getDocs(collection(db, 'audio_banks', exData.audioId, 'chunks'));
                   const sortedChunks = chunksSnap.docs
                     .map(d => d.data() as { chunkIndex: number; data: string })

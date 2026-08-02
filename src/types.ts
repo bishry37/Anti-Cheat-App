@@ -34,8 +34,7 @@ export interface AudioItem {
   name: string;
   description?: string;
   fileName: string;
-  audioData?: string;
-  audioUrl?: string;
+  audioData: string;
   duration: number; // in seconds
   allowRepeat: 'Ya' | 'Tidak';
   createdAt: number;
