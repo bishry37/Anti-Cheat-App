@@ -331,11 +331,18 @@ export default function StudentExam() {
 
           if (exData.audioId) {
             try {
-              const audioSnap = await getDoc(doc(db, 'audio_banks', exData.audioId));
-              if (audioSnap.exists()) {
-                const audioDataRaw = audioSnap.data();
+              let audioSnap = await getDoc(doc(db, 'audio_banks', exData.audioId));
+              if (!audioSnap.exists()) {
+                const allAudioSnap = await getDocs(collection(db, 'audio_banks'));
+                const found = allAudioSnap.docs.find(d => d.id === exData.audioId || d.data().name === exData.audioId);
+                if (found) {
+                  audioSnap = found as any;
+                }
+              }
+              if (audioSnap && (audioSnap as any).exists && (audioSnap as any).exists()) {
+                const audioDataRaw = (audioSnap as any).data();
                 if (audioDataRaw.isChunked) {
-                  const chunksSnap = await getDocs(collection(db, 'audio_banks', exData.audioId, 'chunks'));
+                  const chunksSnap = await getDocs(collection(db, 'audio_banks', audioSnap.id, 'chunks'));
                   const sortedChunks = chunksSnap.docs
                     .map(d => d.data() as { chunkIndex: number; data: string })
                     .sort((a, b) => a.chunkIndex - b.chunkIndex);
@@ -356,7 +363,7 @@ export default function StudentExam() {
                 }
               }
             } catch (e) {
-              console.error("Gagal load audio item", e);
+              console.error("Gagal load audio item with fallback", e);
             }
           }
 
@@ -388,13 +395,11 @@ export default function StudentExam() {
             }
           }
 
-          // Fetch questions using single-field query (subjectId) and client-side packet filtering to avoid composite index requirements on other devices
+          // Fetch questions with ultra-robust cross-device fallback to ensure questions ALWAYS appear on student screen
           let qs: Question[] = [];
           try {
-            // Tier 1: Query by subjectId only
-            const subQuery = query(collection(db, 'questions'), where('subjectId', '==', sessData.subjectId));
-            const subSnap = await getDocs(subQuery);
-            qs = subSnap.docs.map(d => {
+            const allSnap = await getDocs(collection(db, 'questions'));
+            const allQuestions = allSnap.docs.map(d => {
               const data = d.data() as any;
               let qType = data.type;
               const tCode = data.typeCode;
@@ -417,42 +422,38 @@ export default function StudentExam() {
               } as Question;
             });
 
-            // Filter by packetName client-side if specified
+            // Filter by subjectId or examId or subjectName
+            const matchedBySubjectOrExam = allQuestions.filter(q => {
+              const qAny = q as any;
+              return q.subjectId === sessData.subjectId || 
+                qAny.examId === sessData.examId || 
+                qAny.subjectName === subjectName;
+            });
+
+            let candidateQuestions = matchedBySubjectOrExam.length > 0 ? matchedBySubjectOrExam : allQuestions;
+
+            // Apply packetName filter if specified
             if (exData.packetName && exData.packetName.trim() !== '' && exData.packetName !== 'Semua Paket' && exData.packetName !== 'Pilih Paket') {
-              const packetFiltered = qs.filter(q => q.packetName === exData.packetName || !q.packetName || q.packetName === 'Semua Paket');
+              const packetFiltered = candidateQuestions.filter(q => 
+                !q.packetName || 
+                q.packetName === 'Semua Paket' || 
+                q.packetName.toLowerCase() === exData.packetName!.toLowerCase()
+              );
               if (packetFiltered.length > 0) {
                 qs = packetFiltered;
+              } else {
+                qs = candidateQuestions; // fallback if packet name didn't match exactly
               }
+            } else {
+              qs = candidateQuestions;
             }
 
-            // Tier 2: Ultimate fallback - fetch ALL questions from the questions collection if still empty
+            // Absolute fallback: if still empty, use all questions
             if (qs.length === 0) {
-              const allSnap = await getDocs(collection(db, 'questions'));
-              qs = allSnap.docs.map(d => {
-                const data = d.data() as any;
-                let qType = data.type;
-                const tCode = data.typeCode;
-                if (qType === 1 || qType === '1' || tCode === 1) {
-                  qType = 'pilihan_ganda';
-                } else if (qType === 2 || qType === '2' || tCode === 2) {
-                  qType = 'listening';
-                } else if (qType === 3 || qType === '3' || tCode === 3) {
-                  qType = 'isian_singkat';
-                } else if (qType === 4 || qType === '4' || tCode === 4) {
-                  qType = 'essay';
-                } else if (!qType) {
-                  qType = 'pilihan_ganda';
-                }
-                return {
-                  id: d.id,
-                  ...data,
-                  type: qType,
-                  typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
-                } as Question;
-              });
+              qs = allQuestions;
             }
           } catch (fetchErr) {
-            console.error("Error fetching questions with fallback:", fetchErr);
+            console.error("Error fetching questions with ultra-robust fallback:", fetchErr);
             try {
               const allSnap = await getDocs(collection(db, 'questions'));
               qs = allSnap.docs.map(d => {
