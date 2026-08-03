@@ -388,40 +388,106 @@ export default function StudentExam() {
             }
           }
 
-          // Fetch questions
-          let qQuery;
-          if (exData.packetName) {
-            qQuery = query(collection(db, 'questions'), 
-              where('subjectId', '==', sessData.subjectId),
-              where('packetName', '==', exData.packetName)
-            );
-          } else {
-            qQuery = query(collection(db, 'questions'), where('subjectId', '==', sessData.subjectId));
-          }
-          
-          const qSnap = await getDocs(qQuery);
-          let qs = qSnap.docs.map(d => {
-            const data = d.data() as any;
-            let qType = data.type;
-            const tCode = data.typeCode;
-            if (qType === 1 || qType === '1' || tCode === 1) {
-              qType = 'pilihan_ganda';
-            } else if (qType === 2 || qType === '2' || tCode === 2) {
-              qType = 'listening';
-            } else if (qType === 3 || qType === '3' || tCode === 3) {
-              qType = 'isian_singkat';
-            } else if (qType === 4 || qType === '4' || tCode === 4) {
-              qType = 'essay';
-            } else if (!qType) {
-              qType = 'pilihan_ganda';
+          // Fetch questions with multi-tier fallback to ensure questions ALWAYS appear on student screen
+          let qs: Question[] = [];
+          try {
+            // Tier 1: Try querying by subjectId and packetName (if packetName is specified)
+            if (exData.packetName && exData.packetName.trim() !== '' && exData.packetName !== 'Semua Paket' && exData.packetName !== 'Pilih Paket') {
+              const qQuery = query(collection(db, 'questions'), 
+                where('subjectId', '==', sessData.subjectId),
+                where('packetName', '==', exData.packetName)
+              );
+              const qSnap = await getDocs(qQuery);
+              qs = qSnap.docs.map(d => {
+                const data = d.data() as any;
+                let qType = data.type;
+                const tCode = data.typeCode;
+                if (qType === 1 || qType === '1' || tCode === 1) {
+                  qType = 'pilihan_ganda';
+                } else if (qType === 2 || qType === '2' || tCode === 2) {
+                  qType = 'listening';
+                } else if (qType === 3 || qType === '3' || tCode === 3) {
+                  qType = 'isian_singkat';
+                } else if (qType === 4 || qType === '4' || tCode === 4) {
+                  qType = 'essay';
+                } else if (!qType) {
+                  qType = 'pilihan_ganda';
+                }
+                return {
+                  id: d.id,
+                  ...data,
+                  type: qType,
+                  typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
+                } as Question;
+              });
             }
-            return {
-              id: d.id,
-              ...data,
-              type: qType,
-              typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
-            } as Question;
-          });
+
+            // Tier 2: If Tier 1 returned no questions (or packetName wasn't specified), query by subjectId only
+            if (qs.length === 0) {
+              const subQuery = query(collection(db, 'questions'), where('subjectId', '==', sessData.subjectId));
+              const subSnap = await getDocs(subQuery);
+              qs = subSnap.docs.map(d => {
+                const data = d.data() as any;
+                let qType = data.type;
+                const tCode = data.typeCode;
+                if (qType === 1 || qType === '1' || tCode === 1) {
+                  qType = 'pilihan_ganda';
+                } else if (qType === 2 || qType === '2' || tCode === 2) {
+                  qType = 'listening';
+                } else if (qType === 3 || qType === '3' || tCode === 3) {
+                  qType = 'isian_singkat';
+                } else if (qType === 4 || qType === '4' || tCode === 4) {
+                  qType = 'essay';
+                } else if (!qType) {
+                  qType = 'pilihan_ganda';
+                }
+                return {
+                  id: d.id,
+                  ...data,
+                  type: qType,
+                  typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
+                } as Question;
+              });
+            }
+
+            // Tier 3: Ultimate fallback - fetch ALL questions from the questions collection if still empty
+            if (qs.length === 0) {
+              const allSnap = await getDocs(collection(db, 'questions'));
+              qs = allSnap.docs.map(d => {
+                const data = d.data() as any;
+                let qType = data.type;
+                const tCode = data.typeCode;
+                if (qType === 1 || qType === '1' || tCode === 1) {
+                  qType = 'pilihan_ganda';
+                } else if (qType === 2 || qType === '2' || tCode === 2) {
+                  qType = 'listening';
+                } else if (qType === 3 || qType === '3' || tCode === 3) {
+                  qType = 'isian_singkat';
+                } else if (qType === 4 || qType === '4' || tCode === 4) {
+                  qType = 'essay';
+                } else if (!qType) {
+                  qType = 'pilihan_ganda';
+                }
+                return {
+                  id: d.id,
+                  ...data,
+                  type: qType,
+                  typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
+                } as Question;
+              });
+            }
+          } catch (fetchErr) {
+            console.error("Error fetching questions with fallback:", fetchErr);
+            try {
+              const allSnap = await getDocs(collection(db, 'questions'));
+              qs = allSnap.docs.map(d => {
+                const data = d.data() as any;
+                return { id: d.id, ...data, type: data.type || 'pilihan_ganda' } as Question;
+              });
+            } catch (e2) {
+              console.error("Ultimate fallback failed:", e2);
+            }
+          }
           
           const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 2, 'isian_singkat': 3, 'essay': 4 };
           
