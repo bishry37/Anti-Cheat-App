@@ -317,23 +317,25 @@ export default function Home() {
       setIsLoggingInStudent(true);
       setErrorMessage('');
 
-      // Check for an existing session with exact same candidate name and exam
+      // Check for an existing session with exact same candidate name and exam (using single-field query to avoid composite index requirement on other devices)
       const sessionQuery = query(
         collection(db, 'student_sessions'),
-        where('examId', '==', matchingExam.id),
-        where('studentName', '==', upperName),
-        where('adminId', '==', matchingExam.adminId)
+        where('examId', '==', matchingExam.id)
       );
       
       const sessionSnap = await getDocs(sessionQuery);
+      const matchingDocs = sessionSnap.docs.filter(d => {
+        const data = d.data() as StudentSession;
+        return data.studentName === upperName && data.adminId === matchingExam.adminId;
+      });
       let targetUid = '';
       let isResume = false;
       let existingSessionData: StudentSession | null = null;
 
-      if (!sessionSnap.empty) {
+      if (matchingDocs.length > 0) {
         // Filter out sessions that were hidden/superseded
-        const visibleDocs = sessionSnap.docs.filter(d => !(d.data() as StudentSession).hiddenFromMonitor);
-        const docsToEvaluate = visibleDocs.length > 0 ? visibleDocs : sessionSnap.docs;
+        const visibleDocs = matchingDocs.filter(d => !(d.data() as StudentSession).hiddenFromMonitor);
+        const docsToEvaluate = visibleDocs.length > 0 ? visibleDocs : matchingDocs;
 
         // 1. Strict finished check: if ANY existing session doc for this candidate is finished
         const hasFinished = docsToEvaluate.some(d => (d.data() as StudentSession).status === 'Selesai');

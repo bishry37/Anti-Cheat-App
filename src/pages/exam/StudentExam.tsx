@@ -388,69 +388,44 @@ export default function StudentExam() {
             }
           }
 
-          // Fetch questions with multi-tier fallback to ensure questions ALWAYS appear on student screen
+          // Fetch questions using single-field query (subjectId) and client-side packet filtering to avoid composite index requirements on other devices
           let qs: Question[] = [];
           try {
-            // Tier 1: Try querying by subjectId and packetName (if packetName is specified)
+            // Tier 1: Query by subjectId only
+            const subQuery = query(collection(db, 'questions'), where('subjectId', '==', sessData.subjectId));
+            const subSnap = await getDocs(subQuery);
+            qs = subSnap.docs.map(d => {
+              const data = d.data() as any;
+              let qType = data.type;
+              const tCode = data.typeCode;
+              if (qType === 1 || qType === '1' || tCode === 1) {
+                qType = 'pilihan_ganda';
+              } else if (qType === 2 || qType === '2' || tCode === 2) {
+                qType = 'listening';
+              } else if (qType === 3 || qType === '3' || tCode === 3) {
+                qType = 'isian_singkat';
+              } else if (qType === 4 || qType === '4' || tCode === 4) {
+                qType = 'essay';
+              } else if (!qType) {
+                qType = 'pilihan_ganda';
+              }
+              return {
+                id: d.id,
+                ...data,
+                type: qType,
+                typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
+              } as Question;
+            });
+
+            // Filter by packetName client-side if specified
             if (exData.packetName && exData.packetName.trim() !== '' && exData.packetName !== 'Semua Paket' && exData.packetName !== 'Pilih Paket') {
-              const qQuery = query(collection(db, 'questions'), 
-                where('subjectId', '==', sessData.subjectId),
-                where('packetName', '==', exData.packetName)
-              );
-              const qSnap = await getDocs(qQuery);
-              qs = qSnap.docs.map(d => {
-                const data = d.data() as any;
-                let qType = data.type;
-                const tCode = data.typeCode;
-                if (qType === 1 || qType === '1' || tCode === 1) {
-                  qType = 'pilihan_ganda';
-                } else if (qType === 2 || qType === '2' || tCode === 2) {
-                  qType = 'listening';
-                } else if (qType === 3 || qType === '3' || tCode === 3) {
-                  qType = 'isian_singkat';
-                } else if (qType === 4 || qType === '4' || tCode === 4) {
-                  qType = 'essay';
-                } else if (!qType) {
-                  qType = 'pilihan_ganda';
-                }
-                return {
-                  id: d.id,
-                  ...data,
-                  type: qType,
-                  typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
-                } as Question;
-              });
+              const packetFiltered = qs.filter(q => q.packetName === exData.packetName || !q.packetName || q.packetName === 'Semua Paket');
+              if (packetFiltered.length > 0) {
+                qs = packetFiltered;
+              }
             }
 
-            // Tier 2: If Tier 1 returned no questions (or packetName wasn't specified), query by subjectId only
-            if (qs.length === 0) {
-              const subQuery = query(collection(db, 'questions'), where('subjectId', '==', sessData.subjectId));
-              const subSnap = await getDocs(subQuery);
-              qs = subSnap.docs.map(d => {
-                const data = d.data() as any;
-                let qType = data.type;
-                const tCode = data.typeCode;
-                if (qType === 1 || qType === '1' || tCode === 1) {
-                  qType = 'pilihan_ganda';
-                } else if (qType === 2 || qType === '2' || tCode === 2) {
-                  qType = 'listening';
-                } else if (qType === 3 || qType === '3' || tCode === 3) {
-                  qType = 'isian_singkat';
-                } else if (qType === 4 || qType === '4' || tCode === 4) {
-                  qType = 'essay';
-                } else if (!qType) {
-                  qType = 'pilihan_ganda';
-                }
-                return {
-                  id: d.id,
-                  ...data,
-                  type: qType,
-                  typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
-                } as Question;
-              });
-            }
-
-            // Tier 3: Ultimate fallback - fetch ALL questions from the questions collection if still empty
+            // Tier 2: Ultimate fallback - fetch ALL questions from the questions collection if still empty
             if (qs.length === 0) {
               const allSnap = await getDocs(collection(db, 'questions'));
               qs = allSnap.docs.map(d => {
