@@ -7,12 +7,12 @@ export const extractGoogleDriveFileId = (inputUrl?: string): string | null => {
   if (!inputUrl) return null;
   const trimmed = inputUrl.trim();
 
-  // 1. Standard file path format: /file/d/FILE_ID
-  const matchFileD = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  // 1. Standard file path format: /file/d/FILE_ID or /d/FILE_ID
+  const matchFileD = trimmed.match(/\/(?:file\/)?d\/([a-zA-Z0-9_-]+)/);
   if (matchFileD && matchFileD[1]) return matchFileD[1];
 
-  // 2. Query param format: id=FILE_ID
-  const matchIdParam = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  // 2. Query param format: id=FILE_ID or docid=FILE_ID
+  const matchIdParam = trimmed.match(/[?&](?:id|docid)=([a-zA-Z0-9_-]+)/);
   if (matchIdParam && matchIdParam[1]) return matchIdParam[1];
 
   // 3. googleusercontent format: googleusercontent.com/d/FILE_ID

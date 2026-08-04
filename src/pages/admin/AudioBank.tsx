@@ -340,10 +340,19 @@ export default function AudioBank() {
         return;
       }
 
+      let advanceCalled = false;
+      const nextSource = () => {
+        if (!advanceCalled) {
+          advanceCalled = true;
+          attemptPlaySource(idx + 1);
+        }
+      };
+
       audio.src = sources[idx];
+      audio.onerror = () => nextSource();
       audio.play().catch(err => {
         console.warn(`Audio play attempt ${idx} failed (${sources[idx]}):`, err);
-        attemptPlaySource(idx + 1);
+        nextSource();
       });
     };
 
