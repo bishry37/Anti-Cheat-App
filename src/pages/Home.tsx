@@ -219,10 +219,22 @@ export default function Home() {
     }
 
     if (currentExam && currentExam.targetClass) {
-      const q = query(collection(db, 'classes'), where('name', '==', currentExam.targetClass));
-      getDocs(q).then((snap) => {
-        if (!snap.empty) {
-          const classData = snap.docs[0].data();
+      getDocs(collection(db, 'classes')).then((snap) => {
+        const targetClean = currentExam!.targetClass!.trim().toLowerCase();
+        let matchedDoc = snap.docs.find(d => {
+          const cName = (d.data().name || '').trim().toLowerCase();
+          return cName === targetClean;
+        });
+
+        if (!matchedDoc) {
+          matchedDoc = snap.docs.find(d => {
+            const cName = (d.data().name || '').trim().toLowerCase();
+            return cName.includes(targetClean) || targetClean.includes(cName);
+          });
+        }
+
+        if (matchedDoc) {
+          const classData = matchedDoc.data();
           const students = (classData.students || []) as string[];
           setAvailableStudents(students.sort());
         } else {
@@ -234,7 +246,6 @@ export default function Home() {
       });
     } else {
       setAvailableStudents([]);
-      setStudentName('');
     }
   }, [examToken, linkedExam, activeExams]);
 
@@ -731,13 +742,13 @@ export default function Home() {
                       </div>
                     ) : (
                       <div className="relative">
-                        <UserCircle className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2" />
+                        <UserCircle className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                         <input 
                           type="text" 
-                          value=""
-                          disabled
-                          placeholder="MASUKKAN TOKEN UNTUK MEMILIH NAMA..."
-                          className="w-full pl-11 pr-4 py-3.5 bg-slate-100 border border-slate-200 text-slate-400 rounded-xl cursor-not-allowed outline-none select-none text-[10px] font-extrabold uppercase tracking-widest placeholder-slate-405"
+                          value={studentName}
+                          onChange={(e) => setStudentName(e.target.value.toUpperCase())}
+                          placeholder="MASUKKAN NAMA LENGKAP ANDA..."
+                          className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-bold text-slate-800 text-xs uppercase tracking-wider focus:bg-white placeholder:text-slate-400"
                         />
                       </div>
                     )}

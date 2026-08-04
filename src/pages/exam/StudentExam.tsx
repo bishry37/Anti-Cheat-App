@@ -7,6 +7,7 @@ import { ShieldAlert, Maximize, Clock, Save, AlertTriangle, LogOut, Loader2, Wif
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { formatHTML, calculateSmartPoints } from '../../utils/textFormat';
+import { getAudioSourceUrls, formatAudioSrc } from '../../lib/audioUtils';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -24,28 +25,59 @@ const CustomAudioPlayer = ({ audioItem, hasPlayedAudio, setHasPlayedAudio }: { a
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [currentSrcIdx, setCurrentSrcIdx] = useState(0);
 
+  const rawData = audioItem.audioData || audioItem.driveUrl || (audioItem as any).data;
+  const sources = getAudioSourceUrls(rawData);
   const isOneTime = audioItem.allowRepeat === 'Tidak';
 
   if (!isOneTime) {
     return (
       <audio 
-        src={audioItem.audioData || (audioItem as any).data}
         controls
         controlsList="nodownload noplaybackrate"
         className="w-full h-10 accent-blue-600 outline-none"
-      />
+      >
+        {sources.map((src, i) => (
+          <source key={i} src={src} />
+        ))}
+      </audio>
     );
   }
+
+  const handlePlayOneTime = () => {
+    if (!hasPlayedAudio && !isPlaying && audioRef.current) {
+      audioRef.current.play().catch(e => {
+        console.warn(`Play failed for source index ${currentSrcIdx}:`, e);
+        if (currentSrcIdx < sources.length - 1) {
+          const nextIdx = currentSrcIdx + 1;
+          setCurrentSrcIdx(nextIdx);
+          if (audioRef.current) {
+            audioRef.current.src = sources[nextIdx];
+            audioRef.current.play().catch(err => console.error("Fallback play failed:", err));
+          }
+        }
+      });
+    }
+  };
 
   return (
     <div>
       <audio 
         ref={audioRef}
-        src={audioItem.audioData || (audioItem as any).data}
+        src={sources[currentSrcIdx] || sources[0]}
         className="hidden"
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
+        onError={() => {
+          if (currentSrcIdx < sources.length - 1) {
+            const nextIdx = currentSrcIdx + 1;
+            setCurrentSrcIdx(nextIdx);
+            if (audioRef.current) {
+              audioRef.current.src = sources[nextIdx];
+            }
+          }
+        }}
         onTimeUpdate={(e) => {
            const el = e.currentTarget;
            if (el.duration) {
@@ -60,11 +92,7 @@ const CustomAudioPlayer = ({ audioItem, hasPlayedAudio, setHasPlayedAudio }: { a
       />
       <div className="flex items-center gap-4 bg-white p-3 rounded-xl border border-blue-100 shadow-sm">
         <button 
-          onClick={() => {
-             if (!hasPlayedAudio && !isPlaying && audioRef.current) {
-                audioRef.current.play().catch(e => console.error(e));
-             }
-          }}
+          onClick={handlePlayOneTime}
           disabled={hasPlayedAudio || isPlaying}
           className={`shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${hasPlayedAudio ? 'bg-slate-100 text-slate-400' : isPlaying ? 'bg-blue-100 text-blue-500' : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md'} transition-all`}
         >
@@ -358,7 +386,8 @@ export default function StudentExam() {
                   setAudioItem({
                     id: audioSnap.id,
                     ...(audioDataRaw as any),
-                    data: audioDataRaw.audioData || audioDataRaw.data
+                    audioData: audioDataRaw.audioData || audioDataRaw.driveUrl || audioDataRaw.data,
+                    data: audioDataRaw.audioData || audioDataRaw.driveUrl || audioDataRaw.data
                   } as AudioItem);
                 }
               }
@@ -367,17 +396,19 @@ export default function StudentExam() {
             }
           }
 
+          const targetSubId = exData.subjectId || sessData.subjectId;
+          let loadedSubjectName = 'Mata Pelajaran Tidak Diketahui';
           try {
-            const subSnap = await getDoc(doc(db, 'subjects', exData.subjectId));
-            if (subSnap.exists()) {
-              setSubjectName(subSnap.data().name);
-            } else {
-              setSubjectName('Mata Pelajaran Tidak Diketahui');
+            if (targetSubId) {
+              const subSnap = await getDoc(doc(db, 'subjects', targetSubId));
+              if (subSnap.exists()) {
+                loadedSubjectName = subSnap.data().name;
+              }
             }
           } catch (e) {
             console.error("Gagal load subject name", e);
-            setSubjectName('Mata Pelajaran Tidak Diketahui');
           }
+          setSubjectName(loadedSubjectName);
           
           // Calculate initial time left
           const activeDuration = typeof sessData.duration === 'number' ? sessData.duration : exData.duration;
@@ -422,23 +453,25 @@ export default function StudentExam() {
               } as Question;
             });
 
-            // Filter by subjectId or examId or subjectName
+            // Filter by target subjectId or examId or loadedSubjectName
             const matchedBySubjectOrExam = allQuestions.filter(q => {
               const qAny = q as any;
-              return q.subjectId === sessData.subjectId || 
+              return (targetSubId && q.subjectId === targetSubId) || 
                 qAny.examId === sessData.examId || 
-                qAny.subjectName === subjectName;
+                (loadedSubjectName && loadedSubjectName !== 'Mata Pelajaran Tidak Diketahui' && qAny.subjectName === loadedSubjectName);
             });
 
             let candidateQuestions = matchedBySubjectOrExam.length > 0 ? matchedBySubjectOrExam : allQuestions;
 
             // Apply packetName filter if specified
             if (exData.packetName && exData.packetName.trim() !== '' && exData.packetName !== 'Semua Paket' && exData.packetName !== 'Pilih Paket') {
-              const packetFiltered = candidateQuestions.filter(q => 
-                !q.packetName || 
-                q.packetName === 'Semua Paket' || 
-                q.packetName.toLowerCase() === exData.packetName!.toLowerCase()
-              );
+              const cleanExamPacket = exData.packetName.trim().toLowerCase();
+              const packetFiltered = candidateQuestions.filter(q => {
+                if (!q.packetName) return true;
+                const qPacket = q.packetName.trim().toLowerCase();
+                return qPacket === 'semua paket' || qPacket === cleanExamPacket || qPacket.includes(cleanExamPacket) || cleanExamPacket.includes(qPacket);
+              });
+
               if (packetFiltered.length > 0) {
                 qs = packetFiltered;
               } else {
@@ -569,6 +602,13 @@ export default function StudentExam() {
           }
 
           setQuestions(qs);
+          if (qs.length > 0) {
+            const requestedIdx = sessData.lastQuestionIndex !== undefined ? sessData.lastQuestionIndex : 0;
+            const safeIdx = Math.min(Math.max(0, requestedIdx), qs.length - 1);
+            setCurrentQuestionIndex(safeIdx);
+          } else {
+            setCurrentQuestionIndex(0);
+          }
 
           if (calculatedTimeLeft <= 0) {
             setTimeLeft(0);

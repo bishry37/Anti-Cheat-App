@@ -3,7 +3,13 @@ import { db } from '../../lib/firebase';
 import { collection, addDoc, getDocs, deleteDoc, doc, query, where, orderBy, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
 import { AudioItem } from '../../types';
-import { Headphones, Upload, Play, Pause, Trash2, Plus, Search, Music, Clock, AlertCircle, X, CheckCircle2, Edit2 } from 'lucide-react';
+import { 
+  Headphones, Upload, Play, Pause, Trash2, Plus, Search, Music, Clock, 
+  AlertCircle, X, CheckCircle2, Edit2, Link as LinkIcon, Globe, ExternalLink, 
+  HelpCircle, Volume2
+} from 'lucide-react';
+import { parseGoogleDriveUrl, getAudioSourceUrls, formatAudioSrc } from '../../lib/audioUtils';
+export { parseGoogleDriveUrl };
 
 export default function AudioBank() {
   const { user } = useAuth();
@@ -17,15 +23,20 @@ export default function AudioBank() {
   // Form states
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [driveUrl, setDriveUrl] = useState('');
   const [allowRepeat, setAllowRepeat] = useState<'Ya' | 'Tidak'>('Ya');
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStage, setUploadStage] = useState('');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Audio player preview states
+  // Modal Audio Preview testing states
+  const [previewAudioStatus, setPreviewAudioStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [previewAudioMsg, setPreviewAudioMsg] = useState('');
+  const [previewDuration, setPreviewDuration] = useState<number>(0);
+  const [previewStreamUrl, setPreviewStreamUrl] = useState('');
+  const [showGuide, setShowGuide] = useState(false);
+
+  // Audio player list states
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -41,7 +52,6 @@ export default function AudioBank() {
       snapshot.forEach((docSnap) => {
         items.push({ id: docSnap.id, ...(docSnap.data() as any) });
       });
-      // Sort by createdAt descending
       items.sort((a, b) => b.createdAt - a.createdAt);
       setAudioList(items);
       setLoading(false);
@@ -53,11 +63,89 @@ export default function AudioBank() {
     return () => unsub();
   }, [user]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      setFile(selectedFile);
+  const resetForm = () => {
+    setName('');
+    setDescription('');
+    setDriveUrl('');
+    setAllowRepeat('Ya');
+    setError('');
+    setPreviewAudioStatus('idle');
+    setPreviewAudioMsg('');
+    setPreviewDuration(0);
+    setPreviewStreamUrl('');
+  };
+
+  const testAudioUrl = (urlToTest: string) => {
+    if (!urlToTest || !urlToTest.trim()) {
+      setPreviewAudioStatus('error');
+      setPreviewAudioMsg('Silakan masukkan URL Google Drive terlebih dahulu.');
+      return;
     }
+
+    setPreviewAudioStatus('loading');
+    setPreviewAudioMsg('Mengecek ketersediaan audio dari Google Drive...');
+
+    const sources = getAudioSourceUrls(urlToTest);
+    if (sources.length === 0) {
+      setPreviewAudioStatus('error');
+      setPreviewAudioMsg('URL tidak valid.');
+      return;
+    }
+
+    const { isDrive, fileId } = parseGoogleDriveUrl(urlToTest);
+
+    // Default stream URL
+    setPreviewStreamUrl(sources[0]);
+
+    const audioObj = new Audio();
+    audioObj.preload = 'auto';
+
+    let hasResponded = false;
+
+    const handleSuccess = (dur: number) => {
+      if (hasResponded) return;
+      hasResponded = true;
+      const validDur = (dur && !isNaN(dur) && dur !== Infinity) ? dur : 0;
+      if (validDur > 0) {
+        setPreviewDuration(validDur);
+        setPreviewAudioStatus('success');
+        setPreviewAudioMsg(`Audio terhubung & siap diputar! (Durasi: ${formatDuration(validDur)})`);
+      } else {
+        setPreviewAudioStatus('success');
+        setPreviewAudioMsg('Audio Google Drive terhubung & siap diputar!');
+      }
+    };
+
+    const trySource = (idx: number) => {
+      if (idx >= sources.length) {
+        if (!hasResponded) {
+          hasResponded = true;
+          if (isDrive && fileId) {
+            setPreviewAudioStatus('success');
+            setPreviewAudioMsg('Link Google Drive valid! Silakan tes putar pada kontrol di bawah. Pastikan izin file diatur ke "Siapa saja yang memiliki link".');
+          } else {
+            setPreviewAudioStatus('error');
+            setPreviewAudioMsg('Gagal memuat audio. Pastikan URL dapat diakses publik.');
+          }
+        }
+        return;
+      }
+
+      setPreviewStreamUrl(sources[idx]);
+      audioObj.src = sources[idx];
+
+      audioObj.onloadedmetadata = () => handleSuccess(audioObj.duration);
+      audioObj.oncanplay = () => handleSuccess(audioObj.duration);
+      audioObj.onloadeddata = () => handleSuccess(audioObj.duration);
+
+      audioObj.onerror = () => {
+        trySource(idx + 1);
+      };
+
+      audioObj.load();
+    };
+
+    trySource(0);
   };
 
   const handleSaveAudio = async (e: React.FormEvent) => {
@@ -66,128 +154,38 @@ export default function AudioBank() {
       setError('Nama audio wajib diisi.');
       return;
     }
-    if (!file) {
-      setError('File audio wajib diunggah.');
+
+    if (!driveUrl.trim()) {
+      setError('Link URL Google Drive wajib diisi.');
       return;
     }
 
     setUploading(true);
     setError('');
-    setUploadProgress(5);
-    setUploadStage('Membaca file audio...');
+
+    const { streamUrl, fileId } = parseGoogleDriveUrl(driveUrl);
 
     try {
-      // Read file as Data URL (base64)
-      const reader = new FileReader();
-
-      reader.onprogress = (event) => {
-        if (event.lengthComputable && event.total > 0) {
-          const percent = Math.round((event.loaded / event.total) * 40);
-          setUploadProgress(Math.min(percent, 40));
-        }
-      };
-
-      reader.onload = async (uploadEvent) => {
-        setUploadProgress(45);
-        setUploadStage('Memproses metadata audio...');
-        const base64Data = uploadEvent.target?.result as string;
-
-        // Get audio duration
-        const audioObj = new Audio(base64Data);
-        audioObj.onloadedmetadata = async () => {
-          const audioDuration = audioObj.duration || 0;
-          await saveToFirestore(base64Data, audioDuration);
-        };
-
-        audioObj.onerror = async () => {
-          // Fallback if metadata fails
-          await saveToFirestore(base64Data, 0);
-        };
-      };
-
-      reader.onerror = () => {
-        setError('Gagal membaca file audio.');
-        setUploading(false);
-      };
-
-      reader.readAsDataURL(file);
-
-    } catch (err: any) {
-      console.error("Error saving audio:", err);
-      setError('Terjadi kesalahan saat mengunggah audio.');
-      setUploading(false);
-    }
-  };
-
-  const saveToFirestore = async (base64Data: string, duration: number) => {
-    try {
-      setUploadStage('Menyimpan ke database...');
-      setUploadProgress(50);
-      const CHUNK_SIZE = 700000;
-      if (base64Data.length <= CHUNK_SIZE) {
-        setUploadProgress(75);
-        await addDoc(collection(db, 'audio_banks'), {
-          adminId: user!.uid,
-          name: name.trim(),
-          description: description.trim(),
-          fileName: file?.name || 'audio',
-          audioData: base64Data,
-          duration,
-          allowRepeat,
-          createdAt: Date.now(),
-          isChunked: false
-        });
-        setUploadProgress(100);
-      } else {
-        // Split into chunks
-        const chunks: string[] = [];
-        for (let i = 0; i < base64Data.length; i += CHUNK_SIZE) {
-          chunks.push(base64Data.substring(i, i + CHUNK_SIZE));
-        }
-
-        setUploadProgress(55);
-        // Add parent doc first with isChunked: true
-        const docRef = await addDoc(collection(db, 'audio_banks'), {
-          adminId: user!.uid,
-          name: name.trim(),
-          description: description.trim(),
-          fileName: file?.name || 'audio',
-          audioData: '',
-          duration,
-          allowRepeat,
-          createdAt: Date.now(),
-          isChunked: true
-        });
-
-        setUploadProgress(60);
-        let completed = 0;
-        const totalChunks = chunks.length;
-
-        for (let index = 0; index < chunks.length; index++) {
-          await setDoc(doc(db, 'audio_banks', docRef.id, 'chunks', String(index)), {
-            chunkIndex: index,
-            data: chunks[index]
-          });
-          completed++;
-          const currentPct = 60 + Math.round((completed / totalChunks) * 38);
-          setUploadProgress(currentPct);
-          setUploadStage(`Mengunggah bagian audio (${completed}/${totalChunks})...`);
-        }
-        setUploadProgress(100);
-      }
+      await addDoc(collection(db, 'audio_banks'), {
+        adminId: user!.uid,
+        name: name.trim(),
+        description: description.trim(),
+        fileName: fileId ? `Drive (${fileId.substring(0, 8)}...)` : 'Google Drive Audio',
+        audioData: streamUrl,
+        driveUrl: driveUrl.trim(),
+        duration: previewDuration || 0,
+        allowRepeat,
+        createdAt: Date.now(),
+        isChunked: false
+      });
 
       setUploading(false);
       setIsModalOpen(false);
-      setName('');
-      setDescription('');
-      setFile(null);
-      setAllowRepeat('Ya');
-      setUploadProgress(0);
-      setUploadStage('');
-      setSuccessMsg('Audio berhasil ditambahkan ke Manajemen Audio.');
+      resetForm();
+      setSuccessMsg('Audio Google Drive berhasil ditambahkan!');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: any) {
-      console.error("Gagal menyimpan audio:", err);
+      console.error("Gagal menyimpan audio Google Drive:", err);
       setError('Gagal menyimpan ke database. ' + (err.message || ''));
       setUploading(false);
     }
@@ -198,6 +196,10 @@ export default function AudioBank() {
     setName(item.name);
     setDescription(item.description || '');
     setAllowRepeat(item.allowRepeat);
+    setDriveUrl(item.driveUrl || (item.audioData?.startsWith('http') ? item.audioData : ''));
+    setPreviewAudioStatus('idle');
+    setPreviewAudioMsg('');
+    setPreviewDuration(item.duration || 0);
     setIsEditModalOpen(true);
   };
 
@@ -207,25 +209,39 @@ export default function AudioBank() {
       setError('Nama audio wajib diisi.');
       return;
     }
-    
+
+    if (!driveUrl.trim()) {
+      setError('Link URL Google Drive wajib diisi.');
+      return;
+    }
+
     if (!editingAudio?.id) return;
-    
+
     setUploading(true);
     setError('');
-    
+
     try {
+      const { streamUrl } = parseGoogleDriveUrl(driveUrl);
+      const finalAudioData = streamUrl;
+      const finalDriveUrl = driveUrl.trim();
+      let finalDuration = editingAudio.duration;
+      if (previewDuration > 0) {
+        finalDuration = previewDuration;
+      }
+
       await updateDoc(doc(db, 'audio_banks', editingAudio.id), {
         name: name.trim(),
         description: description.trim(),
-        allowRepeat
+        allowRepeat,
+        driveUrl: finalDriveUrl,
+        audioData: finalAudioData,
+        duration: finalDuration
       });
-      
+
       setUploading(false);
       setIsEditModalOpen(false);
       setEditingAudio(null);
-      setName('');
-      setDescription('');
-      setAllowRepeat('Ya');
+      resetForm();
       setSuccessMsg('Audio berhasil diperbarui.');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: any) {
@@ -263,10 +279,10 @@ export default function AudioBank() {
       return;
     }
 
-    let audioSrc = '';
+    let rawAudioSrc = '';
     if (item.isChunked) {
       if (audioCache[item.id]) {
-        audioSrc = audioCache[item.id];
+        rawAudioSrc = audioCache[item.id];
       } else {
         setLoadingAudioId(item.id);
         try {
@@ -277,7 +293,7 @@ export default function AudioBank() {
           
           const fullAudioData = sortedChunks.map(c => c.data).join('');
           setAudioCache(prev => ({ ...prev, [item.id!]: fullAudioData }));
-          audioSrc = fullAudioData;
+          rawAudioSrc = fullAudioData;
         } catch (err) {
           console.error("Gagal memuat chunks audio:", err);
           alert("Gagal memuat file audio.");
@@ -288,19 +304,21 @@ export default function AudioBank() {
         }
       }
     } else {
-      audioSrc = item.audioData;
+      rawAudioSrc = item.audioData || item.driveUrl || '';
     }
 
-    if (!audioSrc) {
+    if (!rawAudioSrc) {
       alert("Data audio tidak ditemukan.");
       return;
     }
+
+    const sources = getAudioSourceUrls(rawAudioSrc);
 
     if (audioRef.current) {
       audioRef.current.pause();
     }
 
-    const audio = new Audio(audioSrc);
+    const audio = new Audio();
     audioRef.current = audio;
     setPlayingId(item.id);
     setDuration(item.duration || 0);
@@ -315,13 +333,25 @@ export default function AudioBank() {
       setCurrentTime(0);
     };
 
-    audio.play().catch(err => {
-      console.error("Gagal memutar audio:", err);
-      setPlayingId(null);
-    });
+    const attemptPlaySource = (idx: number) => {
+      if (idx >= sources.length) {
+        setPlayingId(null);
+        alert("Gagal memutar audio. Jika dari Google Drive, pastikan file memiliki izin akses 'Siapa saja yang memiliki link'.");
+        return;
+      }
+
+      audio.src = sources[idx];
+      audio.play().catch(err => {
+        console.warn(`Audio play attempt ${idx} failed (${sources[idx]}):`, err);
+        attemptPlaySource(idx + 1);
+      });
+    };
+
+    attemptPlaySource(0);
   };
 
   const formatDuration = (secs: number) => {
+    if (!secs || isNaN(secs)) return '0:00';
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
     return `${m}:${s < 10 ? '0' : ''}${s}`;
@@ -329,7 +359,7 @@ export default function AudioBank() {
 
   const filteredAudio = audioList.filter(item => 
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.fileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (item.fileName && item.fileName.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -345,18 +375,12 @@ export default function AudioBank() {
             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">Manajemen Audio Listening</h1>
           </div>
           <p className="text-xs text-slate-500 font-medium">
-            Kelola seluruh berkas audio listening ujian Anda di satu tempat terpusat.
+            Kelola berkas audio listening ujian Anda menggunakan Google Drive URL atau unggahan langsung.
           </p>
         </div>
         <button
           onClick={() => {
-            setError('');
-            setName('');
-            setDescription('');
-            setFile(null);
-            setAllowRepeat('Ya');
-            setUploadProgress(0);
-            setUploadStage('');
+            resetForm();
             setIsModalOpen(true);
           }}
           className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
@@ -380,7 +404,7 @@ export default function AudioBank() {
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Cari nama audio atau file..."
+            placeholder="Cari nama audio atau deskripsi..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-2xs"
@@ -391,7 +415,7 @@ export default function AudioBank() {
         </div>
       </div>
 
-      {/* Audio List Grid / Table */}
+      {/* Audio List Grid */}
       {loading ? (
         <div className="flex items-center justify-center py-20 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -403,11 +427,14 @@ export default function AudioBank() {
           </div>
           <h3 className="text-sm font-bold text-slate-700 mb-1">Belum Ada Audio</h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto mb-6">
-            {searchTerm ? 'Tidak ditemukan audio yang sesuai dengan pencarian.' : 'Silakan tambahkan berkas audio listening pertama Anda.'}
+            {searchTerm ? 'Tidak ditemukan audio yang sesuai dengan pencarian.' : 'Silakan tambahkan berkas audio listening pertama Anda via Google Drive URL.'}
           </p>
           {!searchTerm && (
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+                resetForm();
+                setIsModalOpen(true);
+              }}
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -419,6 +446,8 @@ export default function AudioBank() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredAudio.map((item) => {
             const isPlaying = playingId === item.id;
+            const isDriveAudio = Boolean(item.driveUrl || (item.audioData && item.audioData.startsWith('http')));
+
             return (
               <div key={item.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all p-5 flex flex-col justify-between group">
                 <div>
@@ -429,7 +458,11 @@ export default function AudioBank() {
                       </div>
                       <div>
                         <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{item.name}</h3>
-                        <p className="text-[11px] font-medium text-slate-400 truncate max-w-[180px]">{item.fileName}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80">
+                            <Globe className="w-3 h-3 text-emerald-600" /> Google Drive
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -465,6 +498,20 @@ export default function AudioBank() {
                       <span>Ulang Audio: <strong className={item.allowRepeat === 'Ya' ? 'text-emerald-600' : 'text-amber-600'}>{item.allowRepeat}</strong></span>
                     </div>
                   </div>
+
+                  {item.driveUrl && (
+                    <div className="mb-4">
+                      <a 
+                        href={item.driveUrl} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>Buka Link Google Drive</span>
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 {/* Audio Player Controls */}
@@ -503,13 +550,16 @@ export default function AudioBank() {
       {/* Add Audio Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-100 p-6 flex flex-col animate-in scale-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-100 p-6 flex flex-col animate-in scale-in duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                  <Upload className="w-5 h-5" />
+                  <Headphones className="w-5 h-5" />
                 </div>
-                <h3 className="text-base font-extrabold text-slate-800">Tambah Audio Baru</h3>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-800">Tambah Audio Google Drive</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Masukkan link Google Drive file audio Anda.</p>
+                </div>
               </div>
               <button 
                 onClick={() => setIsModalOpen(false)}
@@ -554,27 +604,84 @@ export default function AudioBank() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  File Audio <span className="text-red-500">*</span>
-                </label>
-                <div className="flex items-center justify-center w-full">
-                  <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-all">
-                    <div className="flex flex-col items-center justify-center pt-3 pb-4 px-4 text-center">
-                      <Upload className="w-6 h-6 text-slate-400 mb-1" />
-                      <p className="text-xs text-slate-600 font-medium truncate max-w-[260px]">
-                        {file ? file.name : <span className="font-bold text-blue-600">Klik untuk upload audio</span>}
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">MP3, WAV, M4A, OGG (Tanpa batas ukuran)</p>
-                    </div>
-                    <input 
-                      type="file" 
-                      accept=".mp3,.wav,.m4a,.ogg,audio/*" 
-                      onChange={handleFileChange} 
-                      className="hidden" 
-                    />
+              <div className="space-y-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-blue-900 uppercase tracking-wider">
+                    URL Link Google Drive <span className="text-red-500">*</span>
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowGuide(!showGuide)}
+                    className="text-[11px] font-semibold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                    <span>{showGuide ? 'Sembunyikan Petunjuk' : 'Cara Mengambil Link'}</span>
+                  </button>
                 </div>
+
+                {showGuide && (
+                  <div className="p-3 bg-white rounded-lg border border-blue-200 text-[11px] text-slate-700 space-y-1 animate-in fade-in">
+                    <p className="font-bold text-blue-800">Petunjuk Salin Link Google Drive:</p>
+                    <ol className="list-decimal list-inside space-y-0.5 text-slate-600">
+                      <li>Upload file audio (MP3/WAV) ke Google Drive Anda.</li>
+                      <li>Klik kanan pada file -&gt; Pilih <strong>Bagikan (Share)</strong>.</li>
+                      <li>Ubah Akses Umum menjadi <strong>"Siapa saja yang memiliki link"</strong> (Anyone with the link).</li>
+                      <li>Klik <strong>Salin Link</strong> (Copy link) dan tempel di bawah.</li>
+                    </ol>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <LinkIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="url"
+                      required
+                      placeholder="https://drive.google.com/file/d/..."
+                      value={driveUrl}
+                      onChange={(e) => {
+                        setDriveUrl(e.target.value);
+                        setPreviewAudioStatus('idle');
+                      }}
+                      className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => testAudioUrl(driveUrl)}
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-xs"
+                  >
+                    <Volume2 className="w-3.5 h-3.5" />
+                    <span>Cek Audio</span>
+                  </button>
+                </div>
+
+                {/* Audio Preview Box */}
+                {previewAudioStatus !== 'idle' && (
+                  <div className={`p-3 rounded-xl border text-xs font-medium transition-all ${
+                    previewAudioStatus === 'loading' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                    previewAudioStatus === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
+                    'bg-red-50 border-red-200 text-red-800'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      {previewAudioStatus === 'loading' && <div className="w-3.5 h-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin shrink-0" />}
+                      {previewAudioStatus === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                      {previewAudioStatus === 'error' && <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />}
+                      <span className="font-bold">{previewAudioMsg}</span>
+                    </div>
+
+                    {previewAudioStatus === 'success' && (
+                      <div className="mt-2 pt-2 border-t border-emerald-200/60">
+                        <p className="text-[10px] uppercase font-bold text-emerald-700 mb-1">Tes Pemutaran Langsung:</p>
+                        <audio controls className="w-full h-8 outline-none">
+                          {getAudioSourceUrls(driveUrl || previewStreamUrl).map((src, idx) => (
+                            <source key={idx} src={src} />
+                          ))}
+                        </audio>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -609,18 +716,9 @@ export default function AudioBank() {
 
               {uploading && (
                 <div className="bg-blue-50 border border-blue-200/80 p-3.5 rounded-xl space-y-2 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between text-xs font-bold text-blue-900">
-                    <span className="flex items-center gap-1.5">
-                      <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0" />
-                      <span>{uploadStage || 'Mengunggah audio...'}</span>
-                    </span>
-                    <span className="text-blue-700 font-extrabold">{uploadProgress}%</span>
-                  </div>
-                  <div className="w-full bg-blue-200/80 rounded-full h-2.5 overflow-hidden">
-                    <div 
-                      className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out shadow-2xs"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
+                  <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
+                    <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                    <span>Menyimpan audio Google Drive...</span>
                   </div>
                 </div>
               )}
@@ -642,7 +740,7 @@ export default function AudioBank() {
                   {uploading ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Mengunggah ({uploadProgress}%)</span>
+                      <span>Menyimpan...</span>
                     </>
                   ) : (
                     <span>Simpan Audio</span>
@@ -657,7 +755,7 @@ export default function AudioBank() {
       {/* Edit Audio Modal */}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-100 p-6 flex flex-col animate-in scale-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-100 p-6 flex flex-col animate-in scale-in duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
@@ -706,6 +804,62 @@ export default function AudioBank() {
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none"
                 />
+              </div>
+
+              <div className="space-y-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                <label className="block text-xs font-bold text-blue-900 uppercase tracking-wider">
+                  URL Link Google Drive <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <LinkIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="url"
+                      required
+                      placeholder="https://drive.google.com/file/d/..."
+                      value={driveUrl}
+                      onChange={(e) => {
+                        setDriveUrl(e.target.value);
+                        setPreviewAudioStatus('idle');
+                      }}
+                      className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => testAudioUrl(driveUrl)}
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-xs"
+                  >
+                    <Volume2 className="w-3.5 h-3.5" />
+                    <span>Cek Audio</span>
+                  </button>
+                </div>
+
+                {previewAudioStatus !== 'idle' && (
+                  <div className={`p-3 rounded-xl border text-xs font-medium transition-all ${
+                    previewAudioStatus === 'loading' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                    previewAudioStatus === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
+                    'bg-red-50 border-red-200 text-red-800'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      {previewAudioStatus === 'loading' && <div className="w-3.5 h-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin shrink-0" />}
+                      {previewAudioStatus === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                      {previewAudioStatus === 'error' && <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />}
+                      <span className="font-bold">{previewAudioMsg}</span>
+                    </div>
+
+                    {previewAudioStatus === 'success' && (
+                      <div className="mt-2 pt-2 border-t border-emerald-200/60">
+                        <p className="text-[10px] uppercase font-bold text-emerald-700 mb-1">Tes Pemutaran Langsung:</p>
+                        <audio controls className="w-full h-8 outline-none">
+                          {getAudioSourceUrls(driveUrl || previewStreamUrl).map((src, idx) => (
+                            <source key={idx} src={src} />
+                          ))}
+                        </audio>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
