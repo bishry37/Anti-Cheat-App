@@ -34,15 +34,25 @@ export const getAudioSourceUrls = (raw?: string): string[] => {
   const fileId = extractGoogleDriveFileId(trimmed);
   if (fileId) {
     return [
+      `/api/audio-proxy?id=${fileId}`,
       `https://drive.google.com/uc?export=download&id=${fileId}`,
+      `https://drive.usercontent.google.com/download?id=${fileId}&export=download`,
       `https://drive.google.com/uc?export=open&id=${fileId}`,
-      `https://drive.google.com/uc?id=${fileId}`,
-      `https://docs.google.com/uc?export=download&id=${fileId}`,
-      `https://drive.usercontent.google.com/download?id=${fileId}&export=download`
+      `https://docs.google.com/uc?export=download&id=${fileId}`
     ];
   }
 
-  if (trimmed.startsWith('data:') || trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('blob:')) {
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if (trimmed.includes('api/audio-proxy')) {
+      return [trimmed];
+    }
+    return [
+      `/api/audio-proxy?url=${encodeURIComponent(trimmed)}`,
+      trimmed
+    ];
+  }
+
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
     return [trimmed];
   }
 
@@ -55,7 +65,7 @@ export const parseGoogleDriveUrl = (inputUrl: string): { streamUrl: string; file
 
   if (fileId) {
     return {
-      streamUrl: `https://drive.google.com/uc?export=download&id=${fileId}`,
+      streamUrl: `/api/audio-proxy?id=${fileId}`,
       fileId,
       isDrive: true
     };
