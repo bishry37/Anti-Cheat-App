@@ -31,17 +31,35 @@ const CustomAudioPlayer = ({ audioItem, hasPlayedAudio, setHasPlayedAudio }: { a
   const sources = getAudioSourceUrls(rawData);
   const isOneTime = audioItem.allowRepeat === 'Tidak';
 
+  const handleAudioError = () => {
+    if (currentSrcIdx < sources.length - 1) {
+      const nextIdx = currentSrcIdx + 1;
+      setCurrentSrcIdx(nextIdx);
+      if (audioRef.current) {
+        audioRef.current.src = sources[nextIdx];
+        if (isPlaying) {
+          audioRef.current.play().catch(() => {});
+        }
+      }
+    }
+  };
+
   if (!isOneTime) {
     return (
-      <audio 
-        controls
-        controlsList="nodownload noplaybackrate"
-        className="w-full h-10 accent-blue-600 outline-none"
-      >
-        {sources.map((src, i) => (
-          <source key={i} src={src} />
-        ))}
-      </audio>
+      <div className="w-full" onContextMenu={(e) => e.preventDefault()}>
+        <audio 
+          controls
+          controlsList="nodownload noplaybackrate"
+          src={sources[currentSrcIdx] || sources[0]}
+          onError={handleAudioError}
+          className="w-full h-10 accent-blue-600 outline-none"
+        >
+          {sources.map((src, i) => (
+            <source key={i} src={src} />
+          ))}
+          Browser Anda tidak mendukung elemen pemutar audio.
+        </audio>
+      </div>
     );
   }
 
@@ -62,22 +80,14 @@ const CustomAudioPlayer = ({ audioItem, hasPlayedAudio, setHasPlayedAudio }: { a
   };
 
   return (
-    <div>
+    <div onContextMenu={(e) => e.preventDefault()}>
       <audio 
         ref={audioRef}
         src={sources[currentSrcIdx] || sources[0]}
         className="hidden"
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
-        onError={() => {
-          if (currentSrcIdx < sources.length - 1) {
-            const nextIdx = currentSrcIdx + 1;
-            setCurrentSrcIdx(nextIdx);
-            if (audioRef.current) {
-              audioRef.current.src = sources[nextIdx];
-            }
-          }
-        }}
+        onError={handleAudioError}
         onTimeUpdate={(e) => {
            const el = e.currentTarget;
            if (el.duration) {
