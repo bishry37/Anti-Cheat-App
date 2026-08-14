@@ -436,10 +436,17 @@ export default function StudentExam() {
             }
           }
 
-          // Fetch questions with ultra-robust cross-device fallback to ensure questions ALWAYS appear on student screen
+          // Fetch questions with ultra-robust targeted query to save Firestore read quota
           let qs: Question[] = [];
           try {
-            const allSnap = await getDocs(collection(db, 'questions'));
+            // First try targeted query by subjectId to avoid downloading the entire collection
+            let allSnap;
+            if (targetSubId) {
+              allSnap = await getDocs(query(collection(db, 'questions'), where('subjectId', '==', targetSubId)));
+            }
+            if (!allSnap || allSnap.empty) {
+              allSnap = await getDocs(collection(db, 'questions'));
+            }
             const allQuestions = allSnap.docs.map(d => {
               const data = d.data() as any;
               let qType = data.type;
