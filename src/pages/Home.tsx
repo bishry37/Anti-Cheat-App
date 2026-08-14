@@ -5,7 +5,7 @@ import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { collection, query, where, getDocs, doc, setDoc, updateDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Setting, Subject, Exam, StudentSession } from '../types';
-import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2, Key } from 'lucide-react';
+import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2, Key, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import brandLogo from '../assets/images/logo1.png';
 
@@ -222,6 +222,20 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [activeExams, user, isAdmin]);
 
+  // Helper to normalize class names for comparison (removes redundant spaces, punctuation, roman numerals)
+  const normalizeClassKey = (str: string): string => {
+    if (!str) return '';
+    return str
+      .toLowerCase()
+      .replace(/[\u00A0\s]+/g, ' ')
+      .replace(/[_\-./\\]/g, ' ')
+      .replace(/\bxi\b/g, '11')
+      .replace(/\bxii\b/g, '12')
+      .replace(/\bx\b/g, '10')
+      .replace(/\s+/g, '')
+      .trim();
+  };
+
   // Fetch student lists based on valid and active token
   useEffect(() => {
     if (!isTokenValidAndActive || !matchingActiveExam) {
@@ -233,23 +247,70 @@ export default function Home() {
 
     if (currentExam.targetClass) {
       getDocs(collection(db, 'classes')).then((snap) => {
-        const targetClean = currentExam.targetClass!.trim().toLowerCase();
-        let matchedDoc = snap.docs.find(d => {
-          const cName = (d.data().name || '').trim().toLowerCase();
-          return cName === targetClean;
-        });
+        const targetRaw = (currentExam.targetClass || '').trim();
+        const targetClean = targetRaw.toLowerCase();
+        const targetNorm = normalizeClassKey(targetRaw);
+        const targetNoKelas = targetNorm.replace(/^kelas/, '');
 
-        if (!matchedDoc) {
-          matchedDoc = snap.docs.find(d => {
-            const cName = (d.data().name || '').trim().toLowerCase();
-            return cName.includes(targetClean) || targetClean.includes(cName);
-          });
+        let bestDoc: any = null;
+        let bestScore = -1;
+
+        for (const d of snap.docs) {
+          const cData = d.data();
+          const cName = (cData.name || '').trim();
+          const cClean = cName.toLowerCase();
+          const cNorm = normalizeClassKey(cName);
+          const cNoKelas = cNorm.replace(/^kelas/, '');
+          const students = Array.isArray(cData.students) ? cData.students : [];
+          const hasStudents = students.length > 0;
+          const isSameAdmin = currentExam.adminId && cData.adminId === currentExam.adminId;
+
+          let score = 0;
+
+          // 1. Direct Document ID Match
+          if (d.id === targetRaw) {
+            score = 1000;
+          }
+          // 2. Strict String Match (Case-insensitive trimmed)
+          else if (cClean === targetClean && cClean.length > 0) {
+            score = 900;
+          }
+          // 3. Normalized Match (Handles double spaces, punctuation, roman numerals: XI MIPA 2 == 11 MIPA 2)
+          else if (cNorm === targetNorm && cNorm.length > 0) {
+            score = 800;
+          }
+          // 4. Normalized without "kelas" prefix (e.g. Kelas 11 MIPA 2 == 11 MIPA 2)
+          else if (cNoKelas === targetNoKelas && cNoKelas.length > 0) {
+            score = 700;
+          }
+          // 5. Complete Word Token Set Match (Regardless of order)
+          else {
+            const targetWords = targetRaw.toLowerCase().split(/[\s_\-./\\]+/).filter(Boolean);
+            const cWords = cName.toLowerCase().split(/[\s_\-./\\]+/).filter(Boolean);
+            if (targetWords.length > 0 && cWords.length > 0) {
+              const allTargetInC = targetWords.every(tw => cWords.includes(tw));
+              const allCInTarget = cWords.every(cw => targetWords.includes(cw));
+              if (allTargetInC && allCInTarget) {
+                score = 600;
+              }
+            }
+          }
+
+          if (score > 0) {
+            if (isSameAdmin) score += 50;
+            if (hasStudents) score += 20; // Prioritize the document that contains actual students
+
+            if (score > bestScore) {
+              bestScore = score;
+              bestDoc = d;
+            }
+          }
         }
 
-        if (matchedDoc) {
-          const classData = matchedDoc.data();
+        if (bestDoc) {
+          const classData = bestDoc.data();
           const students = (classData.students || []) as string[];
-          setAvailableStudents(students.sort());
+          setAvailableStudents([...students].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })));
         } else {
           setAvailableStudents([]);
         }
@@ -685,23 +746,24 @@ export default function Home() {
                       />
                     </div>
                     {/* Token Status Message */}
-                    <div className="mt-1.5 px-1 min-h-[18px]">
+                    <div className="mt-2 px-0.5 min-h-[22px]">
                       {examToken.trim().length > 0 ? (
                         isTokenValidAndActive ? (
-                          <p className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1.5 animate-in fade-in">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          <div className="text-[11px] font-semibold text-emerald-700 bg-emerald-50/80 border border-emerald-200/80 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 animate-in fade-in">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                             <span>Ujian Aktif: <strong>{matchingActiveExam?.title}</strong></span>
-                          </p>
+                          </div>
                         ) : (
-                          <p className="text-[11px] font-semibold text-rose-500 flex items-center gap-1.5 animate-in fade-in">
+                          <div className="text-[11px] font-semibold text-rose-600 bg-rose-50/80 border border-rose-200/80 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 animate-in fade-in">
                             <ShieldAlert className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                             <span>Token tidak valid atau ujian sedang dinonaktifkan</span>
-                          </p>
+                          </div>
                         )
                       ) : (
-                        <p className="text-[11px] font-medium text-slate-400">
-                          Masukkan 6 digit token ujian aktif untuk membuka kolom nama.
-                        </p>
+                        <div className="text-[11px] font-medium text-blue-700 bg-blue-50/70 border border-blue-200/60 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+                          <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <span>Masukkan token ujian aktif untuk memilih nama</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -712,12 +774,6 @@ export default function Home() {
                       <label className={`block text-xs font-bold uppercase tracking-wider transition-colors ${!isTokenValidAndActive ? 'text-slate-400' : 'text-slate-700'}`}>
                         Nama Lengkap Anda
                       </label>
-                      {!isTokenValidAndActive && (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60 flex items-center gap-1">
-                          <Lock className="w-3 h-3 text-amber-600" />
-                          Terkunci (Isi Token Dahulu)
-                        </span>
-                      )}
                     </div>
 
                     {availableStudents.length > 0 ? (
