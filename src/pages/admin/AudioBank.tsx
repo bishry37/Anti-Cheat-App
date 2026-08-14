@@ -682,7 +682,12 @@ export default function AudioBank() {
                     {previewAudioStatus === 'success' && (
                       <div className="mt-2 pt-2 border-t border-emerald-200/60">
                         <p className="text-[10px] uppercase font-bold text-emerald-700 mb-1">Tes Pemutaran Langsung:</p>
-                        <audio controls className="w-full h-8 outline-none">
+                        <audio 
+                          key={`add-${previewStreamUrl || driveUrl}`}
+                          src={getAudioSourceUrls(driveUrl || previewStreamUrl)[0]}
+                          controls 
+                          className="w-full h-8 outline-none"
+                        >
                           {getAudioSourceUrls(driveUrl || previewStreamUrl).map((src, idx) => (
                             <source key={idx} src={src} />
                           ))}
@@ -860,7 +865,12 @@ export default function AudioBank() {
                     {previewAudioStatus === 'success' && (
                       <div className="mt-2 pt-2 border-t border-emerald-200/60">
                         <p className="text-[10px] uppercase font-bold text-emerald-700 mb-1">Tes Pemutaran Langsung:</p>
-                        <audio controls className="w-full h-8 outline-none">
+                        <audio 
+                          key={`edit-${previewStreamUrl || driveUrl}`}
+                          src={getAudioSourceUrls(driveUrl || previewStreamUrl)[0]}
+                          controls 
+                          className="w-full h-8 outline-none"
+                        >
                           {getAudioSourceUrls(driveUrl || previewStreamUrl).map((src, idx) => (
                             <source key={idx} src={src} />
                           ))}

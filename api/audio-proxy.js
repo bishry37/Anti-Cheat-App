@@ -1,31 +1,132 @@
+import https from 'node:https';
+import http from 'node:http';
+import { URL } from 'node:url';
+
 /**
- * Vercel Serverless Function: Audio Proxy Fallback
+ * Vercel Serverless Function: High performance Audio Streaming Proxy
  * 
- * Lightweight HTTP 302 redirect to direct Google Drive/external media URL.
- * NEVER streams or buffers binary media through Vercel compute to keep
- * Fast Origin Transfer (FOT) at virtually 0 bytes.
+ * Features:
+ * - Direct stream piping (no buffering in RAM)
+ * - Full HTTP 206 Range request support for HTML5 <audio> seeking/buffering
+ * - Automatic redirect and Google Drive download confirmation handling
+ * - Edge CDN caching (s-maxage=31536000) so Vercel CDN caches audio chunks
+ *   on edge nodes, preventing repeat origin transfers (0% unnecessary FOT)
  */
 
-export default async function handler(req, res) {
+export default function handler(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type, Accept');
+    return res.status(204).end();
+  }
+
+  const fileId = req.query.id || (req.query.url ? extractDriveId(req.query.url) : null);
+  let targetUrl = '';
+
+  if (fileId) {
+    targetUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  } else if (req.query.url) {
+    targetUrl = req.query.url;
+  } else {
+    return res.status(400).send('Missing id or url parameter');
+  }
+
+  streamAudio(targetUrl, req, res, 5);
+}
+
+function streamAudio(targetUrl, req, res, redirectsLeft = 5) {
+  if (redirectsLeft <= 0) {
+    if (!res.headersSent) res.status(502).send('Too many redirects');
+    return;
+  }
+
   try {
-    const fileId = req.query.id || (req.query.url ? extractDriveId(req.query.url) : null);
-    const rawUrl = req.query.url;
+    const parsed = new URL(targetUrl);
+    const protocol = parsed.protocol === 'http:' ? http : https;
 
-    if (fileId) {
-      const targetUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-      res.setHeader("Cache-Control", "public, max-age=86400");
-      return res.redirect(302, targetUrl);
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': '*/*'
+    };
+
+    if (req.headers.range) {
+      headers['Range'] = req.headers.range;
     }
 
-    if (rawUrl) {
-      res.setHeader("Cache-Control", "public, max-age=86400");
-      return res.redirect(302, rawUrl);
-    }
+    const proxyReq = protocol.get(targetUrl, { headers }, (upstreamRes) => {
+      // Follow HTTP redirects
+      if (upstreamRes.statusCode && upstreamRes.statusCode >= 300 && upstreamRes.statusCode < 400 && upstreamRes.headers.location) {
+        let location = upstreamRes.headers.location;
+        if (location.startsWith('/')) {
+          location = `${parsed.protocol}//${parsed.host}${location}`;
+        }
+        upstreamRes.resume();
+        return streamAudio(location, req, res, redirectsLeft - 1);
+      }
 
-    return res.status(400).send("Missing id or url parameter");
+      // Check if Google Drive returned virus warning HTML page
+      const contentType = upstreamRes.headers['content-type'] || '';
+      if (contentType.includes('text/html') && targetUrl.includes('drive.google.com') && !targetUrl.includes('confirm=')) {
+        let htmlBody = '';
+        upstreamRes.on('data', (chunk) => {
+          if (htmlBody.length < 25000) htmlBody += chunk.toString();
+        });
+        upstreamRes.on('end', () => {
+          const matchConfirm = htmlBody.match(/confirm=([a-zA-Z0-9_-]+)/) || htmlBody.match(/download_warning_[^=]+=([a-zA-Z0-9_-]+)/);
+          const confirmToken = matchConfirm ? matchConfirm[1] : 't';
+          const confirmUrl = `${targetUrl}&confirm=${confirmToken}`;
+          return streamAudio(confirmUrl, req, res, redirectsLeft - 1);
+        });
+        return;
+      }
+
+      const statusCode = upstreamRes.statusCode || 200;
+      res.status(statusCode);
+
+      let outContentType = contentType;
+      if (!outContentType || outContentType.includes('octet-stream') || outContentType.includes('text/plain') || outContentType.includes('binary')) {
+        outContentType = 'audio/mpeg';
+      }
+
+      res.setHeader('Content-Type', outContentType);
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type, Accept');
+      // Edge Caching ensures Vercel CDN caches the media at Edge Pops for fast repeated playback
+      res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400');
+
+      if (upstreamRes.headers['content-length']) {
+        res.setHeader('Content-Length', upstreamRes.headers['content-length']);
+      }
+      if (upstreamRes.headers['content-range']) {
+        res.setHeader('Content-Range', upstreamRes.headers['content-range']);
+      }
+
+      upstreamRes.pipe(res);
+
+      req.on('close', () => {
+        upstreamRes.destroy();
+      });
+    });
+
+    proxyReq.on('error', (err) => {
+      console.error('Audio stream proxy error:', err);
+      if (!res.headersSent) {
+        res.status(502).send('Error streaming audio');
+      }
+    });
+
+    req.on('close', () => {
+      proxyReq.destroy();
+    });
+
   } catch (err) {
-    console.error("Audio redirect error:", err);
-    return res.status(500).send("Error processing audio redirect");
+    console.error('Invalid URL error in audio proxy:', err);
+    if (!res.headersSent) {
+      res.status(400).send('Invalid audio URL');
+    }
   }
 }
 

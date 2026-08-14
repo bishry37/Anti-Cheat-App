@@ -1,15 +1,13 @@
 /**
  * Utility functions for handling audio URLs, Google Drive stream URLs,
- * and base64 audio data directly on the client side.
- *
- * Direct Architecture: Browser <--> Google Drive (0% Vercel Compute / 0GB FOT)
+ * and base64 audio data.
  */
 
 export const extractGoogleDriveFileId = (inputUrl?: string): string | null => {
   if (!inputUrl) return null;
   const trimmed = inputUrl.trim();
 
-  // Handle URL decoded if it was wrapped in /api/audio-proxy?url=...
+  // Handle URL decoded if it was wrapped in /api/audio-proxy?url=... or ?id=...
   if (trimmed.includes('/api/audio-proxy')) {
     const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
     if (idMatch && idMatch[1]) return idMatch[1];
@@ -46,38 +44,29 @@ export const extractGoogleDriveFileId = (inputUrl?: string): string | null => {
 };
 
 /**
- * Normalizes any audio URL (including legacy database formats) into direct,
- * browser-playable source URLs. Eliminates Vercel Fast Origin Transfer.
+ * Returns prioritized playable audio source URLs.
+ * Resolves Google Drive, external audio URLs, and base64 strings.
  */
 export const getAudioSourceUrls = (raw?: string): string[] => {
   if (!raw) return [];
   const trimmed = raw.trim();
 
+  // Check if it's a Google Drive link or file ID
   const fileId = extractGoogleDriveFileId(trimmed);
   if (fileId) {
-    // Return direct Google Drive CDN/stream URLs directly consumed by HTML5 audio
     return [
+      `/api/audio-proxy?id=${fileId}`,
       `https://drive.google.com/uc?export=download&id=${fileId}`,
-      `https://drive.usercontent.google.com/download?id=${fileId}&export=download`,
       `https://docs.google.com/uc?export=download&id=${fileId}`,
-      `https://lh3.googleusercontent.com/d/${fileId}`,
-      `https://drive.google.com/uc?id=${fileId}`
+      `https://drive.usercontent.google.com/download?id=${fileId}&export=download`
     ];
   }
 
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    // If it's a legacy proxy URL that didn't match file ID, strip or use direct
     if (trimmed.includes('/api/audio-proxy')) {
-      const urlMatch = trimmed.match(/[?&]url=([^&]+)/);
-      if (urlMatch && urlMatch[1]) {
-        try {
-          return [decodeURIComponent(urlMatch[1])];
-        } catch (e) {
-          // ignore
-        }
-      }
+      return [trimmed];
     }
-    return [trimmed];
+    return [trimmed, `/api/audio-proxy?url=${encodeURIComponent(trimmed)}`];
   }
 
   if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
@@ -88,7 +77,7 @@ export const getAudioSourceUrls = (raw?: string): string[] => {
 };
 
 /**
- * Parses Google Drive input URL from teacher input and returns the canonical direct stream URL.
+ * Parses Google Drive input URL from teacher input and returns the canonical stream URL.
  */
 export const parseGoogleDriveUrl = (inputUrl: string): { streamUrl: string; fileId: string | null; isDrive: boolean } => {
   if (!inputUrl) return { streamUrl: '', fileId: null, isDrive: false };
@@ -96,7 +85,7 @@ export const parseGoogleDriveUrl = (inputUrl: string): { streamUrl: string; file
 
   if (fileId) {
     return {
-      streamUrl: `https://drive.google.com/uc?export=download&id=${fileId}`,
+      streamUrl: `/api/audio-proxy?id=${fileId}`,
       fileId,
       isDrive: true
     };
