@@ -884,7 +884,7 @@ export default function QuestionBank() {
         };
 
         const validateAndCleanupQuestion = (qObj: any) => {
-          if (qObj.type === 'pilihan_ganda' || qObj.type === 'listening' || qObj.type === 'menjodohkan') {
+          if (qObj.type === 'pilihan_ganda' || qObj.type === 'listening') {
             qObj.optionA = stripSimpleHTML(qObj.optionA);
             qObj.optionB = stripSimpleHTML(qObj.optionB);
             qObj.optionC = stripSimpleHTML(qObj.optionC);
@@ -1033,7 +1033,7 @@ export default function QuestionBank() {
         }
 
         const totalQ = questionsToUpload.length;
-        const typeUnits: Record<string, number> = { 'pilihan_ganda': 1, 'menjodohkan': 1, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
+        const typeUnits: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
         let totalUnits = 0;
         questionsToUpload.forEach(q => {
           totalUnits += typeUnits[q.type] || 1;
@@ -1654,12 +1654,12 @@ export default function QuestionBank() {
                         value={addingData.type || 'pilihan_ganda'}
                         onChange={e => {
                           const val = e.target.value as any;
-                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'menjodohkan': 1, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
+                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
                           setAddingData({ 
                             ...addingData, 
                             type: val,
                             weight: weightUnits[val] || 1,
-                            correctAnswer: (val === 'pilihan_ganda' || val === 'menjodohkan' || val === 'listening') ? 'A' : '' 
+                            correctAnswer: (val === 'pilihan_ganda' || val === 'listening') ? 'A' : '' 
                           });
                         }}
                         className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800 cursor-pointer"
@@ -1667,7 +1667,6 @@ export default function QuestionBank() {
                         <option value="pilihan_ganda">Pilihan Ganda</option>
                         <option value="listening">Listening</option>
                         <option value="isian_singkat">Isian Singkat</option>
-                        <option value="menjodohkan">Menjodohkan</option>
                         <option value="essay">Paragraf / Essai</option>
                       </select>
                     </div>
@@ -1696,20 +1695,19 @@ export default function QuestionBank() {
                     </div>
                   </div>
 
-                  {addingData.type === 'pilihan_ganda' || addingData.type === 'listening' || addingData.type === 'menjodohkan' || !addingData.type ? (
+                  {addingData.type === 'pilihan_ganda' || addingData.type === 'listening' || !addingData.type ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                         {['A', 'B', 'C', 'D', 'E'].map(l => (
                           <div key={l} className="relative group">
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
-                              {addingData.type === 'menjodohkan' ? `Sandi Pasangan ${l}` : `Pilihan ${l}`}
+                              Pilihan {l}
                             </label>
                             <div className="flex items-center space-x-1">
                               <input 
                                 type="text"
                                 value={(addingData as any)[`option${l}`] || ''}
                                 onChange={e => setAddingData({ ...addingData, [`option${l}`]: e.target.value })}
-                                placeholder={addingData.type === 'menjodohkan' ? "Contoh kata/kalimat pasangan" : ""}
                                 className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500"
                               />
                               <button 
@@ -1727,7 +1725,7 @@ export default function QuestionBank() {
 
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                          {addingData.type === 'menjodohkan' ? 'Pasangan Kunci yang Benar (Abjad)' : 'Jawaban Benar'}
+                          Jawaban Benar
                         </label>
                         <select
                           value={addingData.correctAnswer || 'A'}
@@ -1818,12 +1816,12 @@ export default function QuestionBank() {
                               value={editingData.type || 'pilihan_ganda'}
                               onChange={e => {
                                 const val = e.target.value as any;
-                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'menjodohkan': 1, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
+                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
                                 setEditingData({ 
                                   ...editingData, 
                                   type: val,
                                   weight: weightUnits[val] || 1,
-                                  correctAnswer: (val === 'pilihan_ganda' || val === 'menjodohkan' || val === 'listening') ? 'A' : '' 
+                                  correctAnswer: (val === 'pilihan_ganda' || val === 'listening') ? 'A' : '' 
                                 });
                               }}
                               className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800 cursor-pointer"
@@ -1831,7 +1829,6 @@ export default function QuestionBank() {
                               <option value="pilihan_ganda">Pilihan Ganda</option>
                               <option value="listening">Listening</option>
                               <option value="isian_singkat">Isian Singkat</option>
-                              <option value="menjodohkan">Menjodohkan</option>
                               <option value="essay">Paragraf / Essai</option>
                             </select>
                           </div>
@@ -1860,13 +1857,13 @@ export default function QuestionBank() {
                           </div>
                         </div>
 
-                        {editingData.type === 'pilihan_ganda' || editingData.type === 'listening' || editingData.type === 'menjodohkan' || !editingData.type ? (
+                        {editingData.type === 'pilihan_ganda' || editingData.type === 'listening' || !editingData.type ? (
                           <>
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                               {['A', 'B', 'C', 'D', 'E'].map(l => (
                                 <div key={l}>
                                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
-                                    {editingData.type === 'menjodohkan' ? `Sandi Pasangan ${l}` : `Pilihan ${l}`}
+                                    Pilihan {l}
                                   </label>
                                   <div className="flex items-center space-x-1">
                                     <input 
@@ -1890,7 +1887,7 @@ export default function QuestionBank() {
 
                             <div>
                               <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                                {editingData.type === 'menjodohkan' ? 'Pasangan Kunci yang Benar (Abjad)' : 'Jawaban Benar'}
+                                Jawaban Benar
                               </label>
                               <select
                                 value={editingData.correctAnswer || 'A'}
@@ -1958,10 +1955,6 @@ export default function QuestionBank() {
                               <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-amber-100 text-amber-700 border-amber-200">
                                 Isian Singkat
                               </span>
-                            ) : q.type === 'menjodohkan' ? (
-                              <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-emerald-100 text-emerald-700 border-emerald-200">
-                                Menjodohkan
-                              </span>
                             ) : (
                               <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-purple-100 text-purple-700 border-purple-200">
                                 Essay
@@ -1974,13 +1967,8 @@ export default function QuestionBank() {
                         </div>
                       </div>
                       
-                      {(q.type === 'pilihan_ganda' || !q.type || q.type === 'listening' || q.type === 'menjodohkan') ? (
+                      {(q.type === 'pilihan_ganda' || !q.type || q.type === 'listening') ? (
                         <div className="pl-9 grid grid-cols-1 sm:grid-cols-2 text-[11px] gap-x-4">
-                          {q.type === 'menjodohkan' && (
-                            <div className="col-span-2 text-[10px] font-bold text-emerald-800 uppercase tracking-wide mb-1.5 flex items-center space-x-1 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded w-max shadow-3xs">
-                              <span>Sandi Pasangan yang Cocok</span>
-                            </div>
-                          )}
                           {['A', 'B', 'C', 'D', 'E'].map((opt) => {
                             const key = `option${opt}` as keyof Question;
                             const val = q[key];
@@ -1997,7 +1985,7 @@ export default function QuestionBank() {
                                 }`}
                               >
                                 <span className={`shrink-0 select-none font-bold text-[11px] ${isCorrect ? 'text-green-600' : 'text-slate-400'}`}>
-                                  {q.type === 'menjodohkan' ? `Sandi ${opt}:` : `${opt}.`}
+                                  {opt}.
                                 </span>
                                 <div 
                                   className="ql-editor p-0 text-[11px] flex-1 leading-normal text-left [&_p]:m-0 [&_p]:p-0" 
