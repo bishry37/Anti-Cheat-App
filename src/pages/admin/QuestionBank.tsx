@@ -282,14 +282,12 @@ export default function QuestionBank() {
         const tCode = data.typeCode;
         if (qType === 1 || qType === '1' || tCode === 1) {
           qType = 'pilihan_ganda';
-        } else if (qType === 5 || qType === '5' || tCode === 5) {
-          qType = 'pilihan_ganda_kompleks';
         } else if (qType === 2 || qType === '2' || tCode === 2) {
           qType = 'listening';
         } else if (qType === 3 || qType === '3' || tCode === 3) {
-          qType = 'isian_singkat';
-        } else if (qType === 4 || qType === '4' || tCode === 4) {
           qType = 'essay';
+        } else if (qType === 4 || qType === '4' || tCode === 4 || qType === 5 || qType === '5' || tCode === 5) {
+          qType = 'pilihan_ganda_kompleks';
         } else if (!qType) {
           qType = 'pilihan_ganda';
         }
@@ -297,11 +295,11 @@ export default function QuestionBank() {
           id: d.id,
           ...data,
           type: qType,
-          typeCode: tCode || (qType === 'pilihan_ganda_kompleks' ? 5 : qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
+          typeCode: tCode || (qType === 'pilihan_ganda_kompleks' ? 4 : qType === 'listening' ? 2 : qType === 'essay' ? 3 : 1)
         } as Question;
       });
       
-      const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'pilihan_ganda_kompleks': 2, 'listening': 3, 'isian_singkat': 4, 'essay': 5 };
+      const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 2, 'essay': 3, 'pilihan_ganda_kompleks': 4, 'isian_singkat': 5 };
       const sortedQs = qs.sort((a, b) => {
         const aType = a.type || 'pilihan_ganda';
         const bType = b.type || 'pilihan_ganda';
@@ -400,16 +398,7 @@ export default function QuestionBank() {
                     spacing: { before: 20, after: 20 },
                     children: [
                       new TextRun({ text: "• Kode ", size: 18 }),
-                      new TextRun({ text: "3", bold: true, size: 18, color: "ea580c" }),
-                      new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
-                      new TextRun({ text: "Isian Singkat (Cukup tuliskan kata kunci jawaban)", bold: true, size: 18 })
-                    ]
-                  }),
-                  new Paragraph({
-                    spacing: { before: 20, after: 20 },
-                    children: [
-                      new TextRun({ text: "• Kode ", size: 18 }),
-                      new TextRun({ text: "4", bold: true, size: 18, color: "7c3aed" }),
+                      new TextRun({ text: "3", bold: true, size: 18, color: "7c3aed" }),
                       new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
                       new TextRun({ text: "Paragraf / Essay (Kunci Jawaban sebagai acuan koreksi)", bold: true, size: 18 })
                     ]
@@ -418,7 +407,7 @@ export default function QuestionBank() {
                     spacing: { before: 20, after: 20 },
                     children: [
                       new TextRun({ text: "• Kode ", size: 18 }),
-                      new TextRun({ text: "5", bold: true, size: 18, color: "0d9488" }),
+                      new TextRun({ text: "4", bold: true, size: 18, color: "0d9488" }),
                       new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
                       new TextRun({ text: "Pilihan Ganda Kompleks (Jawaban lebih dari satu, pisahkan dengan koma seperti A,C atau A,B,D)", bold: true, size: 18 })
                     ]
@@ -531,60 +520,7 @@ export default function QuestionBank() {
         rows: mcqRows
       });
 
-      // 4. PILIHAN GANDA KOMPLEKS TABLE (10 Questions - Kode 5)
-      const pgkHeader = new TableRow({
-        children: [
-          createCell("NO", true, "ccfbf1", 6),
-          createCell("SOAL", true, "ccfbf1", 42),
-          createCell("JENIS", true, "ccfbf1", 8),
-          createCell("OPSI", true, "ccfbf1", 6),
-          createCell("JAWABAN", true, "ccfbf1", 32),
-          createCell("KUNCI", true, "ccfbf1", 6),
-        ]
-      });
-
-      const pgkRows: TableRow[] = [pgkHeader];
-      // Question 1 (Sample PGK)
-      pgkRows.push(
-        ...createMcqQuestionRows(
-          "1",
-          "Manakah yang termasuk ke dalam organ pernapasan manusia? (Jawaban lebih dari satu)",
-          "5",
-          [
-            { label: "A", text: "Hidung" },
-            { label: "B", text: "Paru-paru" },
-            { label: "C", text: "Jantung" },
-            { label: "D", text: "Tenggorokan" },
-            { label: "E", text: "Lambung" }
-          ],
-          "A,B,D"
-        )
-      );
-      // Questions 2 - 10 (Blank slots)
-      for (let i = 2; i <= 10; i++) {
-        pgkRows.push(
-          ...createMcqQuestionRows(
-            String(i),
-            "",
-            "5",
-            [
-              { label: "A", text: "" },
-              { label: "B", text: "" },
-              { label: "C", text: "" },
-              { label: "D", text: "" },
-              { label: "E", text: "" }
-            ],
-            ""
-          )
-        );
-      }
-
-      const pgkTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: pgkRows
-      });
-
-      // 5. TABLE FOR LISTENING (10 Questions)
+      // 4. TABLE FOR LISTENING (10 Questions)
       const listeningHeader = new TableRow({
         children: [
           createCell("NO", true, "e0f2fe", 6),
@@ -637,48 +573,7 @@ export default function QuestionBank() {
         rows: listeningRows
       });
 
-      // 6. ISIAN SINGKAT TABLE (10 Questions)
-      const shortHeader = new TableRow({
-        children: [
-          createCell("NO", true, "fef3c7", 6),
-          createCell("SOAL", true, "fef3c7", 58),
-          createCell("JENIS", true, "fef3c7", 8),
-          createCell("KUNCI JAWABAN", true, "fef3c7", 28),
-        ]
-      });
-
-      const shortRows: TableRow[] = [shortHeader];
-      // Question 1 (Sample)
-      shortRows.push(
-        new TableRow({
-          children: [
-            createCell("1", false),
-            createCell("Gas apa yang paling banyak terkandung di atmosfer bumi?", false),
-            createCell("3", false),
-            createCell("Nitrogen", false),
-          ]
-        })
-      );
-      // Questions 2 - 10 (Blank slots)
-      for (let i = 2; i <= 10; i++) {
-        shortRows.push(
-          new TableRow({
-            children: [
-              createCell(String(i), false),
-              createCell("", false),
-              createCell("3", false),
-              createCell("", false),
-            ]
-          })
-        );
-      }
-
-      const shortTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: shortRows
-      });
-
-      // 7. PARAGRAF / ESSAY TABLE (10 Questions)
+      // 5. PARAGRAF / ESSAY TABLE (10 Questions)
       const essayHeader = new TableRow({
         children: [
           createCell("NO", true, "f3e8ff", 6),
@@ -695,7 +590,7 @@ export default function QuestionBank() {
           children: [
             createCell("1", false),
             createCell("Jelaskan pengertian ekologi laut dan berikan 2 contoh ekosistemnya!", false),
-            createCell("4", false),
+            createCell("3", false),
             createCell("Ekologi laut adalah studi hubungan organisme dengan lingkungan laut. Contoh: Terumbu karang dan Padang lamun.", false),
           ]
         })
@@ -707,7 +602,7 @@ export default function QuestionBank() {
             children: [
               createCell(String(i), false),
               createCell("", false),
-              createCell("4", false),
+              createCell("3", false),
               createCell("", false),
             ]
           })
@@ -717,6 +612,59 @@ export default function QuestionBank() {
       const essayTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: essayRows
+      });
+
+      // 6. PILIHAN GANDA KOMPLEKS TABLE (10 Questions - Kode 4)
+      const pgkHeader = new TableRow({
+        children: [
+          createCell("NO", true, "ccfbf1", 6),
+          createCell("SOAL", true, "ccfbf1", 42),
+          createCell("JENIS", true, "ccfbf1", 8),
+          createCell("OPSI", true, "ccfbf1", 6),
+          createCell("JAWABAN", true, "ccfbf1", 32),
+          createCell("KUNCI", true, "ccfbf1", 6),
+        ]
+      });
+
+      const pgkRows: TableRow[] = [pgkHeader];
+      // Question 1 (Sample PGK)
+      pgkRows.push(
+        ...createMcqQuestionRows(
+          "1",
+          "Manakah yang termasuk ke dalam organ pernapasan manusia? (Jawaban lebih dari satu)",
+          "4",
+          [
+            { label: "A", text: "Hidung" },
+            { label: "B", text: "Paru-paru" },
+            { label: "C", text: "Jantung" },
+            { label: "D", text: "Tenggorokan" },
+            { label: "E", text: "Lambung" }
+          ],
+          "A,B,D"
+        )
+      );
+      // Questions 2 - 10 (Blank slots)
+      for (let i = 2; i <= 10; i++) {
+        pgkRows.push(
+          ...createMcqQuestionRows(
+            String(i),
+            "",
+            "4",
+            [
+              { label: "A", text: "" },
+              { label: "B", text: "" },
+              { label: "C", text: "" },
+              { label: "D", text: "" },
+              { label: "E", text: "" }
+            ],
+            ""
+          )
+        );
+      }
+
+      const pgkTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: pgkRows
       });
 
       // Assemble everything!
@@ -748,7 +696,7 @@ export default function QuestionBank() {
                 ]
               }),
 
-              // Table 1
+              // Table 1: Pilihan Ganda
               new Paragraph({
                 spacing: { before: 200, after: 100 },
                 children: [
@@ -762,26 +710,12 @@ export default function QuestionBank() {
               }),
               mcqTable,
 
-              // Table 2: PG Kompleks
+              // Table 2: Listening
               new Paragraph({
                 spacing: { before: 300, after: 100 },
                 children: [
                   new TextRun({
-                    text: "2. TABEL SOAL PILIHAN GANDA KOMPLEKS (Jenis Soal = 5)",
-                    bold: true,
-                    size: 20,
-                    color: "0d9488"
-                  })
-                ]
-              }),
-              pgkTable,
-
-              // Table 3
-              new Paragraph({
-                spacing: { before: 300, after: 100 },
-                children: [
-                  new TextRun({
-                    text: "3. TABEL SOAL LISTENING (Jenis Soal = 2)",
+                    text: "2. TABEL SOAL LISTENING (Jenis Soal = 2)",
                     bold: true,
                     size: 20,
                     color: "0284c7"
@@ -790,26 +724,12 @@ export default function QuestionBank() {
               }),
               listeningTable,
 
-              // Table 4
+              // Table 3: Paragraf / Essay
               new Paragraph({
                 spacing: { before: 300, after: 100 },
                 children: [
                   new TextRun({
-                    text: "4. TABEL SOAL ISIAN SINGKAT (Jenis Soal = 3)",
-                    bold: true,
-                    size: 20,
-                    color: "d97706"
-                  })
-                ]
-              }),
-              shortTable,
-
-              // Table 5
-              new Paragraph({
-                spacing: { before: 300, after: 100 },
-                children: [
-                  new TextRun({
-                    text: "5. TABEL SOAL PARAGRAF / ESSAY (Jenis Soal = 4)",
+                    text: "3. TABEL SOAL PARAGRAF / ESSAY (Jenis Soal = 3)",
                     bold: true,
                     size: 20,
                     color: "7c3aed"
@@ -817,6 +737,20 @@ export default function QuestionBank() {
                 ]
               }),
               essayTable,
+
+              // Table 4: PG Kompleks
+              new Paragraph({
+                spacing: { before: 300, after: 100 },
+                children: [
+                  new TextRun({
+                    text: "4. TABEL SOAL PILIHAN GANDA KOMPLEKS (Jenis Soal = 4)",
+                    bold: true,
+                    size: 20,
+                    color: "0d9488"
+                  })
+                ]
+              }),
+              pgkTable,
             ]
           }
         ]
@@ -936,9 +870,6 @@ export default function QuestionBank() {
           const has4 = /(^|\b)4(\b|$)/.test(vLower) || vLower === '4' || vLower.startsWith('4.');
           const has5 = /(^|\b)5(\b|$)/.test(vLower) || vLower === '5' || vLower.startsWith('5.');
 
-          if (has5 && !has1 && !has2 && !has3 && !has4) {
-            return { type: 'pilihan_ganda_kompleks' as const, typeCode: 5 };
-          }
           if (has1 && !has2 && !has3 && !has4 && !has5) {
             return { type: 'pilihan_ganda' as const, typeCode: 1 };
           }
@@ -946,15 +877,15 @@ export default function QuestionBank() {
             return { type: 'listening' as const, typeCode: 2 };
           }
           if (has3 && !has1 && !has2 && !has4 && !has5) {
-            return { type: 'isian_singkat' as const, typeCode: 3 };
+            return { type: 'essay' as const, typeCode: 3 };
           }
-          if (has4 && !has1 && !has2 && !has3 && !has5) {
-            return { type: 'essay' as const, typeCode: 4 };
+          if ((has4 || has5) && !has1 && !has2 && !has3) {
+            return { type: 'pilihan_ganda_kompleks' as const, typeCode: 4 };
           }
 
           // If no unique digit, check keywords
           if (vLower.includes('kompleks') || vLower.includes('pgk') || vLower.includes('pg_kompleks') || vLower.includes('multiple_choice_complex')) {
-            return { type: 'pilihan_ganda_kompleks' as const, typeCode: 5 };
+            return { type: 'pilihan_ganda_kompleks' as const, typeCode: 4 };
           }
           if (vLower.includes('listening') || vLower.includes('dengar') || vLower.includes('audio')) {
             return { type: 'listening' as const, typeCode: 2 };
@@ -962,21 +893,20 @@ export default function QuestionBank() {
           if (vLower.includes('ganda') || vLower.includes('pilihan') || vLower.includes('pg') || vLower.includes('multiple')) {
             return { type: 'pilihan_ganda' as const, typeCode: 1 };
           }
+          if (vLower.includes('essay') || vLower.includes('essai') || vLower.includes('uraian') || vLower.includes('paragraf') || vLower.includes('panjang')) {
+            return { type: 'essay' as const, typeCode: 3 };
+          }
           if (vLower.includes('singkat') || vLower.includes('isian') || vLower.includes('short')) {
             return { type: 'isian_singkat' as const, typeCode: 3 };
           }
-          if (vLower.includes('essay') || vLower.includes('essai') || vLower.includes('uraian') || vLower.includes('paragraf') || vLower.includes('panjang')) {
-            return { type: 'essay' as const, typeCode: 4 };
-          }
 
-          // Check if there is any '5', '1', '2', '3', '4' anywhere as a last resort
-          if (vLower.includes('5')) return { type: 'pilihan_ganda_kompleks' as const, typeCode: 5 };
+          // Check if there is any '1', '2', '3', '4', '5' anywhere as a last resort
           if (vLower.includes('1')) return { type: 'pilihan_ganda' as const, typeCode: 1 };
           if (vLower.includes('2')) return { type: 'listening' as const, typeCode: 2 };
-          if (vLower.includes('3')) return { type: 'isian_singkat' as const, typeCode: 3 };
-          if (vLower.includes('4')) return { type: 'essay' as const, typeCode: 4 };
+          if (vLower.includes('3')) return { type: 'essay' as const, typeCode: 3 };
+          if (vLower.includes('4') || vLower.includes('5')) return { type: 'pilihan_ganda_kompleks' as const, typeCode: 4 };
 
-          throw new Error(`Soal No. ${numberStr}: Kode soal ${val} tidak dikenali. Gunakan kode 1, 2, 3, 4, atau 5.`);
+          throw new Error(`Soal No. ${numberStr}: Kode soal ${val} tidak dikenali. Gunakan kode 1, 2, 3, atau 4.`);
         };
 
         const validateAndCleanupQuestion = (qObj: any) => {
@@ -1371,10 +1301,10 @@ export default function QuestionBank() {
       }
 
       const mapTypeToCode = (t: string): number => {
-        if (t === 'pilihan_ganda_kompleks') return 5;
+        if (t === 'pilihan_ganda_kompleks') return 4;
         if (t === 'listening') return 2;
+        if (t === 'essay') return 3;
         if (t === 'isian_singkat') return 3;
-        if (t === 'essay') return 4;
         return 1; // 'pilihan_ganda'
       };
 
@@ -1467,10 +1397,10 @@ export default function QuestionBank() {
       
       // 3. Add the new question
       const mapTypeToCode = (t: string): number => {
-        if (t === 'pilihan_ganda_kompleks') return 5;
+        if (t === 'pilihan_ganda_kompleks') return 4;
         if (t === 'listening') return 2;
+        if (t === 'essay') return 3;
         if (t === 'isian_singkat') return 3;
-        if (t === 'essay') return 4;
         return 1; // 'pilihan_ganda'
       };
 

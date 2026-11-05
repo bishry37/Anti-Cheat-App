@@ -470,14 +470,12 @@ export default function StudentExam() {
               const tCode = data.typeCode;
               if (qType === 1 || qType === '1' || tCode === 1) {
                 qType = 'pilihan_ganda';
-              } else if (qType === 5 || qType === '5' || tCode === 5) {
-                qType = 'pilihan_ganda_kompleks';
               } else if (qType === 2 || qType === '2' || tCode === 2) {
                 qType = 'listening';
               } else if (qType === 3 || qType === '3' || tCode === 3) {
-                qType = 'isian_singkat';
-              } else if (qType === 4 || qType === '4' || tCode === 4) {
                 qType = 'essay';
+              } else if (qType === 4 || qType === '4' || tCode === 4 || qType === 5 || qType === '5' || tCode === 5) {
+                qType = 'pilihan_ganda_kompleks';
               } else if (!qType) {
                 qType = 'pilihan_ganda';
               }
@@ -485,7 +483,7 @@ export default function StudentExam() {
                 id: d.id,
                 ...data,
                 type: qType,
-                typeCode: tCode || (qType === 'pilihan_ganda_kompleks' ? 5 : qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
+                typeCode: tCode || (qType === 'pilihan_ganda_kompleks' ? 4 : qType === 'listening' ? 2 : qType === 'essay' ? 3 : 1)
               } as Question;
             });
 
@@ -538,7 +536,7 @@ export default function StudentExam() {
             }
           }
           
-          const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'pilihan_ganda_kompleks': 2, 'listening': 3, 'isian_singkat': 4, 'essay': 5 };
+          const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 2, 'essay': 3, 'pilihan_ganda_kompleks': 4, 'isian_singkat': 5 };
           
           let shouldSaveRandomization = false;
           let generatedQuestionOrder: string[] = [];
