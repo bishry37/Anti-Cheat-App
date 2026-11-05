@@ -1669,7 +1669,11 @@ export default function QuestionBank() {
                   <>
                     <button 
                       onClick={() => {
-                        setAddingData({...addingData, number: questions.length + 1});
+                        setAddingData({
+                          ...addingData,
+                          number: questions.length + 1,
+                          type: addingData.type || 'pilihan_ganda'
+                        });
                         setIsAddingQuestion(true);
                       }}
                       className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-bold uppercase flex items-center space-x-1.5 transition-colors cursor-pointer shadow-sm"

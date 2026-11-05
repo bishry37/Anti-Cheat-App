@@ -864,7 +864,13 @@ export default function StudentExam() {
     };
 
     const handleBlur = () => {
-      recordViolation('Membuka aplikasi lain', 'Fokus hilang dari ujian! Jangan buka aplikasi lain.');
+      setTimeout(() => {
+        if (document.activeElement !== document.body && document.hasFocus()) {
+          // Still focused, likely just a browser UI interaction
+          return;
+        }
+        recordViolation('Membuka aplikasi lain', 'Fokus hilang dari ujian! Jangan buka aplikasi lain.');
+      }, 500);
     };
 
     const handleFocus = () => {
