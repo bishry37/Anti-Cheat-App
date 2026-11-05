@@ -29,6 +29,7 @@ export default function Classes() {
   const [bulkInput, setBulkInput] = useState('');
   const [showBulk, setShowBulk] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showRandomPinsModal, setShowRandomPinsModal] = useState(false);
   const [printLayoutMode, setPrintLayoutMode] = useState<'cards' | 'table'>('cards');
   const [showKop, setShowKop] = useState<boolean>(true);
   const [toast, setToast] = useState<string | null>(null);
@@ -238,6 +239,7 @@ export default function Classes() {
       return rec;
     });
     await saveStudentList(updated);
+    setShowRandomPinsModal(true);
     showToast('PIN semua siswa berhasil diacak ulang!');
   };
 
@@ -749,6 +751,103 @@ export default function Classes() {
               >
                 <span>Proses Impor</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Hasil Acak PIN Siswa */}
+      {showRandomPinsModal && selectedClass && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-[110] animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col h-[520px] transform animate-in scale-in-95 duration-200">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-amber-50/80 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                  <Key className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 uppercase tracking-wide">
+                    PIN Siswa Berhasil Diacak!
+                  </h3>
+                  <p className="text-[11px] text-amber-800 font-bold uppercase tracking-wider mt-0.5">
+                    Kelas: <span className="text-slate-900 font-black">{selectedClass.name}</span> • {draftStudents.length} PIN Baru Dibuat
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowRandomPinsModal(false)} 
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-200/60 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 flex-1 overflow-y-auto bg-slate-50/50 space-y-2">
+              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-3 bg-white p-2.5 rounded-lg border border-slate-200 text-center shadow-2xs">
+                Password / PIN siswa berikut telah tersimpan otomatis ke database:
+              </p>
+              <div className="divide-y divide-slate-100 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                {draftStudents.map((s, idx) => (
+                  <div key={idx} className="flex items-center justify-between px-3.5 py-2.5 hover:bg-amber-50/30 transition">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-[10px] font-bold text-slate-400 w-5 text-center shrink-0">{idx + 1}.</span>
+                      <span className="text-xs font-bold text-slate-800 uppercase truncate">{getStudentName(s)}</span>
+                    </div>
+                    <span className="text-xs font-mono font-black text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-md tracking-wider shrink-0 shadow-2xs">
+                      {getStudentPin(s)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-slate-50 px-4 py-3.5 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = draftStudents.map((s, i) => `${i + 1}. ${getStudentName(s)} — PIN: ${getStudentPin(s)}`).join('\n');
+                    navigator.clipboard.writeText(`KELAS: ${selectedClass.name}\n\n` + text);
+                    showToast('Daftar PIN baru berhasil disalin ke clipboard!');
+                  }}
+                  className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition flex items-center gap-1.5 border border-slate-300 shadow-2xs"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Salin Teks</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateAllPins}
+                  disabled={processing}
+                  className="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
+                  title="Acak ulang PIN lagi"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-amber-700 ${processing ? 'animate-spin' : ''}`} />
+                  <span>Acak Lagi</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRandomPinsModal(false);
+                    setPrintLayoutMode('cards');
+                    setShowExportModal(true);
+                  }}
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Cetak Kartu ID</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRandomPinsModal(false)}
+                  className="px-3 py-2 hover:bg-slate-200 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         </div>
