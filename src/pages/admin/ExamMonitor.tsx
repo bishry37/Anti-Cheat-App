@@ -357,43 +357,22 @@ export default function ExamMonitor() {
     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
 
     if (type === 'warning' && session) {
-      const defaultMsg = "Perhatian! Sistem mendeteksi aktivitas yang tidak sesuai aturan ujian. Mohon tetap fokus dan mengerjakan ujian dengan jujur. Pelanggaran berikutnya dapat menyebabkan ujian dihentikan.";
+      const defaultMsg = "Perhatian! Mohon tetap fokus dan mengerjakan ujian dengan jujur. Patuhi instruksi pengawas ujian.";
       const msg = customWarningText.trim() !== '' ? customWarningText.trim() : defaultMsg;
       try {
-        const currentViolations = session.violationsCount || 0;
-        const newCount = currentViolations + 1;
-        const examMax = typeof exams[session.examId]?.maxViolations === 'number' ? exams[session.examId].maxViolations : maxViolations;
-        const willDisqualify = examMax > 0 && newCount >= examMax;
-
-        // 1. Update the student_session document
+        // Update student_session document with warning message without incrementing violationsCount or changing status
         await updateDoc(doc(db, 'student_sessions', session.id!), {
-          violationsCount: newCount,
-          status: willDisqualify ? 'Didiskualifikasi' : 'Melanggar',
-          wasDisqualified: willDisqualify ? true : (session.wasDisqualified || false),
           adminWarningMessage: msg,
           adminWarningTime: Date.now(),
-          lastActivity: Date.now(),
-          endTime: willDisqualify ? Date.now() : null
+          lastActivity: Date.now()
         });
 
-        // 2. Add the violation log
-        await addDoc(collection(db, 'violations'), {
-          sessionId: session.id,
-          studentName: session.studentName,
-          subjectId: session.subjectId,
-          adminId: user.uid,
-          type: 'Peringatan Admin',
-          status: willDisqualify ? 'Diskualifikasi otomatis (Peringatan Maksimal)' : msg,
-          timestamp: Date.now()
-        });
-
-        showToast(willDisqualify ? 'Peringatan terkirim (Disertai Diskualifikasi Maksimal)' : 'Peringatan terkirim');
+        showToast('Pemberitahuan peringatan berhasil dikirim ke siswa');
         if (selectedSession?.id === session.id) {
-          // Re-fetch violations to keep the detail modal updated
           openMonitor({
             ...session,
-            violationsCount: newCount,
-            status: willDisqualify ? 'Didiskualifikasi' : 'Melanggar',
+            adminWarningMessage: msg,
+            adminWarningTime: Date.now()
           });
         }
       } catch (err) {
@@ -1099,7 +1078,7 @@ export default function ExamMonitor() {
                 <div className="bg-slate-50 border border-slate-200/60 p-3 rounded-lg">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Kalimat Teguran Bawaan:</span>
                   <p className="text-[11px] text-slate-600 leading-normal italic text-left">
-                    "Perhatian! Sistem mendeteksi aktivitas yang tidak sesuai aturan ujian. Mohon tetap fokus dan mengerjakan ujian dengan jujur. Pelanggaran berikutnya dapat menyebabkan ujian dihentikan."
+                    "Perhatian! Mohon tetap fokus dan mengerjakan ujian dengan jujur. Patuhi instruksi pengawas ujian."
                   </p>
                 </div>
 
@@ -1111,8 +1090,8 @@ export default function ExamMonitor() {
                     placeholder="Contoh: Tolong fokus pada monitor, dilarang menengok ke samping..."
                     className="w-full h-20 px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all placeholder:text-slate-400 leading-normal resize-none font-medium text-slate-800"
                   />
-                  <p className="text-[10px] text-slate-400 font-medium leading-tight">
-                    *Kosongkan kolom di atas jika ingin menggunakan kalimat bawaan otomatis.
+                  <p className="text-[10px] text-emerald-600 font-bold leading-tight">
+                    *Peringatan ini langsung muncul di layar siswa dan tidak menambah statistik angka pelanggaran siswa.
                   </p>
                 </div>
               </div>
