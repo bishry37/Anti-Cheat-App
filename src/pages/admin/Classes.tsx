@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, where, writeBatch } from 'firebase/firestore';
-import { Class, StudentRecord } from '../../types';
-import { Plus, Edit2, Trash2, Loader2, Save, X, Users, Search, ArrowRight, GraduationCap, Check, Key, Copy, Printer, RefreshCw, FileText } from 'lucide-react';
+import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, where, writeBatch, onSnapshot } from 'firebase/firestore';
+import { Class, StudentRecord, Setting } from '../../types';
+import { Plus, Edit2, Trash2, Loader2, Save, X, Users, Search, ArrowRight, GraduationCap, Check, Key, Copy, Printer, RefreshCw, FileText, LayoutGrid, List, Scissors, Building2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getStudentName, getStudentPin, generateDefaultPin, normalizeStudentRecord, parseStudentInput } from '../../utils/studentUtils';
+import brandLogo from '../../assets/images/logo1.png';
 
 export default function Classes() {
   const { user } = useAuth();
   const [classesList, setClassesList] = useState<Class[]>([]);
+  const [setting, setSetting] = useState<Setting | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -29,6 +31,8 @@ export default function Classes() {
   const [bulkInput, setBulkInput] = useState('');
   const [showBulk, setShowBulk] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [printLayoutMode, setPrintLayoutMode] = useState<'cards' | 'table'>('cards');
+  const [showKop, setShowKop] = useState<boolean>(true);
   const [toast, setToast] = useState<string | null>(null);
 
   const [draftStudents, setDraftStudents] = useState<(string | StudentRecord)[]>([]);
@@ -53,7 +57,15 @@ export default function Classes() {
   }, [selectedClass?.id]);
 
   useEffect(() => {
-    if (user) fetchClasses();
+    if (user) {
+      fetchClasses();
+      const unsubSetting = onSnapshot(doc(db, 'settings', user.uid), (docSnap) => {
+        if (docSnap.exists()) {
+          setSetting(docSnap.data() as Setting);
+        }
+      });
+      return () => unsubSetting();
+    }
   }, [user]);
 
   const fetchClasses = async () => {
@@ -778,58 +790,276 @@ export default function Classes() {
         </div>
       )}
 
-      {/* Modal Export / Cetak Credentials PIN Siswa */}
+      {/* Modal Export / Cetak Kartu Login & Credentials Siswa */}
       {showExportModal && selectedClass && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col transform animate-in scale-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-600" />
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 z-[100] animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full h-[90vh] max-h-[850px] overflow-hidden flex flex-col transform animate-in scale-in-95 duration-200">
+            
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                  <Printer className="w-5 h-5" />
+                </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-                    Daftar Credentials PIN Siswa — {selectedClass.name}
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                    Cetak Kartu Login Siswa
                   </h3>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-                    {draftStudents.length} Siswa Terdaftar
+                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">
+                    Kelas: <span className="text-blue-700 font-black">{selectedClass.name}</span> • {draftStudents.length} Siswa Terdaftar
                   </p>
                 </div>
               </div>
               <button 
                 onClick={() => setShowExportModal(false)} 
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-200/60 transition cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-5 flex-1 overflow-auto bg-white">
-              <div id="printable-student-pins" className="space-y-4">
-                <div className="text-center border-b pb-3">
-                  <h2 className="text-base font-extrabold uppercase text-slate-900">KARTU LOGIN & CREDENTIALS PIN SISWA</h2>
-                  <p className="text-xs font-bold text-slate-600 uppercase">KELAS: {selectedClass.name}</p>
-                </div>
-                <table className="w-full text-left border-collapse border border-slate-300">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-800 text-[11px] uppercase tracking-wider">
-                      <th className="border border-slate-300 px-3 py-2 text-center w-12">No</th>
-                      <th className="border border-slate-300 px-3 py-2">Nama Siswa</th>
-                      <th className="border border-slate-300 px-3 py-2 text-center w-36">Password / PIN</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {draftStudents.map((s, i) => (
-                      <tr key={i} className="hover:bg-slate-50 border-b border-slate-200">
-                        <td className="border border-slate-300 px-3 py-1.5 text-center text-xs font-semibold text-slate-500">{i + 1}</td>
-                        <td className="border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-800 uppercase">{getStudentName(s)}</td>
-                        <td className="border border-slate-300 px-3 py-1.5 text-center text-xs font-mono font-bold text-blue-700 bg-blue-50/40">{getStudentPin(s)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {/* Modal Customization Controls Bar */}
+            <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              {/* Layout Mode Switcher */}
+              <div className="flex items-center gap-1.5 bg-slate-200/80 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setPrintLayoutMode('cards')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition cursor-pointer ${
+                    printLayoutMode === 'cards' 
+                      ? 'bg-white text-blue-700 shadow-xs' 
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>Kartu Siswa (Grid ID)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintLayoutMode('table')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition cursor-pointer ${
+                    printLayoutMode === 'table' 
+                      ? 'bg-white text-blue-700 shadow-xs' 
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>Daftar Tabel (DUK)</span>
+                </button>
+              </div>
+
+              {/* Kop Toggle */}
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-xs font-bold uppercase text-slate-700 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showKop}
+                    onChange={(e) => setShowKop(e.target.checked)}
+                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                  />
+                  <span>Tampilkan Kop Sekolah & Logo</span>
+                </label>
               </div>
             </div>
 
-            <div className="bg-slate-50 px-5 py-4 border-t border-slate-100 flex items-center justify-between">
+            {/* Printable Preview Area */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/50 custom-scrollbar">
+              <div 
+                id="printable-cards-container" 
+                className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm max-w-3xl mx-auto min-h-full"
+              >
+                {/* Print-specific CSS block to isolate #printable-cards-container when printing */}
+                <style>{`
+                  @media print {
+                    body * {
+                      visibility: hidden !important;
+                    }
+                    #printable-cards-container, #printable-cards-container * {
+                      visibility: visible !important;
+                    }
+                    #printable-cards-container {
+                      position: absolute !important;
+                      left: 0 !important;
+                      top: 0 !important;
+                      width: 100% !important;
+                      margin: 0 !important;
+                      padding: 0 !important;
+                      border: none !important;
+                      box-shadow: none !important;
+                    }
+                    @page {
+                      size: A4 portrait;
+                      margin: 10mm;
+                    }
+                  }
+                `}</style>
+
+                {printLayoutMode === 'cards' ? (
+                  /* MODE KARTU SISWA GRID */
+                  <div className="space-y-4">
+                    {/* Header Ringkasan Cetak */}
+                    <div className="border-b pb-3 text-center no-print">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                        PREVIEW KARTU SISWA (SIAP CETAK A4)
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                        Potong sesuai garis putus-putus untuk membagikan kartu ke masing-masing siswa.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 print:grid-cols-2 print:gap-3">
+                      {draftStudents.map((s, idx) => {
+                        const name = getStudentName(s);
+                        const pin = getStudentPin(s);
+
+                        return (
+                          <div 
+                            key={idx} 
+                            className="border-2 border-dashed border-slate-300 rounded-xl p-3.5 bg-white flex flex-col justify-between relative print:break-inside-avoid print:border-slate-400 shadow-3xs hover:border-blue-300 transition"
+                          >
+                            {/* Kop Kartu */}
+                            {showKop && (
+                              <div className="flex items-center gap-2.5 pb-2 mb-2 border-b-2 border-slate-900">
+                                <img 
+                                  src={setting?.schoolLogo || brandLogo} 
+                                  alt="Logo Sekolah" 
+                                  className="w-9 h-9 object-contain shrink-0" 
+                                />
+                                <div className="min-w-0 flex-1 text-center">
+                                  <h4 className="text-[11px] font-black uppercase text-slate-900 tracking-tight leading-tight">
+                                    {setting?.schoolName || 'EXAM PRO PLUS - CBT'}
+                                  </h4>
+                                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider leading-none mt-0.5 truncate">
+                                    {setting?.schoolSlogan || setting?.schoolAddress || 'KARTU LOGIN PESERTA UJIAN'}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Badge Header Kartu */}
+                            <div className="flex items-center justify-between bg-slate-900 text-white px-2.5 py-1 rounded-md mb-2">
+                              <span className="text-[9px] font-black tracking-widest uppercase">KARTU PESERTA UJIAN</span>
+                              <span className="text-[9px] font-extrabold text-blue-300 uppercase">{selectedClass.name}</span>
+                            </div>
+
+                            {/* Details Grid */}
+                            <div className="space-y-2 flex-1">
+                              <div>
+                                <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">NAMA LENGKAP SISWA</div>
+                                <div className="text-xs font-black text-slate-900 uppercase truncate bg-slate-50 border border-slate-200 px-2 py-1 rounded mt-0.5">
+                                  {name}
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div>
+                                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">KELAS</div>
+                                  <div className="text-[11px] font-bold text-slate-800 uppercase bg-slate-50 border border-slate-200 px-2 py-0.5 rounded mt-0.5 truncate">
+                                    {selectedClass.name}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-[8px] font-bold text-amber-600 uppercase tracking-wider flex items-center gap-0.5">
+                                    <Key className="w-2.5 h-2.5" /> PASSWORD / PIN
+                                  </div>
+                                  <div className="text-xs font-mono font-black text-amber-900 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded text-center tracking-widest mt-0.5">
+                                    {pin}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card Footer */}
+                            <div className="mt-2.5 pt-1.5 border-t border-slate-200 flex items-center justify-between text-[8px] text-slate-400 font-bold uppercase">
+                              <span>Portal Ujian: /</span>
+                              <span className="flex items-center gap-0.5 text-slate-400">
+                                <Scissors className="w-2.5 h-2.5" /> Gunting di sini
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  /* MODE TABEL DAFTAR (DUK) */
+                  <div className="space-y-5">
+                    {/* Official Kop Surat Header */}
+                    {showKop && (
+                      <div className="flex items-center justify-between border-b-4 border-double border-slate-900 pb-3 mb-4">
+                        <img 
+                          src={setting?.schoolLogo || brandLogo} 
+                          alt="Logo Sekolah" 
+                          className="w-16 h-16 object-contain shrink-0" 
+                        />
+                        <div className="text-center flex-1 mx-4">
+                          <h2 className="text-base font-black uppercase text-slate-900 tracking-wider">
+                            {setting?.schoolName || 'EXAM PRO PLUS ASSESSMENT'}
+                          </h2>
+                          <h3 className="text-xs font-extrabold uppercase text-slate-800 mt-0.5">
+                            DAFTAR KARTU LOGIN & CREDENTIALS PESERTA UJIAN
+                          </h3>
+                          <p className="text-[10px] font-semibold text-slate-600 mt-1">
+                            {setting?.schoolAddress || setting?.schoolSlogan || 'Sistem Penilaian Digital Berbasis Komputer & Mobile'}
+                          </p>
+                        </div>
+                        <div className="w-16 shrink-0 text-right text-[10px] font-bold text-slate-400 uppercase">
+                          KELAS<br />
+                          <span className="text-sm font-black text-slate-900">{selectedClass.name}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {!showKop && (
+                      <div className="text-center border-b pb-3">
+                        <h2 className="text-base font-extrabold uppercase text-slate-900">DAFTAR KARTU LOGIN & CREDENTIALS SISWA</h2>
+                        <p className="text-xs font-bold text-slate-600 uppercase">KELAS: {selectedClass.name}</p>
+                      </div>
+                    )}
+
+                    <table className="w-full text-left border-collapse border border-slate-400">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-900 text-[11px] font-black uppercase tracking-wider">
+                          <th className="border border-slate-400 px-3 py-2 text-center w-10">No</th>
+                          <th className="border border-slate-400 px-3 py-2">Nama Lengkap Siswa</th>
+                          <th className="border border-slate-400 px-3 py-2 text-center w-28">Kelas</th>
+                          <th className="border border-slate-400 px-3 py-2 text-center w-36">Password / PIN</th>
+                          <th className="border border-slate-400 px-3 py-2 text-center w-32">Tanda Tangan</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {draftStudents.map((s, i) => (
+                          <tr key={i} className="hover:bg-slate-50 border-b border-slate-300">
+                            <td className="border border-slate-300 px-3 py-2 text-center text-xs font-semibold text-slate-500">{i + 1}</td>
+                            <td className="border border-slate-300 px-3 py-2 text-xs font-bold text-slate-900 uppercase">{getStudentName(s)}</td>
+                            <td className="border border-slate-300 px-3 py-2 text-center text-xs font-semibold text-slate-700 uppercase">{selectedClass.name}</td>
+                            <td className="border border-slate-300 px-3 py-2 text-center text-xs font-mono font-black text-amber-900 bg-amber-50/50">{getStudentPin(s)}</td>
+                            <td className="border border-slate-300 px-3 py-2 text-center text-[10px] text-slate-400">
+                              {i + 1}. ....................
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <div className="pt-6 flex justify-between items-end text-xs text-slate-800 print:break-inside-avoid">
+                      <div>
+                        <p className="font-bold text-[10px] text-slate-500 uppercase">Catatan Pengawas:</p>
+                        <p className="text-[10px] text-slate-600">Jaga kerahasiaan Password/PIN peserta ujian.</p>
+                      </div>
+                      <div className="text-center font-semibold">
+                        <p className="text-[10px] uppercase font-bold text-slate-600">Pengawas / Guru Mata Pelajaran</p>
+                        <div className="h-14"></div>
+                        <p className="font-black underline text-slate-900 uppercase">( ............................................ )</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer Controls */}
+            <div className="bg-slate-50 px-5 py-4 border-t border-slate-200 flex items-center justify-between shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -837,7 +1067,7 @@ export default function Classes() {
                   navigator.clipboard.writeText(`KELAS: ${selectedClass.name}\n\n` + text);
                   showToast('Daftar PIN berhasil disalin ke clipboard!');
                 }}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition flex items-center gap-1.5 border border-slate-300"
+                className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition flex items-center gap-1.5 border border-slate-300 shadow-2xs"
               >
                 <Copy className="w-3.5 h-3.5" />
                 <span>Salin Teks</span>
@@ -846,7 +1076,7 @@ export default function Classes() {
                 <button
                   type="button"
                   onClick={() => setShowExportModal(false)}
-                  className="px-4 py-2 hover:bg-slate-200 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition"
+                  className="px-4 py-2 hover:bg-slate-200 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition"
                 >
                   Tutup
                 </button>
@@ -855,13 +1085,14 @@ export default function Classes() {
                   onClick={() => {
                     window.print();
                   }}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center space-x-1.5 shadow-sm"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center space-x-2 shadow-md hover:shadow-lg"
                 >
-                  <Printer className="w-3.5 h-3.5" />
+                  <Printer className="w-4 h-4" />
                   <span>Cetak (Print)</span>
                 </button>
               </div>
             </div>
+
           </div>
         </div>
       )}
