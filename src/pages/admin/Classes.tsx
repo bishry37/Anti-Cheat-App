@@ -181,15 +181,30 @@ export default function Classes() {
       const sortedStudents = [...updatedStudents].sort((a, b) => 
         getStudentName(a).localeCompare(getStudentName(b))
       );
+
+      // Clean records to prevent passing 'undefined' fields to Firestore updateDoc
+      const cleanedStudents = sortedStudents.map(s => {
+        if (typeof s === 'string') {
+          return { name: s.trim().toUpperCase(), pin: generateRandomPin() };
+        }
+        const rec: StudentRecord = {
+          name: (s.name || '').trim().toUpperCase(),
+          pin: (s.pin || generateRandomPin()).trim()
+        };
+        if (s.nisn && s.nisn.trim()) rec.nisn = s.nisn.trim();
+        if (s.photo && s.photo.trim()) rec.photo = s.photo.trim();
+        return rec;
+      });
+
       await updateDoc(doc(db, 'classes', selectedClass.id), {
-        students: sortedStudents
+        students: cleanedStudents
       });
       
-      const updatedClassObj = { ...selectedClass, students: sortedStudents };
+      const updatedClassObj = { ...selectedClass, students: cleanedStudents };
       setSelectedClass(updatedClassObj);
       setClassesList(prev => prev.map(c => c.id === selectedClass.id ? updatedClassObj : c));
-      setDraftStudents(sortedStudents);
-      showToast('Siswa & PIN berhasil disimpan ke database!');
+      setDraftStudents(cleanedStudents);
+      showToast('Siswa & Password berhasil disimpan!');
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, 'classes');
     } finally {
@@ -255,10 +270,15 @@ export default function Classes() {
       return;
     }
     
-    const pin = editingStudentPinValue.trim() || generateDefaultPin();
-    const photo = editingStudentPhotoValue.trim() || undefined;
+    const pin = editingStudentPinValue.trim() || generateRandomPin();
+    const photo = editingStudentPhotoValue.trim();
+    
+    const newRecord: StudentRecord = { name: val, pin };
+    if (photo) newRecord.photo = photo;
+
     const updated = [...draftStudents];
-    updated[idx] = { name: val, pin, photo };
+    updated[idx] = newRecord;
+
     setEditingStudentIndex(null);
     setEditingStudentValue('');
     setEditingStudentPinValue('');
@@ -536,8 +556,12 @@ export default function Classes() {
                                       type="text"
                                       value={editingStudentPinValue}
                                       onChange={(e) => setEditingStudentPinValue(e.target.value)}
-                                      placeholder="PIN"
-                                      className="w-16 px-1.5 py-1 text-xs font-mono font-bold bg-slate-50 border border-blue-400 rounded outline-none focus:bg-white text-center"
+                                      placeholder="Password / PIN"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveStudentEdit(originalIndex);
+                                        if (e.key === 'Escape') handleCancelStudentEdit();
+                                      }}
+                                      className="w-28 sm:w-36 px-2 py-1 text-xs font-mono font-bold bg-slate-50 border border-blue-400 rounded outline-none focus:bg-white text-center"
                                     />
                                     <button
                                       onClick={() => handleSaveStudentEdit(originalIndex)}

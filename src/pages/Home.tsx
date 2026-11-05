@@ -443,7 +443,7 @@ export default function Home() {
       }
 
       const expectedPin = getStudentPin(targetRecord);
-      if (studentPassword.trim() !== expectedPin.trim()) {
+      if (studentPassword.trim() !== expectedPin.trim() && studentPassword.trim().toLowerCase() !== expectedPin.trim().toLowerCase()) {
         setErrorMessage('Password / PIN Siswa salah. Silakan periksa kembali PIN Anda.');
         return;
       }

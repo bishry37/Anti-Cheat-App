@@ -75,12 +75,13 @@ export const normalizeStudentRecord = (item: string | StudentRecord): StudentRec
     const trimmed = item.trim().toUpperCase();
     return { name: trimmed, pin: generateRandomPin() };
   }
-  return {
+  const rec: StudentRecord = {
     name: (item.name || '').trim().toUpperCase(),
-    pin: (item.pin || generateRandomPin()).trim(),
-    nisn: item.nisn ? item.nisn.trim() : undefined,
-    photo: item.photo ? item.photo.trim() : undefined
+    pin: (item.pin || generateRandomPin()).trim()
   };
+  if (item.nisn && item.nisn.trim()) rec.nisn = item.nisn.trim();
+  if (item.photo && item.photo.trim()) rec.photo = item.photo.trim();
+  return rec;
 };
 
 /**
@@ -93,11 +94,12 @@ export const normalizeStudentRecord = (item: string | StudentRecord): StudentRec
 export const parseStudentInput = (raw: string): StudentRecord => {
   const parts = raw.split(',').map(p => p.trim());
   if (parts.length >= 3 && parts[1]) {
-    return {
+    const rec: StudentRecord = {
       name: parts[0].toUpperCase(),
-      pin: parts[1] || generateRandomPin(),
-      photo: parts[2]
+      pin: parts[1] || generateRandomPin()
     };
+    if (parts[2]) rec.photo = parts[2];
+    return rec;
   }
   if (parts.length >= 2 && parts[1]) {
     return {
