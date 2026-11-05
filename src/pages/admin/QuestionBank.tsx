@@ -417,6 +417,15 @@ export default function QuestionBank() {
                   new Paragraph({
                     spacing: { before: 20, after: 20 },
                     children: [
+                      new TextRun({ text: "• Kode ", size: 18 }),
+                      new TextRun({ text: "5", bold: true, size: 18, color: "0d9488" }),
+                      new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
+                      new TextRun({ text: "Pilihan Ganda Kompleks (Jawaban lebih dari satu, pisahkan dengan koma seperti A,C atau A,B,D)", bold: true, size: 18 })
+                    ]
+                  }),
+                  new Paragraph({
+                    spacing: { before: 20, after: 20 },
+                    children: [
                       new TextRun({ text: "• Rumus Matematika: ", bold: true, size: 18, color: "059669" }),
                       new TextRun({ text: "Tuliskan langsung menggunakan Equation Editor Word (Insert > Equation / Alt +=) seperti pecahan, akar, pangkat, dll. Sistem otomatis mendeteksi dan merendernya dengan rapi ke siswa.", size: 18 })
                     ]
@@ -522,7 +531,60 @@ export default function QuestionBank() {
         rows: mcqRows
       });
 
-      // 4. TABLE FOR LISTENING (10 Questions)
+      // 4. PILIHAN GANDA KOMPLEKS TABLE (10 Questions - Kode 5)
+      const pgkHeader = new TableRow({
+        children: [
+          createCell("NO", true, "ccfbf1", 6),
+          createCell("SOAL", true, "ccfbf1", 42),
+          createCell("JENIS", true, "ccfbf1", 8),
+          createCell("OPSI", true, "ccfbf1", 6),
+          createCell("JAWABAN", true, "ccfbf1", 32),
+          createCell("KUNCI", true, "ccfbf1", 6),
+        ]
+      });
+
+      const pgkRows: TableRow[] = [pgkHeader];
+      // Question 1 (Sample PGK)
+      pgkRows.push(
+        ...createMcqQuestionRows(
+          "1",
+          "Manakah yang termasuk ke dalam organ pernapasan manusia? (Jawaban lebih dari satu)",
+          "5",
+          [
+            { label: "A", text: "Hidung" },
+            { label: "B", text: "Paru-paru" },
+            { label: "C", text: "Jantung" },
+            { label: "D", text: "Tenggorokan" },
+            { label: "E", text: "Lambung" }
+          ],
+          "A,B,D"
+        )
+      );
+      // Questions 2 - 10 (Blank slots)
+      for (let i = 2; i <= 10; i++) {
+        pgkRows.push(
+          ...createMcqQuestionRows(
+            String(i),
+            "",
+            "5",
+            [
+              { label: "A", text: "" },
+              { label: "B", text: "" },
+              { label: "C", text: "" },
+              { label: "D", text: "" },
+              { label: "E", text: "" }
+            ],
+            ""
+          )
+        );
+      }
+
+      const pgkTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: pgkRows
+      });
+
+      // 5. TABLE FOR LISTENING (10 Questions)
       const listeningHeader = new TableRow({
         children: [
           createCell("NO", true, "e0f2fe", 6),
@@ -575,7 +637,7 @@ export default function QuestionBank() {
         rows: listeningRows
       });
 
-      // 5. ISIAN SINGKAT TABLE (10 Questions)
+      // 6. ISIAN SINGKAT TABLE (10 Questions)
       const shortHeader = new TableRow({
         children: [
           createCell("NO", true, "fef3c7", 6),
@@ -616,7 +678,7 @@ export default function QuestionBank() {
         rows: shortRows
       });
 
-      // 6. PARAGRAF / ESSAY TABLE (10 Questions)
+      // 7. PARAGRAF / ESSAY TABLE (10 Questions)
       const essayHeader = new TableRow({
         children: [
           createCell("NO", true, "f3e8ff", 6),
@@ -700,12 +762,26 @@ export default function QuestionBank() {
               }),
               mcqTable,
 
-              // Table 2
+              // Table 2: PG Kompleks
               new Paragraph({
                 spacing: { before: 300, after: 100 },
                 children: [
                   new TextRun({
-                    text: "2. TABEL SOAL LISTENING (Jenis Soal = 2)",
+                    text: "2. TABEL SOAL PILIHAN GANDA KOMPLEKS (Jenis Soal = 5)",
+                    bold: true,
+                    size: 20,
+                    color: "0d9488"
+                  })
+                ]
+              }),
+              pgkTable,
+
+              // Table 3
+              new Paragraph({
+                spacing: { before: 300, after: 100 },
+                children: [
+                  new TextRun({
+                    text: "3. TABEL SOAL LISTENING (Jenis Soal = 2)",
                     bold: true,
                     size: 20,
                     color: "0284c7"
@@ -714,12 +790,12 @@ export default function QuestionBank() {
               }),
               listeningTable,
 
-              // Table 3
+              // Table 4
               new Paragraph({
                 spacing: { before: 300, after: 100 },
                 children: [
                   new TextRun({
-                    text: "3. TABEL SOAL ISIAN SINGKAT (Jenis Soal = 3)",
+                    text: "4. TABEL SOAL ISIAN SINGKAT (Jenis Soal = 3)",
                     bold: true,
                     size: 20,
                     color: "d97706"
@@ -728,12 +804,12 @@ export default function QuestionBank() {
               }),
               shortTable,
 
-              // Table 4
+              // Table 5
               new Paragraph({
                 spacing: { before: 300, after: 100 },
                 children: [
                   new TextRun({
-                    text: "4. TABEL SOAL PARAGRAF / ESSAY (Jenis Soal = 4)",
+                    text: "5. TABEL SOAL PARAGRAF / ESSAY (Jenis Soal = 4)",
                     bold: true,
                     size: 20,
                     color: "7c3aed"
