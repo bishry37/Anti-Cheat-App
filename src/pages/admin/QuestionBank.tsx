@@ -1761,7 +1761,7 @@ export default function QuestionBank() {
                         <RichTextEditor 
                           placeholder="Ketik pertanyaan di sini..."
                           value={addingData.question || ''}
-                          onChange={value => setAddingData({ ...addingData, question: value })}
+                          onChange={value => setAddingData(prev => ({ ...prev, question: value }))}
                           className="h-full"
                         />
                       </div>

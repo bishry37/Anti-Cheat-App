@@ -551,7 +551,7 @@ export default function StudentExam() {
               const listeningGroup = qs.filter(q => (q.type || 'pilihan_ganda') === 'listening');
               listeningGroup.sort((a, b) => (a.number || 0) - (b.number || 0));
 
-              const groups: Record<number, Question[]> = { 1: [], 2: [], 4: [], 5: [] };
+              const groups: Record<number, Question[]> = { 1: [], 3: [], 4: [], 5: [] };
               qs.forEach(q => {
                 const t = q.type || 'pilihan_ganda';
                 if (t !== 'listening') {
@@ -565,7 +565,7 @@ export default function StudentExam() {
                 group.sort(() => Math.random() - 0.5);
               });
               
-              qs = [...groups[1], ...groups[2], ...listeningGroup, ...groups[4], ...groups[5]];
+              qs = [...groups[1], ...groups[3], ...listeningGroup, ...groups[4], ...groups[5]];
               generatedQuestionOrder = qs.map(q => q.id!);
               shouldSaveRandomization = true;
             }
@@ -856,21 +856,32 @@ export default function StudentExam() {
     };
 
     const handleVisibilityChange = () => {
-      if (document.hidden) {
+      setTimeout(() => {
+        if (!document.hidden) return;
         recordViolation('Pindah Tab Browser', 'Terdeteksi pindah tab! Tindakan ini dilarang.');
-      } else {
+      }, 500);
+      if (!document.hidden) {
         handleRegainFocus();
       }
     };
 
     const handleBlur = () => {
       setTimeout(() => {
+        // More robust check for browser UI like Save Password or generic focus loss
+        // Chrome's Save Password popup usually makes the window lose focus but the document remains "visible" 
+        // and doesn't trigger a true tab change immediately.
         if (document.activeElement !== document.body && document.hasFocus()) {
-          // Still focused, likely just a browser UI interaction
           return;
         }
+        
+        // If the window is blurred but the document is still visible, it might be a browser popup
+        if (!document.hidden && !document.fullscreenElement) {
+           // If we are not in fullscreen, focus loss is expected on some systems when UI pops up
+           // But if we ARE in fullscreen and lose focus, it's usually a violation unless it's a known OS overlay
+        }
+
         recordViolation('Membuka aplikasi lain', 'Fokus hilang dari ujian! Jangan buka aplikasi lain.');
-      }, 500);
+      }, 1000); // Increased delay to 1000ms for more tolerance
     };
 
     const handleFocus = () => {
