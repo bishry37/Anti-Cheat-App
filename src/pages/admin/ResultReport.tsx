@@ -119,6 +119,8 @@ export default function ResultReport() {
         const tCode = data.typeCode;
         if (qType === 1 || qType === '1' || tCode === 1) {
           qType = 'pilihan_ganda';
+        } else if (qType === 5 || qType === '5' || tCode === 5) {
+          qType = 'pilihan_ganda_kompleks';
         } else if (qType === 2 || qType === '2' || tCode === 2) {
           qType = 'listening';
         } else if (qType === 3 || qType === '3' || tCode === 3) {
@@ -132,11 +134,11 @@ export default function ResultReport() {
           id: d.id,
           ...data,
           type: qType,
-          typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
+          typeCode: tCode || (qType === 'pilihan_ganda_kompleks' ? 5 : qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
         } as Question;
       });
       
-      const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 2, 'isian_singkat': 3, 'essay': 4 };
+      const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'pilihan_ganda_kompleks': 2, 'listening': 3, 'isian_singkat': 4, 'essay': 5 };
       const sortedQs = qs.sort((a, b) => {
         const aType = a.type || 'pilihan_ganda';
         const bType = b.type || 'pilihan_ganda';
@@ -172,6 +174,18 @@ export default function ResultReport() {
         if (q.type === 'pilihan_ganda' || q.type === 'listening') {
           if (studentAnswers[q.id!] === q.correctAnswer) {
             pointsEarned += weight;
+          }
+        } else if (q.type === 'pilihan_ganda_kompleks') {
+          const manualScore = editingScores[q.id!];
+          if (manualScore !== undefined) {
+            pointsEarned += manualScore;
+          } else {
+            const correctKeys = (q.correctAnswer || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+            const studentKeys = (studentAnswers[q.id!] || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+            const hasWrongKey = studentKeys.some(k => !correctKeys.includes(k));
+            if (studentKeys.length > 0 && !hasWrongKey) {
+              pointsEarned += (studentKeys.length / correctKeys.length) * weight;
+            }
           }
         } else if (q.type === 'isian_singkat') {
           // For short answer, if admin changed manual score use it, otherwise use smart auto score
@@ -1056,12 +1070,14 @@ export default function ResultReport() {
                             isEssay ? 'bg-purple-50 text-purple-700 border-purple-100' : 
                             q.type === 'isian_singkat' ? 'bg-amber-100 text-amber-800 border-amber-200' : 
                             q.type === 'listening' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                            q.type === 'pilihan_ganda_kompleks' ? 'bg-teal-50 text-teal-800 border-teal-200' :
                             'bg-slate-50 text-slate-600 border-slate-200'
                           }`}>
                             Soal {qIndex + 1} - {
                               isEssay ? 'Essay / Uraian' : 
                               q.type === 'isian_singkat' ? 'Isian Singkat' : 
                               q.type === 'listening' ? 'Listening' :
+                              q.type === 'pilihan_ganda_kompleks' ? 'PG Kompleks' :
                               'Pilihan Ganda'
                             }
                           </span>
@@ -1113,6 +1129,104 @@ export default function ResultReport() {
                                     setEditingScores(prev => ({ ...prev, [q.id!]: val }));
                                   }}
                                   className="w-16 px-2 py-1 text-xs bg-white border border-slate-300 rounded text-center font-bold text-slate-800 focus:ring-1 focus:ring-amber-500"
+                                />
+                                <span className="text-[10px] text-slate-500 font-bold">/ {weight}</span>
+                              </div>
+                              <div className="flex gap-1 ml-auto">
+                                <button 
+                                  type="button"
+                                  onClick={() => setEditingScores(prev => ({ ...prev, [q.id!]: weight }))}
+                                  className="px-2 py-1 text-[8px] font-black text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-md cursor-pointer uppercase transition-colors"
+                                >
+                                  Benar Sempurna
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => setEditingScores(prev => ({ ...prev, [q.id!]: Math.round(weight / 2) }))}
+                                  className="px-2 py-1 text-[8px] font-black text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-md cursor-pointer uppercase transition-colors"
+                                >
+                                  Setengah
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => setEditingScores(prev => ({ ...prev, [q.id!]: 0 }))}
+                                  className="px-2 py-1 text-[8px] font-black text-red-800 bg-red-100 hover:bg-red-200 rounded-md cursor-pointer uppercase transition-colors"
+                                >
+                                  Salah
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : q.type === 'pilihan_ganda_kompleks' ? (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 text-[11px] gap-2 mb-3 bg-slate-50 p-2.5 rounded border border-slate-100">
+                              {['A', 'B', 'C', 'D', 'E'].map(l => {
+                                const optVal = (q as any)[`option${l}`];
+                                if (isOptionEmpty(optVal)) return null;
+                                const correctKeys = (q.correctAnswer || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+                                const studentKeys = studentAns.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+                                const isKey = correctKeys.includes(l);
+                                const isSt = studentKeys.includes(l);
+                                return (
+                                  <div key={l} className={`flex items-baseline gap-2 p-1.5 rounded transition-all ${isSt ? (isKey ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800') : (isKey ? 'bg-green-50/40 text-green-700 font-semibold' : '')}`}>
+                                    <span className="font-bold select-none text-[11px]">{l}.</span>
+                                    <div className="ql-editor p-0 text-[11px] flex-1 [&_p]:m-0 [&_p]:p-0" dangerouslySetInnerHTML={{ __html: formatHTML(optVal) }} />
+                                    {isSt && <span className="text-[9px] font-bold uppercase ml-1 self-baseline">(Pilihan Siswa)</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {(() => {
+                                const correctKeys = (q.correctAnswer || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+                                const studentKeys = studentAns.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+                                const hasWrong = studentKeys.some(k => !correctKeys.includes(k));
+                                const isFull = studentKeys.length === correctKeys.length && !hasWrong && studentKeys.length > 0;
+                                const isPartial = studentKeys.length > 0 && !hasWrong && !isFull;
+
+                                return isFull ? (
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Benar Sempurna (+{weight} Poin)</span>
+                                  </div>
+                                ) : isPartial ? (
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-100">
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Sebagian Benar (+{((studentKeys.length / correctKeys.length) * weight).toFixed(1)} Poin)</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded-full border border-red-100">
+                                    <X className="w-3.5 h-3.5" />
+                                    <span>Jawaban Salah (0 Poin)</span>
+                                  </div>
+                                );
+                              })()}
+                              <span className="text-[10px] text-slate-400 font-bold uppercase font-mono">Kunci: {q.correctAnswer}</span>
+                            </div>
+
+                            {/* Scoring Box for PGK */}
+                            <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">Koreksi Manual (Maks {weight}):</label>
+                              <div className="flex items-center gap-2">
+                                <input 
+                                  type="number"
+                                  min={0}
+                                  max={weight}
+                                  step={0.5}
+                                  value={editingScores[q.id!] !== undefined ? editingScores[q.id!] : (() => {
+                                    const correctKeys = (q.correctAnswer || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+                                    const studentKeys = studentAns.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+                                    const hasWrong = studentKeys.some(k => !correctKeys.includes(k));
+                                    if (studentKeys.length > 0 && !hasWrong) {
+                                      return Number(((studentKeys.length / correctKeys.length) * weight).toFixed(1));
+                                    }
+                                    return 0;
+                                  })()}
+                                  onChange={(e) => {
+                                    const val = Math.min(weight, Math.max(0, parseFloat(e.target.value) || 0));
+                                    setEditingScores(prev => ({ ...prev, [q.id!]: val }));
+                                  }}
+                                  className="w-16 px-2 py-1 text-xs bg-white border border-slate-300 rounded text-center font-bold text-slate-800 focus:ring-1 focus:ring-teal-500"
                                 />
                                 <span className="text-[10px] text-slate-500 font-bold">/ {weight}</span>
                               </div>

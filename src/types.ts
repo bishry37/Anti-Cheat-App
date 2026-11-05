@@ -63,7 +63,7 @@ export interface Question {
   correctAnswer: string;
   weight: number;
   packetName?: string;
-  type?: 'pilihan_ganda' | 'isian_singkat' | 'essay' | 'listening';
+  type?: 'pilihan_ganda' | 'pilihan_ganda_kompleks' | 'isian_singkat' | 'essay' | 'listening';
   typeCode?: number;
   createdAt: number;
 }

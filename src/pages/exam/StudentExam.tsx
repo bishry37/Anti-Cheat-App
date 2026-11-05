@@ -252,6 +252,22 @@ export default function StudentExam() {
         } else {
           wrong++;
         }
+      } else if (q.type === 'pilihan_ganda_kompleks') {
+        const correctKeys = (q.correctAnswer || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+        const studentKeys = (studentAns || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+        
+        // Check if student selected any wrong choice (not in correctKeys)
+        const hasWrongKey = studentKeys.some(k => !correctKeys.includes(k));
+        
+        if (studentKeys.length === 0 || hasWrongKey) {
+          wrong++;
+        } else {
+          // Selected only correct choices
+          const ratio = studentKeys.length / correctKeys.length;
+          const earned = ratio * weight;
+          pointsEarned += earned;
+          correct++;
+        }
       } else {
         // Smart grading for isian_singkat and essay
         const earned = calculateSmartPoints(studentAns || '', q.correctAnswer || '', weight);
@@ -454,6 +470,8 @@ export default function StudentExam() {
               const tCode = data.typeCode;
               if (qType === 1 || qType === '1' || tCode === 1) {
                 qType = 'pilihan_ganda';
+              } else if (qType === 5 || qType === '5' || tCode === 5) {
+                qType = 'pilihan_ganda_kompleks';
               } else if (qType === 2 || qType === '2' || tCode === 2) {
                 qType = 'listening';
               } else if (qType === 3 || qType === '3' || tCode === 3) {
@@ -467,7 +485,7 @@ export default function StudentExam() {
                 id: d.id,
                 ...data,
                 type: qType,
-                typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
+                typeCode: tCode || (qType === 'pilihan_ganda_kompleks' ? 5 : qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
               } as Question;
             });
 
@@ -520,7 +538,7 @@ export default function StudentExam() {
             }
           }
           
-          const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 2, 'isian_singkat': 3, 'essay': 4 };
+          const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'pilihan_ganda_kompleks': 2, 'listening': 3, 'isian_singkat': 4, 'essay': 5 };
           
           let shouldSaveRandomization = false;
           let generatedQuestionOrder: string[] = [];
@@ -542,7 +560,7 @@ export default function StudentExam() {
               const listeningGroup = qs.filter(q => (q.type || 'pilihan_ganda') === 'listening');
               listeningGroup.sort((a, b) => (a.number || 0) - (b.number || 0));
 
-              const groups: Record<number, Question[]> = { 1: [], 3: [], 4: [] };
+              const groups: Record<number, Question[]> = { 1: [], 2: [], 4: [], 5: [] };
               qs.forEach(q => {
                 const t = q.type || 'pilihan_ganda';
                 if (t !== 'listening') {
@@ -556,7 +574,7 @@ export default function StudentExam() {
                 group.sort(() => Math.random() - 0.5);
               });
               
-              qs = [...groups[1], ...listeningGroup, ...groups[3], ...groups[4]];
+              qs = [...groups[1], ...groups[2], ...listeningGroup, ...groups[4], ...groups[5]];
               generatedQuestionOrder = qs.map(q => q.id!);
               shouldSaveRandomization = true;
             }
@@ -1434,6 +1452,51 @@ export default function StudentExam() {
                          className="w-full p-4 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-bold text-slate-800 shadow-xs transition-all animate-in fade-in"
                        />
                        <p className="text-[10px] text-slate-400 mt-1.5 italic font-medium">Jawaban Anda disimpan secara otomatis saat Anda mengetik atau berpindah soal.</p>
+                     </div>
+                  ) : currentQ.type === 'pilihan_ganda_kompleks' ? (
+                     <div className="space-y-2 mt-auto">
+                       <div className="flex items-center justify-between mb-3">
+                          <label className="text-xs font-bold text-slate-500 uppercase flex items-center">
+                             <span className="w-1.5 h-1.5 bg-teal-500 rounded-full mr-1.5 animate-pulse"></span>
+                             Pilih Jawaban Anda (Bisa Lebih Dari 1):
+                          </label>
+                          <span className="text-[10px] font-bold uppercase border rounded px-1.5 py-0.5 bg-teal-50 text-teal-700 border-teal-100">
+                             PG Kompleks
+                          </span>
+                       </div>
+                       {((currentQ as any).shuffledOptions || []).map((optItem: any, idx: number) => {
+                         const displayLabel = ['A', 'B', 'C', 'D', 'E'][idx];
+                         const selectedKeys = (answers[currentQ.id!] || '').split(',').map(s => s.trim()).filter(Boolean);
+                         const isSelected = selectedKeys.includes(optItem.key);
+                         
+                         return (
+                           <label 
+                             key={optItem.key}
+                             className={`flex items-start p-3 rounded-lg border cursor-pointer transition-all ${isSelected ? 'border-teal-500 bg-teal-50 shadow-sm' : 'border-slate-200 bg-white hover:border-teal-300 hover:bg-slate-50'}`}
+                           >
+                             <input 
+                               type="checkbox" 
+                               className="sr-only" 
+                               checked={isSelected}
+                               onChange={() => {
+                                 const currentVal = answers[currentQ.id!] || '';
+                                 const currentKeys = currentVal.split(',').map(s => s.trim()).filter(Boolean);
+                                 let nextKeys: string[];
+                                 if (currentKeys.includes(optItem.key)) {
+                                   nextKeys = currentKeys.filter(k => k !== optItem.key);
+                                 } else {
+                                   nextKeys = [...currentKeys, optItem.key].sort();
+                                 }
+                                 handleAnswer(currentQ.id!, nextKeys.join(','));
+                               }}
+                             />
+                             <span className={`shrink-0 w-6 h-6 rounded border flex items-center justify-center font-bold text-[11px] mr-3 ${isSelected ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300 text-slate-500'}`}>
+                               {displayLabel}
+                             </span>
+                             <div dir="auto" className="flex-1 text-sm text-slate-700 ql-editor p-0 [&_p]:m-0 [&_p]:p-0 leading-6" dangerouslySetInnerHTML={{ __html: formatHTML(optItem.text) }} />
+                           </label>
+                         );
+                       })}
                      </div>
                   ) : (
                     <div className="space-y-2 mt-auto">

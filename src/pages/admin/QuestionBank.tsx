@@ -56,6 +56,17 @@ const isOptionEmpty = (val: string | undefined | null): boolean => {
   return plainText === '';
 };
 
+const togglePgkKey = (current: string | undefined, key: string) => {
+  const selected = (current || '').split(',').map(s => s.trim()).filter(Boolean);
+  let next: string[];
+  if (selected.includes(key)) {
+    next = selected.filter(k => k !== key);
+  } else {
+    next = [...selected, key].sort();
+  }
+  return next.join(',');
+};
+
 export default function QuestionBank() {
   const { user } = useAuth();
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -271,6 +282,8 @@ export default function QuestionBank() {
         const tCode = data.typeCode;
         if (qType === 1 || qType === '1' || tCode === 1) {
           qType = 'pilihan_ganda';
+        } else if (qType === 5 || qType === '5' || tCode === 5) {
+          qType = 'pilihan_ganda_kompleks';
         } else if (qType === 2 || qType === '2' || tCode === 2) {
           qType = 'listening';
         } else if (qType === 3 || qType === '3' || tCode === 3) {
@@ -284,11 +297,11 @@ export default function QuestionBank() {
           id: d.id,
           ...data,
           type: qType,
-          typeCode: tCode || (qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
+          typeCode: tCode || (qType === 'pilihan_ganda_kompleks' ? 5 : qType === 'listening' ? 2 : qType === 'isian_singkat' ? 3 : qType === 'essay' ? 4 : 1)
         } as Question;
       });
       
-      const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 2, 'isian_singkat': 3, 'essay': 4 };
+      const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'pilihan_ganda_kompleks': 2, 'listening': 3, 'isian_singkat': 4, 'essay': 5 };
       const sortedQs = qs.sort((a, b) => {
         const aType = a.type || 'pilihan_ganda';
         const bType = b.type || 'pilihan_ganda';
@@ -840,26 +853,33 @@ export default function QuestionBank() {
           
           const vLower = cleaned.toLowerCase();
           
-          // Match digits 1-4 with any surrounding punctuation or text (e.g. "1.", "1 - Pilihan Ganda", "Kode 1", "[1]")
+          // Match digits 1-5 with any surrounding punctuation or text (e.g. "1.", "5 - PG Kompleks", "Kode 5")
           const has1 = /(^|\b)1(\b|$)/.test(vLower) || vLower === '1' || vLower.startsWith('1.');
           const has2 = /(^|\b)2(\b|$)/.test(vLower) || vLower === '2' || vLower.startsWith('2.');
           const has3 = /(^|\b)3(\b|$)/.test(vLower) || vLower === '3' || vLower.startsWith('3.');
           const has4 = /(^|\b)4(\b|$)/.test(vLower) || vLower === '4' || vLower.startsWith('4.');
+          const has5 = /(^|\b)5(\b|$)/.test(vLower) || vLower === '5' || vLower.startsWith('5.');
 
-          if (has1 && !has2 && !has3 && !has4) {
+          if (has5 && !has1 && !has2 && !has3 && !has4) {
+            return { type: 'pilihan_ganda_kompleks' as const, typeCode: 5 };
+          }
+          if (has1 && !has2 && !has3 && !has4 && !has5) {
             return { type: 'pilihan_ganda' as const, typeCode: 1 };
           }
-          if (has2 && !has1 && !has3 && !has4) {
+          if (has2 && !has1 && !has3 && !has4 && !has5) {
             return { type: 'listening' as const, typeCode: 2 };
           }
-          if (has3 && !has1 && !has2 && !has4) {
+          if (has3 && !has1 && !has2 && !has4 && !has5) {
             return { type: 'isian_singkat' as const, typeCode: 3 };
           }
-          if (has4 && !has1 && !has2 && !has3) {
+          if (has4 && !has1 && !has2 && !has3 && !has5) {
             return { type: 'essay' as const, typeCode: 4 };
           }
 
           // If no unique digit, check keywords
+          if (vLower.includes('kompleks') || vLower.includes('pgk') || vLower.includes('pg_kompleks') || vLower.includes('multiple_choice_complex')) {
+            return { type: 'pilihan_ganda_kompleks' as const, typeCode: 5 };
+          }
           if (vLower.includes('listening') || vLower.includes('dengar') || vLower.includes('audio')) {
             return { type: 'listening' as const, typeCode: 2 };
           }
@@ -873,17 +893,18 @@ export default function QuestionBank() {
             return { type: 'essay' as const, typeCode: 4 };
           }
 
-          // Check if there is any '1', '2', '3', '4' anywhere as a last resort
+          // Check if there is any '5', '1', '2', '3', '4' anywhere as a last resort
+          if (vLower.includes('5')) return { type: 'pilihan_ganda_kompleks' as const, typeCode: 5 };
           if (vLower.includes('1')) return { type: 'pilihan_ganda' as const, typeCode: 1 };
           if (vLower.includes('2')) return { type: 'listening' as const, typeCode: 2 };
           if (vLower.includes('3')) return { type: 'isian_singkat' as const, typeCode: 3 };
           if (vLower.includes('4')) return { type: 'essay' as const, typeCode: 4 };
 
-          throw new Error(`Soal No. ${numberStr}: Kode soal ${val} tidak dikenali. Gunakan kode 1, 2, 3, atau 4.`);
+          throw new Error(`Soal No. ${numberStr}: Kode soal ${val} tidak dikenali. Gunakan kode 1, 2, 3, 4, atau 5.`);
         };
 
         const validateAndCleanupQuestion = (qObj: any) => {
-          if (qObj.type === 'pilihan_ganda' || qObj.type === 'listening') {
+          if (qObj.type === 'pilihan_ganda' || qObj.type === 'listening' || qObj.type === 'pilihan_ganda_kompleks') {
             qObj.optionA = stripSimpleHTML(qObj.optionA);
             qObj.optionB = stripSimpleHTML(qObj.optionB);
             qObj.optionC = stripSimpleHTML(qObj.optionC);
@@ -898,22 +919,36 @@ export default function QuestionBank() {
             if (!isOptionEmpty(qObj.optionE)) availableOptions.push('E'); else qObj.optionE = '';
 
             if (availableOptions.length === 0) {
-              throw new Error(`Soal No. ${qObj.number || ''}: Pilihan Ganda harus memiliki setidaknya satu pilihan jawaban.`);
+              throw new Error(`Soal No. ${qObj.number || ''}: Pilihan Ganda / PG Kompleks harus memiliki setidaknya satu pilihan jawaban.`);
             }
 
-            const ans = qObj.correctAnswer ? qObj.correctAnswer.trim().toUpperCase() : '';
-            qObj.correctAnswer = ans;
+            if (qObj.type === 'pilihan_ganda_kompleks') {
+              const rawAns = qObj.correctAnswer ? String(qObj.correctAnswer).toUpperCase() : '';
+              const keys = Array.from(new Set(rawAns.replace(/[^A-E]/g, ',').split(',').map(s => s.trim()).filter(Boolean))).sort();
+              if (keys.length === 0) {
+                throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban Pilihan Ganda Kompleks tidak boleh kosong (pilih minimal 1 opsi, contoh: A,C).`);
+              }
+              for (const k of keys) {
+                if (!availableOptions.includes(k)) {
+                  throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban '${k}' tidak valid karena opsi tersebut kosong atau tidak tersedia.`);
+                }
+              }
+              qObj.correctAnswer = keys.join(',');
+            } else {
+              const ans = qObj.correctAnswer ? qObj.correctAnswer.trim().toUpperCase() : '';
+              qObj.correctAnswer = ans;
 
-            if (!ans) {
-              throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban tidak boleh kosong.`);
-            }
+              if (!ans) {
+                throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban tidak boleh kosong.`);
+              }
 
-            if (!['A', 'B', 'C', 'D', 'E'].includes(ans)) {
-              throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban '${ans}' tidak valid (harus A-E).`);
-            }
+              if (!['A', 'B', 'C', 'D', 'E'].includes(ans)) {
+                throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban '${ans}' tidak valid (harus A-E).`);
+              }
 
-            if (!availableOptions.includes(ans)) {
-              throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban '${ans}' tidak valid karena opsi tersebut kosong atau tidak tersedia.`);
+              if (!availableOptions.includes(ans)) {
+                throw new Error(`Soal No. ${qObj.number || ''}: Kunci jawaban '${ans}' tidak valid karena opsi tersebut kosong atau tidak tersedia.`);
+              }
             }
           }
         };
@@ -1217,7 +1252,7 @@ export default function QuestionBank() {
     setProcessing(true);
     try {
       const qType = editingData.type || 'pilihan_ganda';
-      const isPg = qType === 'pilihan_ganda' || qType === 'listening';
+      const isPg = qType === 'pilihan_ganda' || qType === 'listening' || qType === 'pilihan_ganda_kompleks';
       
       if (isPg) {
         const availableOptions: string[] = [];
@@ -1228,20 +1263,39 @@ export default function QuestionBank() {
         if (!isOptionEmpty(editingData.optionE)) availableOptions.push('E');
 
         if (availableOptions.length === 0) {
-          showCustomAlert('Opsi Kosong', 'Soal Pilihan Ganda / Listening harus memiliki setidaknya satu pilihan jawaban.', false);
+          showCustomAlert('Opsi Kosong', 'Soal Pilihan Ganda / PG Kompleks / Listening harus memiliki setidaknya satu pilihan jawaban.', false);
           setProcessing(false);
           return;
         }
 
-        const ans = editingData.correctAnswer ? editingData.correctAnswer.toUpperCase() : 'A';
-        if (!availableOptions.includes(ans)) {
-          showCustomAlert('Kunci Jawaban Tidak Valid', `Kunci jawaban '${ans}' tidak valid karena opsi tersebut kosong atau tidak tersedia.`, false);
-          setProcessing(false);
-          return;
+        if (qType === 'pilihan_ganda_kompleks') {
+          const rawAns = editingData.correctAnswer ? String(editingData.correctAnswer).toUpperCase() : '';
+          const keys = Array.from(new Set(rawAns.replace(/[^A-E]/g, ',').split(',').map(s => s.trim()).filter(Boolean))).sort();
+          if (keys.length === 0) {
+            showCustomAlert('Kunci Jawaban Kosong', 'Pilih minimal 1 opsi kunci jawaban untuk Pilihan Ganda Kompleks.', false);
+            setProcessing(false);
+            return;
+          }
+          for (const k of keys) {
+            if (!availableOptions.includes(k)) {
+              showCustomAlert('Kunci Jawaban Tidak Valid', `Kunci jawaban '${k}' tidak valid karena opsi tersebut kosong.`, false);
+              setProcessing(false);
+              return;
+            }
+          }
+          editingData.correctAnswer = keys.join(',');
+        } else {
+          const ans = editingData.correctAnswer ? editingData.correctAnswer.toUpperCase() : 'A';
+          if (!availableOptions.includes(ans)) {
+            showCustomAlert('Kunci Jawaban Tidak Valid', `Kunci jawaban '${ans}' tidak valid karena opsi tersebut kosong atau tidak tersedia.`, false);
+            setProcessing(false);
+            return;
+          }
         }
       }
 
       const mapTypeToCode = (t: string): number => {
+        if (t === 'pilihan_ganda_kompleks') return 5;
         if (t === 'listening') return 2;
         if (t === 'isian_singkat') return 3;
         if (t === 'essay') return 4;
@@ -1256,10 +1310,10 @@ export default function QuestionBank() {
         optionC: isPg ? stripSimpleHTML(editingData.optionC) : '',
         optionD: isPg ? stripSimpleHTML(editingData.optionD) : '',
         optionE: isPg ? stripSimpleHTML(editingData.optionE) : '',
-        correctAnswer: isPg ? String(editingData.correctAnswer?.toUpperCase() || 'A') : (editingData.correctAnswer || ''),
+        correctAnswer: isPg ? String(editingData.correctAnswer || (qType === 'pilihan_ganda_kompleks' ? 'A' : 'A')) : (editingData.correctAnswer || ''),
         type: qType,
         typeCode: mapTypeToCode(qType),
-        weight: Number(editingData.weight !== undefined && editingData.weight !== null && editingData.weight !== 0 ? editingData.weight : (qType === 'essay' ? 15 : qType === 'isian_singkat' ? 10 : qType === 'listening' ? 5 : 1)),
+        weight: Number(editingData.weight !== undefined && editingData.weight !== null && editingData.weight !== 0 ? editingData.weight : (qType === 'essay' ? 15 : qType === 'isian_singkat' ? 10 : qType === 'listening' ? 5 : qType === 'pilihan_ganda_kompleks' ? 2 : 1)),
         lastEditedAt: Date.now()
       } as any);
       
@@ -1279,7 +1333,7 @@ export default function QuestionBank() {
     setProcessing(true);
     try {
       const qType = addingData.type || 'pilihan_ganda';
-      const isPg = qType === 'pilihan_ganda' || qType === 'listening';
+      const isPg = qType === 'pilihan_ganda' || qType === 'listening' || qType === 'pilihan_ganda_kompleks';
 
       if (isPg) {
         const availableOptions: string[] = [];
@@ -1290,16 +1344,34 @@ export default function QuestionBank() {
         if (!isOptionEmpty(addingData.optionE)) availableOptions.push('E');
 
         if (availableOptions.length === 0) {
-          showCustomAlert('Opsi Kosong', 'Soal Pilihan Ganda / Listening harus memiliki setidaknya satu pilihan jawaban.', false);
+          showCustomAlert('Opsi Kosong', 'Soal Pilihan Ganda / PG Kompleks / Listening harus memiliki setidaknya satu pilihan jawaban.', false);
           setProcessing(false);
           return;
         }
 
-        const ans = addingData.correctAnswer ? addingData.correctAnswer.toUpperCase() : 'A';
-        if (!availableOptions.includes(ans)) {
-          showCustomAlert('Kunci Jawaban Tidak Valid', `Kunci jawaban '${ans}' tidak valid karena opsi tersebut kosong atau tidak tersedia.`, false);
-          setProcessing(false);
-          return;
+        if (qType === 'pilihan_ganda_kompleks') {
+          const rawAns = addingData.correctAnswer ? String(addingData.correctAnswer).toUpperCase() : '';
+          const keys = Array.from(new Set(rawAns.replace(/[^A-E]/g, ',').split(',').map(s => s.trim()).filter(Boolean))).sort();
+          if (keys.length === 0) {
+            showCustomAlert('Kunci Jawaban Kosong', 'Pilih minimal 1 opsi kunci jawaban untuk Pilihan Ganda Kompleks.', false);
+            setProcessing(false);
+            return;
+          }
+          for (const k of keys) {
+            if (!availableOptions.includes(k)) {
+              showCustomAlert('Kunci Jawaban Tidak Valid', `Kunci jawaban '${k}' tidak valid karena opsi tersebut kosong.`, false);
+              setProcessing(false);
+              return;
+            }
+          }
+          addingData.correctAnswer = keys.join(',');
+        } else {
+          const ans = addingData.correctAnswer ? addingData.correctAnswer.toUpperCase() : 'A';
+          if (!availableOptions.includes(ans)) {
+            showCustomAlert('Kunci Jawaban Tidak Valid', `Kunci jawaban '${ans}' tidak valid karena opsi tersebut kosong atau tidak tersedia.`, false);
+            setProcessing(false);
+            return;
+          }
         }
       }
 
@@ -1319,6 +1391,7 @@ export default function QuestionBank() {
       
       // 3. Add the new question
       const mapTypeToCode = (t: string): number => {
+        if (t === 'pilihan_ganda_kompleks') return 5;
         if (t === 'listening') return 2;
         if (t === 'isian_singkat') return 3;
         if (t === 'essay') return 4;
@@ -1338,10 +1411,10 @@ export default function QuestionBank() {
         optionC: isPg ? stripSimpleHTML(addingData.optionC) : '',
         optionD: isPg ? stripSimpleHTML(addingData.optionD) : '',
         optionE: isPg ? stripSimpleHTML(addingData.optionE) : '',
-        correctAnswer: isPg ? String(addingData.correctAnswer?.toUpperCase() || 'A') : (addingData.correctAnswer || ''),
+        correctAnswer: isPg ? String(addingData.correctAnswer || (qType === 'pilihan_ganda_kompleks' ? 'A' : 'A')) : (addingData.correctAnswer || ''),
         type: qType,
         typeCode: mapTypeToCode(qType),
-        weight: Number(addingData.weight !== undefined && addingData.weight !== null && addingData.weight !== 0 ? addingData.weight : (qType === 'essay' ? 15 : qType === 'isian_singkat' ? 10 : qType === 'listening' ? 5 : 1))
+        weight: Number(addingData.weight !== undefined && addingData.weight !== null && addingData.weight !== 0 ? addingData.weight : (qType === 'essay' ? 15 : qType === 'isian_singkat' ? 10 : qType === 'listening' ? 5 : qType === 'pilihan_ganda_kompleks' ? 2 : 1))
       };
       
       batch.set(qRef, docData);
@@ -1653,17 +1726,18 @@ export default function QuestionBank() {
                         value={addingData.type || 'pilihan_ganda'}
                         onChange={e => {
                           const val = e.target.value as any;
-                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
+                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'pilihan_ganda_kompleks': 2, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
                           setAddingData({ 
                             ...addingData, 
                             type: val,
                             weight: weightUnits[val] || 1,
-                            correctAnswer: (val === 'pilihan_ganda' || val === 'listening') ? 'A' : '' 
+                            correctAnswer: val === 'pilihan_ganda_kompleks' ? 'A,B' : (val === 'pilihan_ganda' || val === 'listening') ? 'A' : '' 
                           });
                         }}
                         className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800 cursor-pointer"
                       >
                         <option value="pilihan_ganda">Pilihan Ganda</option>
+                        <option value="pilihan_ganda_kompleks">Pilihan Ganda Kompleks</option>
                         <option value="listening">Listening</option>
                         <option value="isian_singkat">Isian Singkat</option>
                         <option value="essay">Paragraf / Essai</option>
@@ -1694,7 +1768,7 @@ export default function QuestionBank() {
                     </div>
                   </div>
 
-                  {addingData.type === 'pilihan_ganda' || addingData.type === 'listening' || !addingData.type ? (
+                  {addingData.type === 'pilihan_ganda' || addingData.type === 'listening' || addingData.type === 'pilihan_ganda_kompleks' || !addingData.type ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                         {['A', 'B', 'C', 'D', 'E'].map(l => (
@@ -1722,22 +1796,46 @@ export default function QuestionBank() {
                         ))}
                       </div>
 
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                          Jawaban Benar
-                        </label>
-                        <select
-                          value={addingData.correctAnswer || 'A'}
-                          onChange={e => setAddingData({ ...addingData, correctAnswer: e.target.value })}
-                          className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none font-bold text-slate-700 focus:ring-1 focus:ring-blue-500 cursor-pointer animate-fade-in"
-                        >
-                          <option value="A">A</option>
-                          <option value="B">B</option>
-                          <option value="C">C</option>
-                          <option value="D">D</option>
-                          <option value="E">E</option>
-                        </select>
-                      </div>
+                      {addingData.type === 'pilihan_ganda_kompleks' ? (
+                        <div>
+                          <label className="block text-[10px] font-bold text-teal-700 uppercase mb-1">
+                            Jawaban Benar (Bisa Pilih Lebih Dari 1 Opsi)
+                          </label>
+                          <div className="flex items-center space-x-4 bg-white p-2 border border-slate-300 rounded w-max">
+                            {['A', 'B', 'C', 'D', 'E'].map(l => {
+                              const isChecked = (addingData.correctAnswer || '').split(',').map(s => s.trim()).includes(l);
+                              return (
+                                <label key={l} className="flex items-center space-x-1.5 cursor-pointer text-xs font-bold text-slate-700 select-none">
+                                  <input 
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => setAddingData({ ...addingData, correctAnswer: togglePgkKey(addingData.correctAnswer, l) })}
+                                    className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500 cursor-pointer"
+                                  />
+                                  <span>{l}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                            Jawaban Benar
+                          </label>
+                          <select
+                            value={addingData.correctAnswer || 'A'}
+                            onChange={e => setAddingData({ ...addingData, correctAnswer: e.target.value })}
+                            className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none font-bold text-slate-700 focus:ring-1 focus:ring-blue-500 cursor-pointer animate-fade-in"
+                          >
+                            <option value="A">A</option>
+                            <option value="B">B</option>
+                            <option value="C">C</option>
+                            <option value="D">D</option>
+                            <option value="E">E</option>
+                          </select>
+                        </div>
+                      )}
                     </>
                   ) : addingData.type === 'isian_singkat' ? (
                     <div>
@@ -1815,17 +1913,18 @@ export default function QuestionBank() {
                               value={editingData.type || 'pilihan_ganda'}
                               onChange={e => {
                                 const val = e.target.value as any;
-                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
+                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'pilihan_ganda_kompleks': 2, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
                                 setEditingData({ 
                                   ...editingData, 
                                   type: val,
                                   weight: weightUnits[val] || 1,
-                                  correctAnswer: (val === 'pilihan_ganda' || val === 'listening') ? 'A' : '' 
+                                  correctAnswer: val === 'pilihan_ganda_kompleks' ? 'A,B' : (val === 'pilihan_ganda' || val === 'listening') ? 'A' : '' 
                                 });
                               }}
                               className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800 cursor-pointer"
                             >
                               <option value="pilihan_ganda">Pilihan Ganda</option>
+                              <option value="pilihan_ganda_kompleks">Pilihan Ganda Kompleks</option>
                               <option value="listening">Listening</option>
                               <option value="isian_singkat">Isian Singkat</option>
                               <option value="essay">Paragraf / Essai</option>
@@ -1856,7 +1955,7 @@ export default function QuestionBank() {
                           </div>
                         </div>
 
-                        {editingData.type === 'pilihan_ganda' || editingData.type === 'listening' || !editingData.type ? (
+                        {editingData.type === 'pilihan_ganda' || editingData.type === 'listening' || editingData.type === 'pilihan_ganda_kompleks' || !editingData.type ? (
                           <>
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                               {['A', 'B', 'C', 'D', 'E'].map(l => (
@@ -1884,22 +1983,46 @@ export default function QuestionBank() {
                               ))}
                             </div>
 
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                                Jawaban Benar
-                              </label>
-                              <select
-                                value={editingData.correctAnswer || 'A'}
-                                onChange={e => setEditingData({ ...editingData, correctAnswer: e.target.value })}
-                                className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none font-bold text-slate-700 focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                              >
-                                <option value="A">A</option>
-                                <option value="B">B</option>
-                                <option value="C">C</option>
-                                <option value="D">D</option>
-                                <option value="E">E</option>
-                              </select>
-                            </div>
+                            {editingData.type === 'pilihan_ganda_kompleks' ? (
+                              <div>
+                                <label className="block text-[10px] font-bold text-teal-700 uppercase mb-1">
+                                  Jawaban Benar (Bisa Pilih Lebih Dari 1 Opsi)
+                                </label>
+                                <div className="flex items-center space-x-4 bg-white p-2 border border-slate-300 rounded w-max">
+                                  {['A', 'B', 'C', 'D', 'E'].map(l => {
+                                    const isChecked = (editingData.correctAnswer || '').split(',').map(s => s.trim()).includes(l);
+                                    return (
+                                      <label key={l} className="flex items-center space-x-1.5 cursor-pointer text-xs font-bold text-slate-700 select-none">
+                                        <input 
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={() => setEditingData({ ...editingData, correctAnswer: togglePgkKey(editingData.correctAnswer, l) })}
+                                          className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500 cursor-pointer"
+                                        />
+                                        <span>{l}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                                  Jawaban Benar
+                                </label>
+                                <select
+                                  value={editingData.correctAnswer || 'A'}
+                                  onChange={e => setEditingData({ ...editingData, correctAnswer: e.target.value })}
+                                  className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none font-bold text-slate-700 focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                                >
+                                  <option value="A">A</option>
+                                  <option value="B">B</option>
+                                  <option value="C">C</option>
+                                  <option value="D">D</option>
+                                  <option value="E">E</option>
+                                </select>
+                              </div>
+                            )}
                           </>
                         ) : editingData.type === 'isian_singkat' ? (
                           <div>
@@ -1946,6 +2069,10 @@ export default function QuestionBank() {
                               <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-blue-100 text-blue-700 border-blue-200">
                                 Pilihan Ganda
                               </span>
+                            ) : q.type === 'pilihan_ganda_kompleks' ? (
+                              <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-teal-100 text-teal-700 border-teal-200">
+                                PG Kompleks
+                              </span>
                             ) : q.type === 'listening' ? (
                               <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-sky-100 text-sky-700 border-sky-200">
                                 Listening
@@ -1966,13 +2093,14 @@ export default function QuestionBank() {
                         </div>
                       </div>
                       
-                      {(q.type === 'pilihan_ganda' || !q.type || q.type === 'listening') ? (
+                      {(q.type === 'pilihan_ganda' || !q.type || q.type === 'listening' || q.type === 'pilihan_ganda_kompleks') ? (
                         <div className="pl-9 grid grid-cols-1 sm:grid-cols-2 text-[11px] gap-x-4">
                           {['A', 'B', 'C', 'D', 'E'].map((opt) => {
                             const key = `option${opt}` as keyof Question;
                             const val = q[key];
                             if (isOptionEmpty(val)) return null;
-                            const isCorrect = q.correctAnswer === opt;
+                            const correctKeys = (q.correctAnswer || '').split(',').map(s => s.trim().toUpperCase());
+                            const isCorrect = q.type === 'pilihan_ganda_kompleks' ? correctKeys.includes(opt) : q.correctAnswer === opt;
                             
                             return (
                               <div 
