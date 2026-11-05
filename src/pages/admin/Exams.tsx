@@ -216,26 +216,44 @@ export default function Exams() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.subjectId || !formData.activeToken || !user) {
-      setErrorMsg("Lengkapi data exam, termasuk token aktif.");
+    setErrorMsg(null);
+
+    if (!user) {
+      setErrorMsg("Sesi login admin tidak ditemukan. Silakan refresh halaman.");
+      return;
+    }
+
+    if (!formData.title || !formData.title.trim()) {
+      setErrorMsg("Nama Ujian wajib diisi.");
+      return;
+    }
+
+    if (!formData.targetClass || !formData.targetClass.trim()) {
+      setErrorMsg("Pilih Kelas yang dituju terlebih dahulu.");
+      return;
+    }
+
+    if (!formData.subjectId) {
+      setErrorMsg("Pilih Mata Pelajaran terlebih dahulu.");
       return;
     }
 
     if (formData.isRandomPacket) {
       const pkts = (formData.packetNames || []).map(p => p.trim()).filter(Boolean);
       if (pkts.length < 2) {
-        setErrorMsg("Pilih atau tambahkan minimal 2 paket soal untuk mode Multi-Paket Acak (misal: Paket A dan Paket B).");
+        setErrorMsg("Pilih minimal 2 paket soal untuk mode Multi-Paket Acak (misal: Paket A dan Paket B).");
         return;
       }
     } else {
       if (!formData.packetName || formData.packetName.trim() === '') {
-        setErrorMsg("Pilih file soal terlebih dahulu.");
+        setErrorMsg("Pilih file paket soal terlebih dahulu.");
         return;
       }
     }
 
+    const activeToken = (formData.activeToken || generateToken()).trim().toUpperCase();
+
     setProcessing(true);
-    setErrorMsg(null);
     try {
       const cleanAudioId = formData.audioId && formData.audioId.trim() !== '' ? formData.audioId : null;
 
@@ -244,34 +262,29 @@ export default function Exams() {
         : (formData.packetName ? [formData.packetName.trim()] : []);
 
       const payload: any = {
-        ...formData,
-        duration: Number(formData.duration),
-        tokenUpdatedAt: Date.now(),
-        adminId: user.uid,
+        title: formData.title.trim(),
+        subjectId: formData.subjectId,
+        targetClass: formData.targetClass.trim(),
+        duration: Number(formData.duration) || 90,
+        isActive: !!formData.isActive,
+        activeToken: activeToken,
+        autoResetInterval: formData.autoResetInterval || 'manual',
+        randomizeQuestions: !!formData.randomizeQuestions,
+        showScoreToStudent: !!formData.showScoreToStudent,
+        maxViolations: formData.maxViolations !== undefined ? Number(formData.maxViolations) : 3,
         isRandomPacket: !!formData.isRandomPacket,
         packetNames: selectedPackets,
         packetName: formData.isRandomPacket ? (selectedPackets[0] || '') : (formData.packetName || ''),
-        packageDistributionMode: formData.packageDistributionMode || 'round_robin'
+        packageDistributionMode: formData.packageDistributionMode || 'round_robin',
+        tokenUpdatedAt: Date.now(),
+        adminId: user.uid,
       };
-
-      delete payload.id;
 
       if (cleanAudioId) {
         payload.audioId = cleanAudioId;
-      } else {
-        if (editingId) {
-          payload.audioId = deleteField();
-        } else {
-          delete payload.audioId;
-        }
+      } else if (editingId) {
+        payload.audioId = deleteField();
       }
-
-      // Remove any undefined properties before sending to Firestore
-      Object.keys(payload).forEach(key => {
-        if (payload[key] === undefined) {
-          delete payload[key];
-        }
-      });
 
       if (editingId) {
         await updateDoc(doc(db, 'exams', editingId), payload);
@@ -281,11 +294,14 @@ export default function Exams() {
           createdAt: Date.now()
         });
       }
+
       setIsAdding(false);
       setEditingId(null);
+      resetForm();
       await fetchData();
-    } catch (err) {
-      handleFirestoreError(err, editingId ? OperationType.UPDATE : OperationType.CREATE, 'exams');
+    } catch (err: any) {
+      console.error("Error saving exam schedule:", err);
+      setErrorMsg(err?.message ? `Gagal menyimpan: ${err.message}` : "Terjadi kesalahan saat menyimpan jadwal ujian.");
     } finally {
       setProcessing(false);
     }
@@ -306,8 +322,9 @@ export default function Exams() {
       await deleteDoc(doc(db, 'exams', modalConfig.idToDelete));
       setModalConfig(null);
       await fetchData();
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'exams');
+    } catch (err: any) {
+      console.error("Error deleting exam:", err);
+      setErrorMsg(err?.message ? `Gagal menghapus: ${err.message}` : "Terjadi kesalahan saat menghapus jadwal ujian.");
     } finally {
       setProcessing(false);
     }
