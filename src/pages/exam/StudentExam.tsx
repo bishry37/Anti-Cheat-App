@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ShieldAlert, Maximize, Clock, Save, AlertTriangle, LogOut, Loader2, Wifi, WifiOff, Play, Check, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { formatHTML, calculateSmartPoints } from '../../utils/textFormat';
+import { formatHTML, calculateSmartPoints, calculatePgkPoints } from '../../utils/textFormat';
 import { getAudioSourceUrls, formatAudioSrc } from '../../lib/audioUtils';
 import { renderMathInContainers } from '../../utils/mathRenderer';
 import katex from 'katex';
@@ -253,20 +253,13 @@ export default function StudentExam() {
           wrong++;
         }
       } else if (q.type === 'pilihan_ganda_kompleks') {
-        const correctKeys = (q.correctAnswer || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-        const studentKeys = (studentAns || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-        
-        // Check if student selected any wrong choice (not in correctKeys)
-        const hasWrongKey = studentKeys.some(k => !correctKeys.includes(k));
-        
-        if (studentKeys.length === 0 || hasWrongKey) {
-          wrong++;
-        } else {
-          // Selected only correct choices
-          const ratio = studentKeys.length / correctKeys.length;
-          const earned = ratio * weight;
-          pointsEarned += earned;
+        const totalOptions = ((q as any).shuffledOptions?.length) || (['A', 'B', 'C', 'D', 'E'].filter(l => !isOptionEmpty(q[`option${l}` as keyof Question])).length) || 5;
+        const pgk = calculatePgkPoints(studentAns, q.correctAnswer, weight, totalOptions);
+        pointsEarned += pgk.earned;
+        if (pgk.isFull || pgk.isPartial) {
           correct++;
+        } else {
+          wrong++;
         }
       } else {
         // Smart grading for isian_singkat and essay

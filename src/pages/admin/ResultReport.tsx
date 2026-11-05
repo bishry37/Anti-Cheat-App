@@ -6,7 +6,7 @@ import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Chec
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { formatHTML, calculateSmartPoints, normalizeTextForGrading } from '../../utils/textFormat';
+import { formatHTML, calculateSmartPoints, normalizeTextForGrading, calculatePgkPoints } from '../../utils/textFormat';
 import { deduplicateStudentSessions } from '../../utils/sessionUtils';
 import { renderMathInContainers } from '../../utils/mathRenderer';
 import katex from 'katex';
@@ -178,12 +178,9 @@ export default function ResultReport() {
           if (manualScore !== undefined) {
             pointsEarned += manualScore;
           } else {
-            const correctKeys = (q.correctAnswer || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-            const studentKeys = (studentAnswers[q.id!] || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-            const hasWrongKey = studentKeys.some(k => !correctKeys.includes(k));
-            if (studentKeys.length > 0 && !hasWrongKey) {
-              pointsEarned += (studentKeys.length / correctKeys.length) * weight;
-            }
+            const availCount = ['A', 'B', 'C', 'D', 'E'].filter(l => !isOptionEmpty((q as any)[`option${l}`])).length || 5;
+            const pgk = calculatePgkPoints(studentAnswers[q.id!], q.correctAnswer, weight, availCount);
+            pointsEarned += pgk.earned;
           }
         } else if (q.type === 'isian_singkat') {
           // For short answer, if admin changed manual score use it, otherwise use smart auto score
@@ -1176,21 +1173,18 @@ export default function ResultReport() {
                             </div>
                             <div className="flex items-center gap-2">
                               {(() => {
-                                const correctKeys = (q.correctAnswer || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-                                const studentKeys = studentAns.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-                                const hasWrong = studentKeys.some(k => !correctKeys.includes(k));
-                                const isFull = studentKeys.length === correctKeys.length && !hasWrong && studentKeys.length > 0;
-                                const isPartial = studentKeys.length > 0 && !hasWrong && !isFull;
+                                const availCount = ['A', 'B', 'C', 'D', 'E'].filter(l => !isOptionEmpty((q as any)[`option${l}`])).length || 5;
+                                const pgk = calculatePgkPoints(studentAns, q.correctAnswer, weight, availCount);
 
-                                return isFull ? (
+                                return pgk.isFull ? (
                                   <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
                                     <Check className="w-3.5 h-3.5" />
                                     <span>Benar Sempurna (+{weight} Poin)</span>
                                   </div>
-                                ) : isPartial ? (
+                                ) : pgk.isPartial ? (
                                   <div className="flex items-center gap-1.5 text-xs font-bold text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-100">
                                     <Check className="w-3.5 h-3.5" />
-                                    <span>Sebagian Benar (+{((studentKeys.length / correctKeys.length) * weight).toFixed(1)} Poin)</span>
+                                    <span>Sebagian Benar (+{pgk.earned.toFixed(1)} Poin, {pgk.correctChosenCount}/{pgk.totalCorrectCount} Kunci)</span>
                                   </div>
                                 ) : (
                                   <div className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded-full border border-red-100">
@@ -1212,13 +1206,9 @@ export default function ResultReport() {
                                   max={weight}
                                   step={0.5}
                                   value={editingScores[q.id!] !== undefined ? editingScores[q.id!] : (() => {
-                                    const correctKeys = (q.correctAnswer || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-                                    const studentKeys = studentAns.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-                                    const hasWrong = studentKeys.some(k => !correctKeys.includes(k));
-                                    if (studentKeys.length > 0 && !hasWrong) {
-                                      return Number(((studentKeys.length / correctKeys.length) * weight).toFixed(1));
-                                    }
-                                    return 0;
+                                    const availCount = ['A', 'B', 'C', 'D', 'E'].filter(l => !isOptionEmpty((q as any)[`option${l}`])).length || 5;
+                                    const pgk = calculatePgkPoints(studentAns, q.correctAnswer, weight, availCount);
+                                    return pgk.earned;
                                   })()}
                                   onChange={(e) => {
                                     const val = Math.min(weight, Math.max(0, parseFloat(e.target.value) || 0));
