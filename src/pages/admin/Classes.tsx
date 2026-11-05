@@ -469,53 +469,39 @@ export default function Classes() {
 
                 {/* Input forms */}
                 <div className="p-4 border-b border-slate-100 flex flex-col gap-3 shrink-0 bg-white">
-                  {/* Single Student Add with optional PIN & Drive Photo URL */}
-                  <div className="flex flex-col gap-2">
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <div className="relative flex-1">
-                        <input
-                          type="text"
-                          value={studentInput}
-                          onChange={(e) => setStudentInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()}
-                          placeholder="Nama siswa (Contoh: BUDI SETIAWAN)..."
-                          className="w-full px-3 py-1.5 pl-8 text-xs font-semibold bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all uppercase placeholder-slate-400"
-                        />
-                        <Users className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                      </div>
-                      <div className="relative w-full sm:w-36">
-                        <input
-                          type="text"
-                          value={studentPinInput}
-                          onChange={(e) => setStudentPinInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()}
-                          placeholder="PIN (Otomatis)"
-                          className="w-full px-3 py-1.5 pl-7 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all uppercase placeholder-slate-400"
-                          maxLength={8}
-                        />
-                        <Key className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                      </div>
-                      <button
-                        onClick={handleAddStudent}
-                        disabled={processing || !studentInput.trim()}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded text-[10px] font-bold uppercase transition-colors shrink-0 flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 shadow-xs"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Tambah</span>
-                      </button>
-                    </div>
-
-                    <div className="relative">
+                  {/* Single Student Add with optional PIN */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-1">
                       <input
-                        type="url"
-                        value={studentPhotoInput}
-                        onChange={(e) => setStudentPhotoInput(e.target.value)}
+                        type="text"
+                        value={studentInput}
+                        onChange={(e) => setStudentInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()}
-                        placeholder="Link Google Drive Foto Siswa (Opsional)..."
-                        className="w-full px-3 py-1.5 pl-8 text-[11px] font-medium bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none placeholder-slate-400"
+                        placeholder="Nama siswa (Contoh: BUDI SETIAWAN)..."
+                        className="w-full px-3 py-1.5 pl-8 text-xs font-semibold bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all uppercase placeholder-slate-400"
                       />
-                      <Building2 className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <Users className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                     </div>
+                    <div className="relative w-full sm:w-36">
+                      <input
+                        type="text"
+                        value={studentPinInput}
+                        onChange={(e) => setStudentPinInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()}
+                        placeholder="PIN (Otomatis)"
+                        className="w-full px-3 py-1.5 pl-7 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all uppercase placeholder-slate-400"
+                        maxLength={8}
+                      />
+                      <Key className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    </div>
+                    <button
+                      onClick={handleAddStudent}
+                      disabled={processing || !studentInput.trim()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded text-[10px] font-bold uppercase transition-colors shrink-0 flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah</span>
+                    </button>
                   </div>
 
                   {/* Secondary Action Toolbar */}
