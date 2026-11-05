@@ -258,6 +258,61 @@ export default function QuestionBank() {
     }
   };
 
+  const autoAdjustWeights = async (subjectId: string, packetName: string) => {
+    if (!user || !subjectId || !packetName || packetName === 'all') return;
+    try {
+      const q = query(
+        collection(db, 'questions'),
+        where('adminId', '==', user.uid),
+        where('subjectId', '==', subjectId),
+        where('packetName', '==', packetName)
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) return;
+
+      const questionsToUpdate = snap.docs.map(d => {
+        const data = d.data();
+        return { id: d.id, type: data.type || 'pilihan_ganda' };
+      });
+      
+      const typeUnits: Record<string, number> = { 
+        'pilihan_ganda': 1, 
+        'pilihan_ganda_kompleks': 2, 
+        'listening': 5, 
+        'essay': 10 
+      };
+      
+      let totalUnits = 0;
+      questionsToUpdate.forEach(q => {
+        totalUnits += typeUnits[q.type] || 1;
+      });
+
+      if (totalUnits === 0) return;
+
+      const unitValue = 100 / totalUnits;
+      let currentWeightSum = 0;
+      const batch = writeBatch(db);
+
+      for (let idx = 0; idx < questionsToUpdate.length; idx++) {
+        const qData = questionsToUpdate[idx];
+        let qWeight = (typeUnits[qData.type] || 1) * unitValue;
+
+        if (idx === questionsToUpdate.length - 1) {
+          qWeight = 100 - currentWeightSum;
+        } else {
+          qWeight = Number(qWeight.toFixed(2));
+          currentWeightSum += qWeight;
+        }
+
+        batch.update(doc(db, 'questions', qData.id), { weight: qWeight });
+      }
+
+      await batch.commit();
+    } catch (err) {
+      console.error("Error auto adjusting weights:", err);
+    }
+  };
+
   const fetchQuestions = async () => {
     if (!user || !selectedTemplateFilter) {
       setQuestions([]);
@@ -1130,12 +1185,21 @@ export default function QuestionBank() {
   };
 
   const handleDeleteQuestion = (id: string) => {
+    const qToDelete = questions.find(q => q.id === id);
+    if (!qToDelete) return;
+
     showCustomConfirm(
       'Hapus Soal',
       'Apakah Anda yakin ingin menghapus soal ini dari bank soal?',
       async () => {
         try {
           await deleteDoc(doc(db, 'questions', id));
+          
+          // Auto adjust weights to sum to 100
+          if (qToDelete.packetName) {
+            await autoAdjustWeights(selectedSubject, qToDelete.packetName);
+          }
+          
           fetchQuestions();
           setIsDirty(true);
         } catch (err) {
@@ -1323,6 +1387,11 @@ export default function QuestionBank() {
         lastEditedAt: Date.now()
       } as any);
       
+      // Auto adjust weights to sum to 100
+      if (editingData.packetName) {
+        await autoAdjustWeights(selectedSubject, editingData.packetName);
+      }
+      
       setEditingQuestionId(null);
       setEditingData(null);
       fetchQuestions();
@@ -1426,6 +1495,9 @@ export default function QuestionBank() {
       batch.set(qRef, docData);
       
       await batch.commit();
+      
+      // Auto adjust weights to sum to 100
+      await autoAdjustWeights(selectedSubject, selectedTemplateFilter!);
       
       setIsAddingQuestion(false);
       setAddingData({
