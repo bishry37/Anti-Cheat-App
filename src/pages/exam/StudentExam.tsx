@@ -1409,7 +1409,7 @@ export default function StudentExam() {
                        <div className="flex items-center justify-between mb-2">
                          <label className="text-xs font-bold text-slate-500 uppercase flex items-center">
                            <span className="w-1.5 h-1.5 bg-purple-500 rounded-full mr-1.5 animate-pulse"></span>
-                           Jawaban Uraian Anda:
+                           Jawaban Essay Anda:
                          </label>
                          <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-100 rounded px-1.5 py-0.5 font-bold uppercase">
                            Sistem Essay

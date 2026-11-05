@@ -400,7 +400,7 @@ export default function QuestionBank() {
                       new TextRun({ text: "• Kode ", size: 18 }),
                       new TextRun({ text: "3", bold: true, size: 18, color: "7c3aed" }),
                       new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
-                      new TextRun({ text: "Paragraf / Essay (Kunci Jawaban sebagai acuan koreksi)", bold: true, size: 18 })
+                      new TextRun({ text: "Essay (Kunci Jawaban sebagai acuan koreksi)", bold: true, size: 18 })
                     ]
                   }),
                   new Paragraph({
@@ -573,7 +573,7 @@ export default function QuestionBank() {
         rows: listeningRows
       });
 
-      // 5. PARAGRAF / ESSAY TABLE (10 Questions)
+      // 3. ESSAY TABLE (10 Questions)
       const essayHeader = new TableRow({
         children: [
           createCell("NO", true, "f3e8ff", 6),
@@ -724,12 +724,12 @@ export default function QuestionBank() {
               }),
               listeningTable,
 
-              // Table 3: Paragraf / Essay
+              // Table 3: Essay
               new Paragraph({
                 spacing: { before: 300, after: 100 },
                 children: [
                   new TextRun({
-                    text: "3. TABEL SOAL PARAGRAF / ESSAY (Jenis Soal = 3)",
+                    text: "3. TABEL SOAL ESSAY (Jenis Soal = 3)",
                     bold: true,
                     size: 20,
                     color: "7c3aed"
@@ -1073,7 +1073,7 @@ export default function QuestionBank() {
         }
 
         const totalQ = questionsToUpload.length;
-        const typeUnits: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
+        const typeUnits: Record<string, number> = { 'pilihan_ganda': 1, 'pilihan_ganda_kompleks': 2, 'listening': 5, 'essay': 10 };
         let totalUnits = 0;
         questionsToUpload.forEach(q => {
           totalUnits += typeUnits[q.type] || 1;
@@ -1113,7 +1113,7 @@ export default function QuestionBank() {
           await batch.commit();
         }
 
-        const msg = `Berhasil mengimpor ${count} soal ke dalam template "${templateName}". Bobot setiap soal telah disesuaikan secara otomatis berdasarkan tingkat kesulitan (Essay > Isian Singkat > Listening > Pilihan Ganda) dengan total skor maksimal setara 100.`;
+        const msg = `Berhasil mengimpor ${count} soal ke dalam template "${templateName}". Bobot setiap soal telah disesuaikan secara otomatis berdasarkan proporsi tipe soal (Essay > Listening > Pilihan Ganda Kompleks > Pilihan Ganda) dengan total skor maksimal setara 100.`;
         showCustomAlert('Berhasil Impor', msg, true);
         setSelectedTemplateFilter(templateName.trim());
         fetchQuestions();
@@ -1319,7 +1319,7 @@ export default function QuestionBank() {
         correctAnswer: isPg ? String(editingData.correctAnswer || (qType === 'pilihan_ganda_kompleks' ? 'A' : 'A')) : (editingData.correctAnswer || ''),
         type: qType,
         typeCode: mapTypeToCode(qType),
-        weight: Number(editingData.weight !== undefined && editingData.weight !== null && editingData.weight !== 0 ? editingData.weight : (qType === 'essay' ? 15 : qType === 'isian_singkat' ? 10 : qType === 'listening' ? 5 : qType === 'pilihan_ganda_kompleks' ? 2 : 1)),
+        weight: Number(editingData.weight !== undefined && editingData.weight !== null && editingData.weight !== 0 ? editingData.weight : (qType === 'essay' ? 10 : qType === 'listening' ? 5 : qType === 'pilihan_ganda_kompleks' ? 2 : 1)),
         lastEditedAt: Date.now()
       } as any);
       
@@ -1420,7 +1420,7 @@ export default function QuestionBank() {
         correctAnswer: isPg ? String(addingData.correctAnswer || (qType === 'pilihan_ganda_kompleks' ? 'A' : 'A')) : (addingData.correctAnswer || ''),
         type: qType,
         typeCode: mapTypeToCode(qType),
-        weight: Number(addingData.weight !== undefined && addingData.weight !== null && addingData.weight !== 0 ? addingData.weight : (qType === 'essay' ? 15 : qType === 'isian_singkat' ? 10 : qType === 'listening' ? 5 : qType === 'pilihan_ganda_kompleks' ? 2 : 1))
+        weight: Number(addingData.weight !== undefined && addingData.weight !== null && addingData.weight !== 0 ? addingData.weight : (qType === 'essay' ? 10 : qType === 'listening' ? 5 : qType === 'pilihan_ganda_kompleks' ? 2 : 1))
       };
       
       batch.set(qRef, docData);
@@ -1732,7 +1732,7 @@ export default function QuestionBank() {
                         value={addingData.type || 'pilihan_ganda'}
                         onChange={e => {
                           const val = e.target.value as any;
-                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'pilihan_ganda_kompleks': 2, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
+                          const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'pilihan_ganda_kompleks': 2, 'listening': 5, 'essay': 10 };
                           setAddingData({ 
                             ...addingData, 
                             type: val,
@@ -1745,8 +1745,7 @@ export default function QuestionBank() {
                         <option value="pilihan_ganda">Pilihan Ganda</option>
                         <option value="pilihan_ganda_kompleks">Pilihan Ganda Kompleks</option>
                         <option value="listening">Listening</option>
-                        <option value="isian_singkat">Isian Singkat</option>
-                        <option value="essay">Paragraf / Essai</option>
+                        <option value="essay">Essay</option>
                       </select>
                     </div>
                     <div className="md:col-span-6">
@@ -1861,7 +1860,7 @@ export default function QuestionBank() {
                         rows={3}
                         value={addingData.correctAnswer || ''}
                         onChange={e => setAddingData({ ...addingData, correctAnswer: e.target.value })}
-                        placeholder="Masukkan poin jawaban pokok sebagai pedoman koreksi nilai essai siswa nanti"
+                        placeholder="Masukkan poin jawaban pokok sebagai pedoman koreksi nilai essay siswa nanti"
                         className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800"
                       />
                     </div>
@@ -1919,7 +1918,7 @@ export default function QuestionBank() {
                               value={editingData.type || 'pilihan_ganda'}
                               onChange={e => {
                                 const val = e.target.value as any;
-                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'pilihan_ganda_kompleks': 2, 'listening': 5, 'isian_singkat': 10, 'essay': 15 };
+                                const weightUnits: Record<string, number> = { 'pilihan_ganda': 1, 'pilihan_ganda_kompleks': 2, 'listening': 5, 'essay': 10 };
                                 setEditingData({ 
                                   ...editingData, 
                                   type: val,
@@ -1932,8 +1931,7 @@ export default function QuestionBank() {
                               <option value="pilihan_ganda">Pilihan Ganda</option>
                               <option value="pilihan_ganda_kompleks">Pilihan Ganda Kompleks</option>
                               <option value="listening">Listening</option>
-                              <option value="isian_singkat">Isian Singkat</option>
-                              <option value="essay">Paragraf / Essai</option>
+                              <option value="essay">Essay</option>
                             </select>
                           </div>
                           <div className="md:col-span-6">

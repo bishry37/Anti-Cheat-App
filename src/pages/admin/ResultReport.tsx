@@ -1069,7 +1069,7 @@ export default function ResultReport() {
                             'bg-slate-50 text-slate-600 border-slate-200'
                           }`}>
                             Soal {qIndex + 1} - {
-                              isEssay ? 'Essay / Uraian' : 
+                              isEssay ? 'Essay' : 
                               q.type === 'isian_singkat' ? 'Isian Singkat' : 
                               q.type === 'listening' ? 'Listening' :
                               q.type === 'pilihan_ganda_kompleks' ? 'PG Kompleks' :
