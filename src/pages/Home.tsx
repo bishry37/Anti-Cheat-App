@@ -1001,7 +1001,7 @@ export default function Home() {
                         disabled={!isTokenValidAndActive || !studentName}
                         value={studentPassword}
                         onChange={(e) => setStudentPassword(e.target.value)}
-                        placeholder={!isTokenValidAndActive || !studentName ? "PILIH NAMA TERLEBIH DAHULU..." : "MASUKKAN PIN (4 DIGIT)..."}
+                        placeholder={!isTokenValidAndActive || !studentName ? "PILIH NAMA TERLEBIH DAHULU..." : "MASUKKAN PASSWORD / PIN SISWA..."}
                         className={`w-full pl-11 pr-11 py-3.5 border rounded-xl outline-none transition-all font-mono font-bold text-xs tracking-wider placeholder:font-sans placeholder:tracking-normal ${
                           !isTokenValidAndActive || !studentName
                             ? 'bg-slate-100/90 border-slate-200 text-slate-400 cursor-not-allowed select-none opacity-70'
