@@ -33,6 +33,67 @@ export const wrapBareLaTeX = (content: string | null | undefined): string => {
 };
 
 /**
+ * Synchronously renders all math formulas in a string (Quill formulas, \(...\), \[...\], $$...$$, $...$, bare \frac, \sqrt, etc.)
+ * into inline KaTeX HTML markup.
+ */
+export const renderMathInString = (content: string | null | undefined): string => {
+  if (!content) return '';
+  let str = String(content);
+
+  // Normalize double-escaped backslashes before latex delimiters or control sequences
+  str = str.replace(/\\\\([a-zA-Z()\[\]\$])/g, '\\$1');
+
+  // 1. Convert Quill formula elements <span class="ql-formula" data-value="...">...</span>
+  str = str.replace(/<span[^>]*class="[^"]*ql-formula[^"]*"[^>]*data-value="([^"]+)"[^>]*>[\s\S]*?<\/span>/gi, (full, tex) => {
+    try {
+      const decodedTex = tex.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+      return katex.renderToString(decodedTex, { throwOnError: false, displayMode: false });
+    } catch {
+      return full;
+    }
+  });
+
+  // Helper to safely render a TeX string with KaTeX
+  const safeRender = (tex: string, displayMode: boolean): string => {
+    try {
+      const cleanTex = tex.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+      return katex.renderToString(cleanTex, { throwOnError: false, displayMode });
+    } catch {
+      return tex;
+    }
+  };
+
+  // 2. Render delimited display equations: $$ ... $$ or \[ ... \]
+  str = str.replace(/(\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\])/g, (full, _, tex1, tex2) => {
+    const tex = (tex1 || tex2 || '').trim();
+    if (!tex) return full;
+    return safeRender(tex, true);
+  });
+
+  // 3. Render delimited inline equations: \( ... \) or $ ... $
+  str = str.replace(/(\\\(([\s\S]+?)\\\)|(?<!\\)\$([^$\n]+?)(?<!\\)\$)/g, (full, _, tex1, tex2) => {
+    const tex = (tex1 || tex2 || '').trim();
+    if (!tex) return full;
+    if (full.startsWith('$') && !full.startsWith('\\(')) {
+      if (/^\d+(\.\d+)?$/.test(tex)) return full;
+    }
+    return safeRender(tex, false);
+  });
+
+  // 4. Render bare LaTeX commands like \frac{a}{b}, \sqrt{a}, etc.
+  str = str.replace(/(\\(?:frac|sqrt|cbrt|sum|int|lim|prod|vec|hat|bar|overline|underline|binom)\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}(?:\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})?)/g, (full, tex) => {
+    return safeRender(tex, false);
+  });
+
+  // 5. Render bare standalone LaTeX symbols like \pm, \times, \div, \le, \ge, \ne, \approx, \infty, \pi, \alpha, \beta, \theta, etc.
+  str = str.replace(/(?<![\w\\])(\\(?:pm|times|div|le|ge|ne|approx|equiv|infty|pi|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|sigma|omega|Delta|Omega|to|leftarrow|leftrightarrow|in|notin|subset|subseteq|cup|cap|angle|perp))\b/g, (full, tex) => {
+    return safeRender(tex, false);
+  });
+
+  return str;
+};
+
+/**
  * Scans all elements matching selector (or within the container)
  * and renders:
  * 1. Quill formulas (.ql-formula[data-value])

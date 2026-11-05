@@ -1,25 +1,27 @@
-import { wrapBareLaTeX } from './mathRenderer';
+import { wrapBareLaTeX, renderMathInString } from './mathRenderer';
 
 export const formatHTML = (text: string | undefined | null): string => {
   if (!text) return '';
-  const str = wrapBareLaTeX(String(text));
+  const rawStr = String(text);
   
+  let formattedHtml: string;
   // If the text appears to already contain HTML formatting (e.g. from Quill)
-  if (/<[a-z][\s\S]*>/i.test(str)) {
-    return str;
+  if (/<[a-z][\s\S]*>/i.test(rawStr)) {
+    formattedHtml = rawStr;
+  } else {
+    // For plain text (like from Excel or plain text input), split by newlines and wrap in <p> tags
+    const lines = rawStr.split(/\r?\n/);
+    formattedHtml = lines.map(line => {
+      const trimmed = line.trim();
+      if (trimmed) {
+         return `<p>${trimmed}</p>`;
+      } else {
+         return '<br/>';
+      }
+    }).join('');
   }
-  
-  // For plain text (like from Excel), split by newlines and wrap in <p> tags
-  // to ensure proper vertical spacing (margin-bottom) via CSS.
-  const lines = str.split(/\r?\n/);
-  return lines.map(line => {
-    const trimmed = line.trim();
-    if (trimmed) {
-       return `<p>${trimmed}</p>`;
-    } else {
-       return '<br/>';
-    }
-  }).join('');
+
+  return renderMathInString(formattedHtml);
 };
 
 export const normalizeTextForGrading = (text: string | null | undefined): string => {
