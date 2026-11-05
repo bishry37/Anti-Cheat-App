@@ -347,8 +347,14 @@ export default function Home() {
       setLoading(false);
       navigate('/admin');
     } catch (error: any) {
-      console.error(error);
-      setErrorMessage('Email atau Password salah.');
+      const code = error?.code || '';
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/user-not-found' || code === 'auth/invalid-email') {
+        setErrorMessage('Email atau Password yang Anda masukkan tidak sesuai.');
+      } else if (code === 'auth/too-many-requests') {
+        setErrorMessage('Akses diblokir sementara karena terlalu banyak percobaan login yang gagal. Silakan coba lagi nanti.');
+      } else {
+        setErrorMessage('Email atau Password salah.');
+      }
       setLoading(false);
     }
   };

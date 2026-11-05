@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, where, writeBatch, onSnapshot } from 'firebase/firestore';
 import { Class, StudentRecord, Setting } from '../../types';
-import { Plus, Edit2, Trash2, Loader2, Save, X, Users, Search, ArrowRight, GraduationCap, Check, Key, Copy, Printer, RefreshCw, FileText, LayoutGrid, List, Scissors, Building2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, Save, X, Users, Search, ArrowRight, GraduationCap, Check, Key, Copy, Printer, RefreshCw, FileText, LayoutGrid, List, Scissors, Building2, UserCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getStudentName, getStudentPin, generateDefaultPin, normalizeStudentRecord, parseStudentInput } from '../../utils/studentUtils';
+import { getStudentName, getStudentPin, getStudentPhoto, generateDefaultPin, normalizeStudentRecord, parseStudentInput } from '../../utils/studentUtils';
 import brandLogo from '../../assets/images/logo1.png';
 
 export default function Classes() {
@@ -23,10 +23,10 @@ export default function Classes() {
     idToDelete: string | null;
   } | null>(null);
 
-  // Student list state variables
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [studentInput, setStudentInput] = useState('');
   const [studentPinInput, setStudentPinInput] = useState('');
+  const [studentPhotoInput, setStudentPhotoInput] = useState('');
   const [searchStudent, setSearchStudent] = useState('');
   const [bulkInput, setBulkInput] = useState('');
   const [showBulk, setShowBulk] = useState(false);
@@ -39,6 +39,7 @@ export default function Classes() {
   const [editingStudentIndex, setEditingStudentIndex] = useState<number | null>(null);
   const [editingStudentValue, setEditingStudentValue] = useState('');
   const [editingStudentPinValue, setEditingStudentPinValue] = useState('');
+  const [editingStudentPhotoValue, setEditingStudentPhotoValue] = useState('');
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -54,6 +55,7 @@ export default function Classes() {
     setEditingStudentIndex(null);
     setEditingStudentValue('');
     setEditingStudentPinValue('');
+    setEditingStudentPhotoValue('');
   }, [selectedClass?.id]);
 
   useEffect(() => {
@@ -206,10 +208,12 @@ export default function Classes() {
       return;
     }
     const pin = studentPinInput.trim() || generateDefaultPin();
-    const newRecord: StudentRecord = { name, pin };
+    const photo = studentPhotoInput.trim() || undefined;
+    const newRecord: StudentRecord = { name, pin, photo };
     const updated = [...draftStudents, newRecord];
     setStudentInput('');
     setStudentPinInput('');
+    setStudentPhotoInput('');
     await saveStudentList(updated);
   };
 
@@ -250,7 +254,9 @@ export default function Classes() {
     if (!selectedClass?.id || draftStudents.length === 0) return;
     const updated = draftStudents.map(s => {
       const name = getStudentName(s);
-      return { name, pin: generateDefaultPin() };
+      const pin = getStudentPin(s);
+      const photo = getStudentPhoto(s);
+      return { name, pin, photo };
     });
     await saveStudentList(updated);
     showToast('PIN baru berhasil dibuat untuk semua siswa!');
@@ -266,6 +272,7 @@ export default function Classes() {
     setEditingStudentIndex(idx);
     setEditingStudentValue(getStudentName(item));
     setEditingStudentPinValue(getStudentPin(item));
+    setEditingStudentPhotoValue(getStudentPhoto(item) || '');
   };
 
   const handleSaveStudentEdit = async (idx: number) => {
@@ -280,11 +287,13 @@ export default function Classes() {
     }
     
     const pin = editingStudentPinValue.trim() || generateDefaultPin();
+    const photo = editingStudentPhotoValue.trim() || undefined;
     const updated = [...draftStudents];
-    updated[idx] = { name: val, pin };
+    updated[idx] = { name: val, pin, photo };
     setEditingStudentIndex(null);
     setEditingStudentValue('');
     setEditingStudentPinValue('');
+    setEditingStudentPhotoValue('');
     await saveStudentList(updated);
   };
 
@@ -292,6 +301,7 @@ export default function Classes() {
     setEditingStudentIndex(null);
     setEditingStudentValue('');
     setEditingStudentPinValue('');
+    setEditingStudentPhotoValue('');
   };
 
   return (
@@ -443,13 +453,13 @@ export default function Classes() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setShowExportModal(true)}
+                      onClick={() => { setPrintLayoutMode('cards'); setShowExportModal(true); }}
                       disabled={draftStudents.length === 0}
-                      className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
-                      title="Cetak & Export Daftar PIN Siswa"
+                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition shadow-xs disabled:opacity-50"
+                      title="Cetak & Export Kartu ID / Credentials PIN Siswa"
                     >
-                      <Printer className="w-3 h-3 text-slate-600" />
-                      <span>Cetak PIN</span>
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Cetak Kartu Siswa</span>
                     </button>
                     <span className="px-2 py-0.5 rounded-full bg-blue-100 border border-blue-200/50 text-blue-700 text-[9px] font-black uppercase tracking-wider">
                       {draftStudents.length} Siswa
@@ -459,51 +469,77 @@ export default function Classes() {
 
                 {/* Input forms */}
                 <div className="p-4 border-b border-slate-100 flex flex-col gap-3 shrink-0 bg-white">
-                  {/* Single Student Add with optional PIN */}
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type="text"
-                        value={studentInput}
-                        onChange={(e) => setStudentInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()}
-                        placeholder="Nama siswa (Contoh: BUDI SETIAWAN)..."
-                        className="w-full px-3 py-1.5 pl-8 text-xs font-semibold bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all uppercase placeholder-slate-400"
-                      />
-                      <Users className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  {/* Single Student Add with optional PIN & Drive Photo URL */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={studentInput}
+                          onChange={(e) => setStudentInput(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()}
+                          placeholder="Nama siswa (Contoh: BUDI SETIAWAN)..."
+                          className="w-full px-3 py-1.5 pl-8 text-xs font-semibold bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all uppercase placeholder-slate-400"
+                        />
+                        <Users className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      </div>
+                      <div className="relative w-full sm:w-36">
+                        <input
+                          type="text"
+                          value={studentPinInput}
+                          onChange={(e) => setStudentPinInput(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()}
+                          placeholder="PIN (Otomatis)"
+                          className="w-full px-3 py-1.5 pl-7 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all uppercase placeholder-slate-400"
+                          maxLength={8}
+                        />
+                        <Key className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      </div>
+                      <button
+                        onClick={handleAddStudent}
+                        disabled={processing || !studentInput.trim()}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded text-[10px] font-bold uppercase transition-colors shrink-0 flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 shadow-xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Tambah</span>
+                      </button>
                     </div>
-                    <div className="relative w-full sm:w-36">
+
+                    <div className="relative">
                       <input
-                        type="text"
-                        value={studentPinInput}
-                        onChange={(e) => setStudentPinInput(e.target.value)}
+                        type="url"
+                        value={studentPhotoInput}
+                        onChange={(e) => setStudentPhotoInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()}
-                        placeholder="PIN (Otomatis jika kosong)"
-                        className="w-full px-3 py-1.5 pl-7 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all uppercase placeholder-slate-400"
-                        maxLength={8}
+                        placeholder="Link Google Drive Foto Siswa (Opsional)..."
+                        className="w-full px-3 py-1.5 pl-8 text-[11px] font-medium bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none placeholder-slate-400"
                       />
-                      <Key className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <Building2 className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                     </div>
-                    <button
-                      onClick={handleAddStudent}
-                      disabled={processing || !studentInput.trim()}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded text-[10px] font-bold uppercase transition-colors shrink-0 flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Tambah</span>
-                    </button>
                   </div>
 
                   {/* Secondary Action Toolbar */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setShowBulk(true)}
-                      className="text-blue-600 hover:text-blue-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:underline"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Impor Banyak Siswa (Bulk Import)</span>
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowBulk(true)}
+                        className="text-blue-600 hover:text-blue-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:underline"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Impor Banyak Siswa (Bulk)</span>
+                      </button>
+                      {draftStudents.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => { setPrintLayoutMode('cards'); setShowExportModal(true); }}
+                          className="text-emerald-700 hover:text-emerald-800 text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:underline"
+                        >
+                          <Printer className="w-3 h-3 text-emerald-600" />
+                          <span>Cetak Kartu ID Siswa</span>
+                        </button>
+                      )}
+                    </div>
                     {draftStudents.length > 0 && (
                       <button
                         type="button"
@@ -586,40 +622,49 @@ export default function Classes() {
                               }`}
                             >
                               {isEditingThis ? (
-                                <div className="flex items-center gap-1.5 w-full">
+                                <div className="flex flex-col gap-1.5 w-full py-1">
+                                  <div className="flex items-center gap-1.5 w-full">
+                                    <input
+                                      type="text"
+                                      value={editingStudentValue}
+                                      onChange={(e) => setEditingStudentValue(e.target.value)}
+                                      placeholder="NAMA SISWA"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveStudentEdit(originalIndex);
+                                        if (e.key === 'Escape') handleCancelStudentEdit();
+                                      }}
+                                      className="flex-1 min-w-0 px-2 py-1 text-xs font-bold uppercase bg-slate-50 border border-blue-400 rounded outline-none focus:bg-white"
+                                      autoFocus
+                                    />
+                                    <input
+                                      type="text"
+                                      value={editingStudentPinValue}
+                                      onChange={(e) => setEditingStudentPinValue(e.target.value)}
+                                      placeholder="PIN"
+                                      className="w-16 px-1.5 py-1 text-xs font-mono font-bold bg-slate-50 border border-blue-400 rounded outline-none focus:bg-white text-center"
+                                    />
+                                    <button
+                                      onClick={() => handleSaveStudentEdit(originalIndex)}
+                                      className="p-1 px-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded cursor-pointer transition text-xs font-bold"
+                                      title="Simpan"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={handleCancelStudentEdit}
+                                      className="p-1 px-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded cursor-pointer transition text-xs font-bold"
+                                      title="Batal"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
                                   <input
-                                    type="text"
-                                    value={editingStudentValue}
-                                    onChange={(e) => setEditingStudentValue(e.target.value)}
-                                    placeholder="NAMA SISWA"
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') handleSaveStudentEdit(originalIndex);
-                                      if (e.key === 'Escape') handleCancelStudentEdit();
-                                    }}
-                                    className="flex-1 min-w-0 px-2 py-1 text-xs font-bold uppercase bg-slate-50 border border-blue-400 rounded outline-none focus:bg-white"
-                                    autoFocus
+                                    type="url"
+                                    value={editingStudentPhotoValue}
+                                    onChange={(e) => setEditingStudentPhotoValue(e.target.value)}
+                                    placeholder="Link Google Drive Foto Siswa (Opsional)..."
+                                    className="w-full px-2 py-1 text-[11px] font-medium bg-slate-50 border border-blue-300 rounded outline-none focus:bg-white"
                                   />
-                                  <input
-                                    type="text"
-                                    value={editingStudentPinValue}
-                                    onChange={(e) => setEditingStudentPinValue(e.target.value)}
-                                    placeholder="PIN"
-                                    className="w-16 px-1.5 py-1 text-xs font-mono font-bold bg-slate-50 border border-blue-400 rounded outline-none focus:bg-white text-center"
-                                  />
-                                  <button
-                                    onClick={() => handleSaveStudentEdit(originalIndex)}
-                                    className="p-1 px-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded cursor-pointer transition text-xs font-bold"
-                                    title="Simpan"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={handleCancelStudentEdit}
-                                    className="p-1 px-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded cursor-pointer transition text-xs font-bold"
-                                    title="Batal"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
                                 </div>
                               ) : (
                                 <>
@@ -937,33 +982,51 @@ export default function Classes() {
                             )}
 
                             {/* Badge Header Kartu */}
-                            <div className="flex items-center justify-between bg-slate-900 text-white px-2.5 py-1 rounded-md mb-2">
+                            <div className="flex items-center justify-center bg-slate-900 text-white px-2.5 py-1 rounded-md mb-2">
                               <span className="text-[9px] font-black tracking-widest uppercase">KARTU PESERTA UJIAN</span>
-                              <span className="text-[9px] font-extrabold text-blue-300 uppercase">{selectedClass.name}</span>
                             </div>
 
-                            {/* Details Grid */}
-                            <div className="space-y-2 flex-1">
-                              <div>
-                                <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">NAMA LENGKAP SISWA</div>
-                                <div className="text-xs font-black text-slate-900 uppercase truncate bg-slate-50 border border-slate-200 px-2 py-1 rounded mt-0.5">
-                                  {name}
-                                </div>
+                            {/* Details Grid with Photo */}
+                            <div className="flex gap-3 items-center flex-1">
+                              {/* Student Photo Frame (2x3 ratio size e.g. w-12 h-16) */}
+                              <div className="w-12 h-16 bg-slate-100 border-2 border-slate-300 rounded-md overflow-hidden shrink-0 flex items-center justify-center relative shadow-3xs">
+                                {getStudentPhoto(s) ? (
+                                  <img 
+                                    src={getStudentPhoto(s)!} 
+                                    alt={name} 
+                                    className="w-full h-full object-cover" 
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center text-slate-400 p-1 text-center">
+                                    <UserCircle className="w-6 h-6 text-slate-300" />
+                                    <span className="text-[6px] font-bold uppercase tracking-tighter leading-none mt-0.5">2x3</span>
+                                  </div>
+                                )}
                               </div>
 
-                              <div className="grid grid-cols-2 gap-1.5">
+                              <div className="space-y-1.5 flex-1 min-w-0">
                                 <div>
-                                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">KELAS</div>
-                                  <div className="text-[11px] font-bold text-slate-800 uppercase bg-slate-50 border border-slate-200 px-2 py-0.5 rounded mt-0.5 truncate">
-                                    {selectedClass.name}
+                                  <div className="text-[7px] font-bold text-slate-400 uppercase tracking-wider">NAMA SISWA</div>
+                                  <div className="text-xs font-black text-slate-900 uppercase truncate bg-slate-50 border border-slate-200 px-2 py-0.5 rounded mt-0.5">
+                                    {name}
                                   </div>
                                 </div>
-                                <div>
-                                  <div className="text-[8px] font-bold text-amber-600 uppercase tracking-wider flex items-center gap-0.5">
-                                    <Key className="w-2.5 h-2.5" /> PASSWORD / PIN
+
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <div>
+                                    <div className="text-[7px] font-bold text-slate-400 uppercase tracking-wider">KELAS</div>
+                                    <div className="text-[10px] font-bold text-slate-800 uppercase bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded mt-0.5 truncate">
+                                      {selectedClass.name}
+                                    </div>
                                   </div>
-                                  <div className="text-xs font-mono font-black text-amber-900 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded text-center tracking-widest mt-0.5">
-                                    {pin}
+                                  <div>
+                                    <div className="text-[7px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-0.5">
+                                      <Key className="w-2 h-2" /> PIN
+                                    </div>
+                                    <div className="text-[11px] font-mono font-black text-amber-900 bg-amber-50 border border-amber-300 px-1.5 py-0.5 rounded text-center tracking-widest mt-0.5">
+                                      {pin}
+                                    </div>
                                   </div>
                                 </div>
                               </div>

@@ -24,6 +24,7 @@ export interface StudentRecord {
   name: string;
   pin?: string;
   nisn?: string;
+  photo?: string;
 }
 
 export interface Class {
