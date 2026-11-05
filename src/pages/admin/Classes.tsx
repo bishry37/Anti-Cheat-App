@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, where, writeBatch, onSnapshot } from 'firebase/firestore';
 import { Class, StudentRecord, Setting } from '../../types';
-import { Plus, Edit2, Trash2, Loader2, Save, X, Users, Search, ArrowRight, GraduationCap, Check, Key, Copy, Printer, RefreshCw, FileText, LayoutGrid, List, Scissors, Building2, UserCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, Save, X, Users, Search, ArrowRight, GraduationCap, Check, Key, Copy, Printer, RefreshCw, FileText, LayoutGrid, List, Scissors, Building2, UserCircle, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getStudentName, getStudentPin, getStudentPhoto, generateDefaultPin, normalizeStudentRecord, parseStudentInput } from '../../utils/studentUtils';
+import { getStudentName, getStudentPin, getStudentPhoto, generateDefaultPin, generateRandomPin, normalizeStudentRecord, parseStudentInput } from '../../utils/studentUtils';
 import brandLogo from '../../assets/images/logo1.png';
 
 export default function Classes() {
@@ -24,9 +25,6 @@ export default function Classes() {
   } | null>(null);
 
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
-  const [studentInput, setStudentInput] = useState('');
-  const [studentPinInput, setStudentPinInput] = useState('');
-  const [studentPhotoInput, setStudentPhotoInput] = useState('');
   const [searchStudent, setSearchStudent] = useState('');
   const [bulkInput, setBulkInput] = useState('');
   const [showBulk, setShowBulk] = useState(false);
@@ -199,24 +197,6 @@ export default function Classes() {
     }
   };
 
-  const handleAddStudent = async () => {
-    if (!studentInput.trim() || !selectedClass?.id) return;
-    const name = studentInput.trim().toUpperCase();
-    const existingNames = draftStudents.map(s => getStudentName(s));
-    if (existingNames.includes(name)) {
-      showToast('Siswa dengan nama tersebut sudah ada.');
-      return;
-    }
-    const pin = studentPinInput.trim() || generateDefaultPin();
-    const photo = studentPhotoInput.trim() || undefined;
-    const newRecord: StudentRecord = { name, pin, photo };
-    const updated = [...draftStudents, newRecord];
-    setStudentInput('');
-    setStudentPinInput('');
-    setStudentPhotoInput('');
-    await saveStudentList(updated);
-  };
-
   const handleBulkImport = async () => {
     if (!bulkInput.trim() || !selectedClass?.id) return;
     const lines = bulkInput
@@ -254,12 +234,12 @@ export default function Classes() {
     if (!selectedClass?.id || draftStudents.length === 0) return;
     const updated = draftStudents.map(s => {
       const name = getStudentName(s);
-      const pin = getStudentPin(s);
+      const pin = generateRandomPin();
       const photo = getStudentPhoto(s);
       return { name, pin, photo };
     });
     await saveStudentList(updated);
-    showToast('PIN baru berhasil dibuat untuk semua siswa!');
+    showToast('PIN semua siswa berhasil diacak!');
   };
 
   const handleRemoveStudent = async (studentItem: string | StudentRecord) => {
@@ -467,78 +447,31 @@ export default function Classes() {
                   </div>
                 </div>
 
-                {/* Input forms */}
-                <div className="p-4 border-b border-slate-100 flex flex-col gap-3 shrink-0 bg-white">
-                  {/* Single Student Add with optional PIN */}
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type="text"
-                        value={studentInput}
-                        onChange={(e) => setStudentInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()}
-                        placeholder="Nama siswa (Contoh: BUDI SETIAWAN)..."
-                        className="w-full px-3 py-1.5 pl-8 text-xs font-semibold bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all uppercase placeholder-slate-400"
-                      />
-                      <Users className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                    </div>
-                    <div className="relative w-full sm:w-36">
-                      <input
-                        type="text"
-                        value={studentPinInput}
-                        onChange={(e) => setStudentPinInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()}
-                        placeholder="PIN (Otomatis)"
-                        className="w-full px-3 py-1.5 pl-7 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all uppercase placeholder-slate-400"
-                        maxLength={8}
-                      />
-                      <Key className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                    </div>
+                {/* Action Toolbar (Single Student Add Removed per User Request) */}
+                <div className="p-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2.5 shrink-0 bg-white">
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={handleAddStudent}
-                      disabled={processing || !studentInput.trim()}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded text-[10px] font-bold uppercase transition-colors shrink-0 flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 shadow-xs"
+                      type="button"
+                      onClick={() => setShowBulk(true)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition shadow-xs"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Tambah</span>
+                      <Plus className="w-4 h-4" />
+                      <span>Impor Banyak Siswa (Bulk)</span>
                     </button>
                   </div>
 
-                  {/* Secondary Action Toolbar */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setShowBulk(true)}
-                        className="text-blue-600 hover:text-blue-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:underline"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Impor Banyak Siswa (Bulk)</span>
-                      </button>
-                      {draftStudents.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => { setPrintLayoutMode('cards'); setShowExportModal(true); }}
-                          className="text-emerald-700 hover:text-emerald-800 text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:underline"
-                        >
-                          <Printer className="w-3 h-3 text-emerald-600" />
-                          <span>Cetak Kartu ID Siswa</span>
-                        </button>
-                      )}
-                    </div>
-                    {draftStudents.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleGenerateAllPins}
-                        disabled={processing}
-                        className="text-amber-700 hover:text-amber-800 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:underline disabled:opacity-50"
-                        title="Acak & buat PIN 4-digit baru untuk seluruh siswa di kelas ini"
-                      >
-                        <RefreshCw className="w-3 h-3 text-amber-600" />
-                        <span>Acak PIN Semua Siswa</span>
-                      </button>
-                    )}
-                  </div>
+                  {draftStudents.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleGenerateAllPins}
+                      disabled={processing}
+                      className="text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100/90 border border-amber-200/90 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50"
+                      title="Acak password/PIN baru untuk semua siswa di kelas ini"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Acak PIN Semua Siswa</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Student List Search Header */}
@@ -576,8 +509,9 @@ export default function Classes() {
                       return (
                         <div className="text-center py-16 text-slate-400">
                           <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                          <span className="font-semibold uppercase text-[10px] tracking-wider leading-relaxed block text-slate-400">
-                            Belum ada data siswa<br />Input di atas untuk menambah siswa
+                          <span className="font-semibold uppercase text-[11px] tracking-wider leading-relaxed block text-slate-400">
+                            Belum ada data siswa di kelas ini.<br />
+                            Klik tombol "Impor Banyak Siswa (Bulk)" di atas untuk menambahkan siswa.
                           </span>
                         </div>
                       );
@@ -783,15 +717,15 @@ export default function Classes() {
             </div>
 
             <div className="p-5 flex-1 flex flex-col min-h-0 bg-slate-50/30">
-              <p className="text-[11px] text-slate-500 uppercase font-semibold tracking-wide mb-2.5">
-                Contoh: <br />
-                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800">BUDI SETIAWAN</code> (PIN diacak otomatis)<br />
-                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800">ANI SETYAWATI, 4812</code> (PIN kustom)
+              <p className="text-[11px] text-slate-600 uppercase font-semibold tracking-wide mb-2.5">
+                Contoh Input: <br />
+                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800 font-mono">BUDI SETIAWAN</code> (Password default otomatis: 12345)<br />
+                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800 font-mono">ANI SETYAWATI, 98765</code> (Password kustom)
               </p>
               <textarea
                 value={bulkInput}
                 onChange={(e) => setBulkInput(e.target.value)}
-                placeholder={"BUDI SETIAWAN\nANI SETYAWATI, 4812\nIMAM BISHRY NURYAYI, 9901"}
+                placeholder={"BUDI SETIAWAN\nANI SETYAWATI\nSITI AISYAH\nAHMAD FAUZI, 54321"}
                 className="flex-1 w-full p-3 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 outline-none uppercase font-semibold text-slate-700 leading-relaxed placeholder-slate-400 resize-none font-mono"
                 autoFocus
               />
@@ -897,48 +831,23 @@ export default function Classes() {
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/50 custom-scrollbar">
               <div 
                 id="printable-cards-container" 
-                className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm max-w-3xl mx-auto min-h-full"
+                className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm max-w-3xl mx-auto"
               >
-                {/* Print-specific CSS block to isolate #printable-cards-container when printing */}
-                <style>{`
-                  @media print {
-                    body * {
-                      visibility: hidden !important;
-                    }
-                    #printable-cards-container, #printable-cards-container * {
-                      visibility: visible !important;
-                    }
-                    #printable-cards-container {
-                      position: absolute !important;
-                      left: 0 !important;
-                      top: 0 !important;
-                      width: 100% !important;
-                      margin: 0 !important;
-                      padding: 0 !important;
-                      border: none !important;
-                      box-shadow: none !important;
-                    }
-                    @page {
-                      size: A4 portrait;
-                      margin: 10mm;
-                    }
-                  }
-                `}</style>
+                {/* Header Ringkasan Cetak */}
+                <div className="border-b pb-3 mb-4 text-center">
+                  <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full text-blue-800 text-[11px] font-bold uppercase mb-1">
+                    <Users className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Total {draftStudents.length} Siswa Terdaftar • Siap Cetak A4</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    Semua kartu otomatis tersusun lengkap ke seluruh halaman (multi-page). Kartu tidak akan terpotong oleh batas halaman.
+                  </p>
+                </div>
 
                 {printLayoutMode === 'cards' ? (
-                  /* MODE KARTU SISWA GRID */
+                  /* MODE KARTU SISWA GRID (PREVIEW) */
                   <div className="space-y-4">
-                    {/* Header Ringkasan Cetak */}
-                    <div className="border-b pb-3 text-center no-print">
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                        PREVIEW KARTU SISWA (SIAP CETAK A4)
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                        Potong sesuai garis putus-putus untuk membagikan kartu ke masing-masing siswa.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 print:grid-cols-2 print:gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                       {draftStudents.map((s, idx) => {
                         const name = getStudentName(s);
                         const pin = getStudentPin(s);
@@ -946,7 +855,7 @@ export default function Classes() {
                         return (
                           <div 
                             key={idx} 
-                            className="border-2 border-dashed border-slate-300 rounded-xl p-3.5 bg-white flex flex-col justify-between relative print:break-inside-avoid print:border-slate-400 shadow-3xs hover:border-blue-300 transition"
+                            className="border-2 border-dashed border-slate-300 rounded-xl p-3.5 bg-white flex flex-col justify-between relative shadow-3xs hover:border-blue-300 transition"
                           >
                             {/* Kop Kartu */}
                             {showKop && (
@@ -1031,9 +940,8 @@ export default function Classes() {
                     </div>
                   </div>
                 ) : (
-                  /* MODE TABEL DAFTAR (DUK) */
+                  /* MODE TABEL DAFTAR (DUK - PREVIEW) */
                   <div className="space-y-5">
-                    {/* Official Kop Surat Header */}
                     {showKop && (
                       <div className="flex items-center justify-between border-b-4 border-double border-slate-900 pb-3 mb-4">
                         <img 
@@ -1091,7 +999,7 @@ export default function Classes() {
                       </tbody>
                     </table>
 
-                    <div className="pt-6 flex justify-between items-end text-xs text-slate-800 print:break-inside-avoid">
+                    <div className="pt-6 flex justify-between items-end text-xs text-slate-800">
                       <div>
                         <p className="font-bold text-[10px] text-slate-500 uppercase">Catatan Pengawas:</p>
                         <p className="text-[10px] text-slate-600">Jaga kerahasiaan Password/PIN peserta ujian.</p>
@@ -1134,13 +1042,250 @@ export default function Classes() {
                   onClick={() => {
                     window.print();
                   }}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center space-x-2 shadow-md hover:shadow-lg"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center space-x-2 shadow-md hover:shadow-lg"
+                  title="Cetak langsung ke printer atau Simpan sebagai file PDF"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Cetak (Print)</span>
+                  <span>Cetak / Simpan PDF ({draftStudents.length} Kartu)</span>
                 </button>
               </div>
             </div>
+
+            {/* Dedicated Top-Level Print Portal directly into document.body for flawless multi-page pagination */}
+            {typeof document !== 'undefined' && createPortal(
+              <div id="exam-cards-print-portal" className="hidden print:block">
+                <style>{`
+                  @media screen {
+                    #exam-cards-print-portal {
+                      display: none !important;
+                    }
+                  }
+                  @media print {
+                    #root {
+                      display: none !important;
+                    }
+                    body > *:not(#exam-cards-print-portal) {
+                      display: none !important;
+                    }
+                    html, body {
+                      margin: 0 !important;
+                      padding: 0 !important;
+                      background: #ffffff !important;
+                      color: #000000 !important;
+                      height: auto !important;
+                      min-height: 0 !important;
+                      overflow: visible !important;
+                    }
+                    @page {
+                      size: A4 portrait;
+                      margin: 8mm 8mm 8mm 8mm;
+                    }
+                    #exam-cards-print-portal {
+                      display: block !important;
+                      position: static !important;
+                      width: 100% !important;
+                      margin: 0 !important;
+                      padding: 0 !important;
+                      background: #ffffff !important;
+                      overflow: visible !important;
+                    }
+                    .print-portal-grid {
+                      display: flex !important;
+                      flex-wrap: wrap !important;
+                      justify-content: space-between !important;
+                      width: 100% !important;
+                    }
+                    .print-portal-card {
+                      width: 48.5% !important;
+                      box-sizing: border-box !important;
+                      break-inside: avoid !important;
+                      page-break-inside: avoid !important;
+                      -webkit-column-break-inside: avoid !important;
+                      margin-bottom: 5mm !important;
+                    }
+                    .print-portal-table {
+                      width: 100% !important;
+                      border-collapse: collapse !important;
+                    }
+                    .print-portal-table thead {
+                      display: table-header-group !important;
+                    }
+                    .print-portal-table tr {
+                      break-inside: avoid !important;
+                      page-break-inside: avoid !important;
+                    }
+                  }
+                `}</style>
+
+                {printLayoutMode === 'cards' ? (
+                  /* DIRECT PRINT CARDS GRID (ALL PAGES) */
+                  <div className="print-portal-grid">
+                    {draftStudents.map((s, idx) => {
+                      const name = getStudentName(s);
+                      const pin = getStudentPin(s);
+
+                      return (
+                        <div 
+                          key={idx} 
+                          className="print-portal-card border-2 border-dashed border-slate-400 rounded-xl p-3 bg-white flex flex-col justify-between"
+                          style={{ minHeight: '62mm' }}
+                        >
+                          {/* Kop Kartu */}
+                          {showKop && (
+                            <div className="flex items-center gap-2 pb-1.5 mb-1.5 border-b-2 border-slate-900">
+                              <img 
+                                src={setting?.schoolLogo || brandLogo} 
+                                alt="Logo Sekolah" 
+                                className="w-8 h-8 object-contain shrink-0" 
+                              />
+                              <div className="min-w-0 flex-1 text-center">
+                                <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-tight leading-tight">
+                                  {setting?.schoolName || 'EXAM PRO PLUS - CBT'}
+                                </h4>
+                                <p className="text-[7.5px] font-bold text-slate-600 uppercase tracking-wider leading-none mt-0.5 truncate">
+                                  {setting?.schoolSlogan || setting?.schoolAddress || 'KARTU LOGIN PESERTA UJIAN'}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Badge Header Kartu */}
+                          <div className="flex items-center justify-center bg-slate-900 text-white px-2 py-0.5 rounded mb-1.5">
+                            <span className="text-[8.5px] font-black tracking-widest uppercase">KARTU PESERTA UJIAN</span>
+                          </div>
+
+                          {/* Details with Photo 2x3 */}
+                          <div className="flex gap-2.5 items-center flex-1">
+                            <div className="w-12 h-16 bg-slate-100 border border-slate-400 rounded overflow-hidden shrink-0 flex items-center justify-center relative">
+                              {getStudentPhoto(s) ? (
+                                <img 
+                                  src={getStudentPhoto(s)!} 
+                                  alt={name} 
+                                  className="w-full h-full object-cover" 
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center justify-center text-slate-400 p-1 text-center">
+                                  <UserCircle className="w-6 h-6 text-slate-300" />
+                                  <span className="text-[6px] font-bold uppercase tracking-tighter leading-none mt-0.5">2x3</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="space-y-1 flex-1 min-w-0">
+                              <div>
+                                <div className="text-[6.5px] font-bold text-slate-500 uppercase tracking-wider">NAMA SISWA</div>
+                                <div className="text-[11px] font-black text-slate-900 uppercase truncate bg-slate-50 border border-slate-300 px-1.5 py-0.5 rounded mt-0.5">
+                                  {name}
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div>
+                                  <div className="text-[6.5px] font-bold text-slate-500 uppercase tracking-wider">KELAS</div>
+                                  <div className="text-[9.5px] font-bold text-slate-800 uppercase bg-slate-50 border border-slate-300 px-1 py-0.5 rounded mt-0.5 truncate">
+                                    {selectedClass.name}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-[6.5px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-0.5">
+                                    <Key className="w-2 h-2" /> PIN
+                                  </div>
+                                  <div className="text-[11px] font-mono font-black text-amber-950 bg-amber-50 border border-amber-400 px-1.5 py-0.5 rounded text-center tracking-widest mt-0.5">
+                                    {pin}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Footer */}
+                          <div className="mt-1.5 pt-1 border-t border-slate-300 flex items-center justify-between text-[7.5px] text-slate-500 font-bold uppercase">
+                            <span>Portal Ujian: /</span>
+                            <span className="flex items-center gap-0.5 text-slate-500">
+                              <Scissors className="w-2.5 h-2.5" /> Gunting di sini
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* DIRECT PRINT TABLE (DUK - ALL PAGES) */
+                  <div>
+                    {showKop && (
+                      <div className="flex items-center justify-between border-b-4 border-double border-slate-900 pb-3 mb-4">
+                        <img 
+                          src={setting?.schoolLogo || brandLogo} 
+                          alt="Logo Sekolah" 
+                          className="w-14 h-14 object-contain shrink-0" 
+                        />
+                        <div className="text-center flex-1 mx-4">
+                          <h2 className="text-sm font-black uppercase text-slate-900 tracking-wider">
+                            {setting?.schoolName || 'EXAM PRO PLUS ASSESSMENT'}
+                          </h2>
+                          <h3 className="text-xs font-extrabold uppercase text-slate-800 mt-0.5">
+                            DAFTAR KARTU LOGIN & CREDENTIALS PESERTA UJIAN
+                          </h3>
+                          <p className="text-[9.5px] font-semibold text-slate-600 mt-0.5">
+                            {setting?.schoolAddress || setting?.schoolSlogan || 'Sistem Penilaian Digital Berbasis Komputer & Mobile'}
+                          </p>
+                        </div>
+                        <div className="w-14 shrink-0 text-right text-[9.5px] font-bold text-slate-500 uppercase">
+                          KELAS<br />
+                          <span className="text-xs font-black text-slate-900">{selectedClass.name}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {!showKop && (
+                      <div className="text-center border-b pb-3 mb-4">
+                        <h2 className="text-sm font-extrabold uppercase text-slate-900">DAFTAR KARTU LOGIN & CREDENTIALS SISWA</h2>
+                        <p className="text-xs font-bold text-slate-600 uppercase">KELAS: {selectedClass.name}</p>
+                      </div>
+                    )}
+
+                    <table className="print-portal-table w-full text-left border border-slate-400">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-900 text-[10px] font-black uppercase tracking-wider">
+                          <th className="border border-slate-400 px-2 py-1.5 text-center w-8">No</th>
+                          <th className="border border-slate-400 px-2 py-1.5">Nama Lengkap Siswa</th>
+                          <th className="border border-slate-400 px-2 py-1.5 text-center w-24">Kelas</th>
+                          <th className="border border-slate-400 px-2 py-1.5 text-center w-28">Password / PIN</th>
+                          <th className="border border-slate-400 px-2 py-1.5 text-center w-28">Tanda Tangan</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {draftStudents.map((s, i) => (
+                          <tr key={i} className="border-b border-slate-300">
+                            <td className="border border-slate-300 px-2 py-1.5 text-center text-[10px] font-semibold text-slate-600">{i + 1}</td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-[10px] font-bold text-slate-900 uppercase">{getStudentName(s)}</td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center text-[10px] font-semibold text-slate-700 uppercase">{selectedClass.name}</td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center text-[10px] font-mono font-black text-amber-950 bg-amber-50/50">{getStudentPin(s)}</td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center text-[9px] text-slate-400">
+                              {i + 1}. ....................
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <div className="pt-5 flex justify-between items-end text-xs text-slate-800" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+                      <div>
+                        <p className="font-bold text-[9px] text-slate-500 uppercase">Catatan Pengawas:</p>
+                        <p className="text-[9px] text-slate-600">Jaga kerahasiaan Password/PIN peserta ujian.</p>
+                      </div>
+                      <div className="text-center font-semibold">
+                        <p className="text-[9px] uppercase font-bold text-slate-600">Pengawas / Guru Mata Pelajaran</p>
+                        <div className="h-10"></div>
+                        <p className="font-black underline text-slate-900 uppercase text-[10px]">( ............................................ )</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>,
+              document.body
+            )}
 
           </div>
         </div>

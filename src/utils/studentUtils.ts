@@ -9,13 +9,16 @@ export const getStudentName = (item: string | StudentRecord | undefined | null):
   return (item.name || '').trim().toUpperCase();
 };
 
+export const DEFAULT_STUDENT_PIN = '12345';
+
+
 /**
- * Retrieves the PIN/Password for a student record. Defaults to '1234' if unassigned.
+ * Retrieves the PIN/Password for a student record. Defaults to '12345' if unassigned.
  */
 export const getStudentPin = (item: string | StudentRecord | undefined | null): string => {
-  if (!item) return '1234';
-  if (typeof item === 'string') return '1234';
-  return (item.pin || '1234').trim();
+  if (!item) return DEFAULT_STUDENT_PIN;
+  if (typeof item === 'string') return DEFAULT_STUDENT_PIN;
+  return (item.pin || DEFAULT_STUDENT_PIN).trim();
 };
 
 /**
@@ -51,10 +54,17 @@ export const getStudentPhoto = (item: string | StudentRecord | undefined | null)
 };
 
 /**
- * Generates a random 4-digit numeric PIN.
+ * Generates the default PIN (12345).
  */
 export const generateDefaultPin = (): string => {
-  return Math.floor(1000 + Math.random() * 9000).toString();
+  return DEFAULT_STUDENT_PIN;
+};
+
+/**
+ * Generates a random 5-digit numeric PIN.
+ */
+export const generateRandomPin = (): string => {
+  return Math.floor(10000 + Math.random() * 90000).toString();
 };
 
 /**
@@ -63,11 +73,11 @@ export const generateDefaultPin = (): string => {
 export const normalizeStudentRecord = (item: string | StudentRecord): StudentRecord => {
   if (typeof item === 'string') {
     const trimmed = item.trim().toUpperCase();
-    return { name: trimmed, pin: generateDefaultPin() };
+    return { name: trimmed, pin: DEFAULT_STUDENT_PIN };
   }
   return {
     name: (item.name || '').trim().toUpperCase(),
-    pin: (item.pin || generateDefaultPin()).trim(),
+    pin: (item.pin || DEFAULT_STUDENT_PIN).trim(),
     nisn: item.nisn ? item.nisn.trim() : undefined,
     photo: item.photo ? item.photo.trim() : undefined
   };
@@ -76,27 +86,27 @@ export const normalizeStudentRecord = (item: string | StudentRecord): StudentRec
 /**
  * Parses raw input text (e.g. from single or bulk input) into a StudentRecord.
  * Format examples:
- * "BUDI SETIAWAN" -> name: BUDI SETIAWAN, pin: random
- * "BUDI SETIAWAN, 4812" -> name: BUDI SETIAWAN, pin: 4812
- * "BUDI SETIAWAN, 4812, https://..." -> name: BUDI SETIAWAN, pin: 4812, photo: url
+ * "BUDI SETIAWAN" -> name: BUDI SETIAWAN, pin: '12345' (default)
+ * "BUDI SETIAWAN, 48123" -> name: BUDI SETIAWAN, pin: '48123'
+ * "BUDI SETIAWAN, 48123, https://..." -> name: BUDI SETIAWAN, pin: 48123, photo: url
  */
 export const parseStudentInput = (raw: string): StudentRecord => {
   const parts = raw.split(',').map(p => p.trim());
   if (parts.length >= 3 && parts[1]) {
     return {
       name: parts[0].toUpperCase(),
-      pin: parts[1],
+      pin: parts[1] || DEFAULT_STUDENT_PIN,
       photo: parts[2]
     };
   }
   if (parts.length >= 2 && parts[1]) {
     return {
       name: parts[0].toUpperCase(),
-      pin: parts[1]
+      pin: parts[1] || DEFAULT_STUDENT_PIN
     };
   }
   return {
     name: raw.toUpperCase(),
-    pin: generateDefaultPin()
+    pin: DEFAULT_STUDENT_PIN
   };
 };
