@@ -47,7 +47,7 @@ service cloud.firestore {
     match /classes/{classId} {
       allow read: if true; // Publicly readable for students to select class
       allow create: if isAdmin() && incoming().adminId == request.auth.uid;
-      allow update, delete: if isAdmin() && existing().adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && (existing().adminId == request.auth.uid || !('adminId' in existing()) || existing().adminId == null || existing().adminId == '');
     }
 
     // Settings Collection

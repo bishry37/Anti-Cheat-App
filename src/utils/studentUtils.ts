@@ -54,17 +54,17 @@ export const getStudentPhoto = (item: string | StudentRecord | undefined | null)
 };
 
 /**
- * Generates the default PIN (12345).
- */
-export const generateDefaultPin = (): string => {
-  return DEFAULT_STUDENT_PIN;
-};
-
-/**
  * Generates a random 5-digit numeric PIN.
  */
 export const generateRandomPin = (): string => {
   return Math.floor(10000 + Math.random() * 90000).toString();
+};
+
+/**
+ * Generates a default PIN (random 5-digit PIN).
+ */
+export const generateDefaultPin = (): string => {
+  return generateRandomPin();
 };
 
 /**
@@ -73,21 +73,21 @@ export const generateRandomPin = (): string => {
 export const normalizeStudentRecord = (item: string | StudentRecord): StudentRecord => {
   if (typeof item === 'string') {
     const trimmed = item.trim().toUpperCase();
-    return { name: trimmed, pin: DEFAULT_STUDENT_PIN };
+    return { name: trimmed, pin: generateRandomPin() };
   }
   return {
     name: (item.name || '').trim().toUpperCase(),
-    pin: (item.pin || DEFAULT_STUDENT_PIN).trim(),
+    pin: (item.pin || generateRandomPin()).trim(),
     nisn: item.nisn ? item.nisn.trim() : undefined,
     photo: item.photo ? item.photo.trim() : undefined
   };
 };
 
 /**
- * Parses raw input text (e.g. from single or bulk input) into a StudentRecord.
+ * Parses raw input text (e.g. from bulk input) into a StudentRecord.
  * Format examples:
- * "BUDI SETIAWAN" -> name: BUDI SETIAWAN, pin: '12345' (default)
- * "BUDI SETIAWAN, 48123" -> name: BUDI SETIAWAN, pin: '48123'
+ * "BUDI SETIAWAN" -> name: BUDI SETIAWAN, pin: random 5-digit PIN
+ * "BUDI SETIAWAN, 48123" -> name: BUDI SETIAWAN, pin: 48123
  * "BUDI SETIAWAN, 48123, https://..." -> name: BUDI SETIAWAN, pin: 48123, photo: url
  */
 export const parseStudentInput = (raw: string): StudentRecord => {
@@ -95,18 +95,18 @@ export const parseStudentInput = (raw: string): StudentRecord => {
   if (parts.length >= 3 && parts[1]) {
     return {
       name: parts[0].toUpperCase(),
-      pin: parts[1] || DEFAULT_STUDENT_PIN,
+      pin: parts[1] || generateRandomPin(),
       photo: parts[2]
     };
   }
   if (parts.length >= 2 && parts[1]) {
     return {
       name: parts[0].toUpperCase(),
-      pin: parts[1] || DEFAULT_STUDENT_PIN
+      pin: parts[1] || generateRandomPin()
     };
   }
   return {
     name: raw.toUpperCase(),
-    pin: DEFAULT_STUDENT_PIN
+    pin: generateRandomPin()
   };
 };

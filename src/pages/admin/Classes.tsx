@@ -230,16 +230,6 @@ export default function Classes() {
     await saveStudentList(combined);
   };
 
-  const handleGenerateAllPins = async () => {
-    if (!selectedClass?.id || draftStudents.length === 0) return;
-    const updated = draftStudents.map(s => {
-      const rec = normalizeStudentRecord(s);
-      rec.pin = generateRandomPin();
-      return rec;
-    });
-    await saveStudentList(updated);
-    showToast('PIN semua siswa berhasil diacak ulang!');
-  };
 
   const handleRemoveStudent = async (studentItem: string | StudentRecord) => {
     const targetName = getStudentName(studentItem);
@@ -447,7 +437,7 @@ export default function Classes() {
                 </div>
 
                 {/* Action Toolbar (Single Student Add Removed per User Request) */}
-                <div className="p-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2.5 shrink-0 bg-white">
+                <div className="p-3.5 border-b border-slate-100 flex items-center justify-between gap-2.5 shrink-0 bg-white">
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -458,19 +448,6 @@ export default function Classes() {
                       <span>Impor Banyak Siswa (Bulk)</span>
                     </button>
                   </div>
-
-                  {draftStudents.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleGenerateAllPins}
-                      disabled={processing}
-                      className="text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100/90 border border-amber-200/90 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50"
-                      title="Acak password/PIN baru untuk semua siswa di kelas ini"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Acak PIN Semua Siswa</span>
-                    </button>
-                  )}
                 </div>
 
                 {/* Student List Search Header */}
@@ -718,13 +695,13 @@ export default function Classes() {
             <div className="p-5 flex-1 flex flex-col min-h-0 bg-slate-50/30">
               <p className="text-[11px] text-slate-600 uppercase font-semibold tracking-wide mb-2.5">
                 Contoh Input: <br />
-                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800 font-mono">BUDI SETIAWAN</code> (Password default otomatis: 12345)<br />
-                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800 font-mono">ANI SETYAWATI, 98765</code> (Password kustom)
+                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800 font-mono">IMAM BISHRY NURYAYI</code> (Password dibuat acak otomatis)<br />
+                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800 font-mono">AI NUR ROIAH, 98765</code> (Password kustom)
               </p>
               <textarea
                 value={bulkInput}
                 onChange={(e) => setBulkInput(e.target.value)}
-                placeholder={"BUDI SETIAWAN\nANI SETYAWATI\nSITI AISYAH\nAHMAD FAUZI, 54321"}
+                placeholder={"IMAM BISHRY NURYAYI\nAI NUR ROIAH\nAI NUR ROIAH, 54321"}
                 className="flex-1 w-full p-3 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 outline-none uppercase font-semibold text-slate-700 leading-relaxed placeholder-slate-400 resize-none font-mono"
                 autoFocus
               />
