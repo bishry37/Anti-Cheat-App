@@ -10,6 +10,7 @@ import { useBlocker } from 'react-router-dom';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType, VerticalMergeType } from 'docx';
 import * as mammoth from 'mammoth';
 import { formatHTML } from '../../utils/textFormat';
+import { renderMathInContainers } from '../../utils/mathRenderer';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -217,29 +218,16 @@ export default function QuestionBank() {
   }, [selectedSubject, selectedTemplateFilter]);
 
   useEffect(() => {
-    // Run math rendering on all elements with ql-editor class
-    const containers = document.querySelectorAll('.ql-editor');
-    containers.forEach(container => {
-      try {
-        // Render Quill formulas
-        const formulas = container.querySelectorAll('.ql-formula');
-        formulas.forEach(f => {
-          const tex = f.getAttribute('data-value');
-          if (tex) {
-            katex.render(tex, f as HTMLElement, { throwOnError: false, displayMode: false });
-          }
-        });
-        
-        // Also look for standard delimiters if any
-        const text = container.innerHTML;
-        if (text.includes('$') || text.includes('\\(') || text.includes('\\[')) {
-          // Note: for full auto-render we might need the extension, 
-          // but for now let's focus on Quill's output which is most common here.
-        }
-      } catch (e) {
-        console.warn('KaTeX rendering failed', e);
-      }
-    });
+    const render = () => {
+      renderMathInContainers('.ql-editor');
+    };
+    render();
+    const frameId = requestAnimationFrame(render);
+    const timerId = setTimeout(render, 50);
+    return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(timerId);
+    };
   }, [questions, editingData, addingData, selectedTemplateFilter]);
 
   const fetchExistingTemplates = async () => {

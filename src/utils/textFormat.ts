@@ -1,6 +1,8 @@
+import { wrapBareLaTeX } from './mathRenderer';
+
 export const formatHTML = (text: string | undefined | null): string => {
   if (!text) return '';
-  const str = String(text);
+  const str = wrapBareLaTeX(String(text));
   
   // If the text appears to already contain HTML formatting (e.g. from Quill)
   if (/<[a-z][\s\S]*>/i.test(str)) {

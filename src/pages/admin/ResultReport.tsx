@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatHTML, calculateSmartPoints, normalizeTextForGrading } from '../../utils/textFormat';
 import { deduplicateStudentSessions } from '../../utils/sessionUtils';
+import { renderMathInContainers } from '../../utils/mathRenderer';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -315,21 +316,16 @@ export default function ResultReport() {
   }, [filterExam, filterClass, user, dummyTrigger]);
 
   useEffect(() => {
-    // Run math rendering on all elements with ql-editor class
-    const containers = document.querySelectorAll('.ql-editor');
-    containers.forEach(container => {
-      try {
-        const formulas = container.querySelectorAll('.ql-formula');
-        formulas.forEach(f => {
-          const tex = f.getAttribute('data-value');
-          if (tex) {
-            katex.render(tex, f as HTMLElement, { throwOnError: false, displayMode: false });
-          }
-        });
-      } catch (e) {
-        console.warn('KaTeX rendering failed', e);
-      }
-    });
+    const render = () => {
+      renderMathInContainers('.ql-editor');
+    };
+    render();
+    const frameId = requestAnimationFrame(render);
+    const timerId = setTimeout(render, 50);
+    return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(timerId);
+    };
   }, [selectedSession, sessions, exams, sessionQuestions]);
 
   const fetchClasses = async () => {

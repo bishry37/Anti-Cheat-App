@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { formatHTML, calculateSmartPoints } from '../../utils/textFormat';
 import { getAudioSourceUrls, formatAudioSrc } from '../../lib/audioUtils';
+import { renderMathInContainers } from '../../utils/mathRenderer';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -1061,21 +1062,19 @@ export default function StudentExam() {
   const currentQ = questions[currentQuestionIndex];
 
   useEffect(() => {
-    // Run math rendering on current question and options
-    const containers = document.querySelectorAll('.ql-editor');
-    containers.forEach(container => {
-      try {
-        const formulas = container.querySelectorAll('.ql-formula');
-        formulas.forEach(f => {
-          const tex = f.getAttribute('data-value');
-          if (tex) {
-            katex.render(tex, f as HTMLElement, { throwOnError: false, displayMode: false });
-          }
-        });
-      } catch (e) {
-        console.warn('KaTeX rendering failed', e);
-      }
-    });
+    // Run comprehensive math rendering on current question and options
+    const render = () => {
+      renderMathInContainers('.ql-editor');
+    };
+
+    render();
+    const frameId = requestAnimationFrame(render);
+    const timerId = setTimeout(render, 50);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(timerId);
+    };
   }, [currentQuestionIndex, questions, currentQ]);
 
   if (loadError) {
@@ -1316,11 +1315,6 @@ export default function StudentExam() {
             <div className="flex items-center bg-slate-800 text-white px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider shadow-3xs">
               {session.className}
             </div>
-            {session.packetName && (
-              <div className="flex items-center bg-purple-600 text-white px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider shadow-3xs" title="Paket Soal yang Ditugaskan">
-                Paket: {session.packetName}
-              </div>
-            )}
             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight ml-1 mr-2">
               {subjectName}
             </span>

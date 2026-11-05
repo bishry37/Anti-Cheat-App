@@ -21,6 +21,7 @@ export default function ExamMonitor() {
   const [filterStatus, setFilterStatus] = useState<string>('online');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterExam, setFilterExam] = useState<string>('');
+  const [filterPacket, setFilterPacket] = useState<string>('');
 
   // Detail Modal
   const [selectedSession, setSelectedSession] = useState<StudentSession | null>(null);
@@ -208,6 +209,12 @@ export default function ExamMonitor() {
       // 1b. Exam filter
       if (filterExam && s.examId !== filterExam) return false;
 
+      // 1c. Packet filter
+      if (filterPacket) {
+        const studentPkt = s.packetName || exams[s.examId]?.packetName;
+        if (studentPkt !== filterPacket) return false;
+      }
+
       // 2. Status filter
       if (filterStatus) {
         if (filterStatus === 'online') {
@@ -262,6 +269,33 @@ export default function ExamMonitor() {
       }
       return acc;
     }, []);
+
+  // Available packets in current session list or selected exam
+  const availablePackets = React.useMemo(() => {
+    const pkts = new Set<string>();
+    if (filterExam && exams[filterExam]?.packetNames) {
+      exams[filterExam].packetNames?.forEach(p => pkts.add(p));
+    }
+    sessions.forEach(s => {
+      if (filterClass && s.className !== filterClass) return;
+      if (filterExam && s.examId !== filterExam) return;
+      const p = s.packetName || exams[s.examId]?.packetName;
+      if (p) pkts.add(p);
+    });
+    return Array.from(pkts).sort();
+  }, [sessions, filterExam, filterClass, exams]);
+
+  // Packet distribution tally for the live header
+  const packetDistribution = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredSessions.forEach(s => {
+      const pkt = s.packetName || exams[s.examId]?.packetName;
+      if (pkt) {
+        counts[pkt] = (counts[pkt] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [filteredSessions, exams]);
 
   const openMonitor = async (session: StudentSession) => {
     setSelectedSession(session);
@@ -591,6 +625,20 @@ export default function ExamMonitor() {
                 ))}
              </select>
 
+             {/* Packet Filter Dropdown (Filter Paket Soal) */}
+             {availablePackets.length > 0 && (
+                <select
+                   value={filterPacket}
+                   onChange={(e) => setFilterPacket(e.target.value)}
+                   className="bg-purple-50 border border-purple-200 hover:border-purple-300 text-purple-700 text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer transition-all"
+                >
+                   <option value="">Semua Paket ({availablePackets.length})</option>
+                   {availablePackets.map(pkt => (
+                      <option key={pkt} value={pkt}>{pkt}</option>
+                   ))}
+                </select>
+             )}
+
              {/* Clear Finished History Button */}
              <button 
                 onClick={triggerClearHistory}
@@ -603,11 +651,12 @@ export default function ExamMonitor() {
              </button>
 
              {/* Reset Filter Button */}
-             {(searchQuery || filterClass || filterStatus !== 'online' || filterExam) && (
+             {(searchQuery || filterClass || filterStatus !== 'online' || filterExam || filterPacket) && (
                 <button 
                   onClick={() => {
                      setFilterClass('');
                      setFilterExam('');
+                     setFilterPacket('');
                      setFilterStatus('online');
                      setSearchQuery('');
                   }}
@@ -657,14 +706,23 @@ export default function ExamMonitor() {
             transition={{ duration: 0.08, ease: "linear" }}
             className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col flex-1 overflow-hidden"
           >
-            <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between sticky top-0 z-20">
+            <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between sticky top-0 z-20 flex-wrap gap-2">
                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                  <LayoutGrid className="w-3 h-3" />
                  {`MONITORING KELAS ${filterClass ? filterClass.toUpperCase() : 'SEMUA'} - ${filterExam && exams[filterExam] ? exams[filterExam].title.toUpperCase() : 'SEMUA UJIAN'}`}
                </span>
-               <span className="text-[10px] font-bold text-indigo-600 bg-white px-2 py-0.5 rounded border border-indigo-100 shadow-sm">
-                 {filteredSessions.length} Terdeteksi
-               </span>
+               <div className="flex items-center gap-1.5 flex-wrap">
+                 {Object.entries(packetDistribution).map(([pName, pCount]) => (
+                   <span key={pName} className="text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded shadow-3xs flex items-center gap-1">
+                     <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                     <span className="font-semibold text-slate-500">{pName}:</span>
+                     <span className="font-black text-purple-700">{pCount}</span>
+                   </span>
+                 ))}
+                 <span className="text-[10px] font-bold text-indigo-600 bg-white px-2 py-0.5 rounded border border-indigo-100 shadow-sm">
+                   {filteredSessions.length} Terdeteksi
+                 </span>
+               </div>
             </div>
             
             <div className="overflow-auto flex-1">
@@ -674,6 +732,7 @@ export default function ExamMonitor() {
                     <th className="px-6 py-4 w-12 text-center">No</th>
                     <th className="px-4 py-4">Peserta</th>
                     <th className="px-4 py-4 text-center">Kelas</th>
+                    <th className="px-4 py-4 text-center">Paket Soal</th>
                     <th className="px-4 py-4">Data Ujian</th>
                     <th className="px-4 py-4 text-center">Sisa Waktu</th>
                     <th className="px-4 py-4 text-center">Status Keamanan</th>
@@ -684,7 +743,7 @@ export default function ExamMonitor() {
                 <tbody className="text-xs">
                   {filteredSessions.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-24 text-center bg-slate-50/20">
+                      <td colSpan={9} className="px-4 py-24 text-center bg-slate-50/20">
                         <div className="flex flex-col items-center justify-center space-y-2 py-6">
                            <Users className="w-8 h-8 text-slate-350 animate-pulse" />
                            <p className="font-extrabold text-slate-500 uppercase tracking-tight text-xs">Belum Ada Peserta</p>
@@ -705,14 +764,28 @@ export default function ExamMonitor() {
                           <td className="px-6 py-4 text-center text-slate-300 font-mono text-[11px]">{idx + 1}</td>
                           <td className="px-4 py-4">
                             <div className="font-bold text-slate-800 text-sm">{s.studentName}</div>
-                            {s.packetName && (
-                              <span className="inline-block mt-0.5 text-[9px] font-bold text-purple-700 bg-purple-50 border border-purple-200/80 px-1.5 py-0.2 rounded uppercase tracking-wider">
-                                {s.packetName}
-                              </span>
-                            )}
                           </td>
                           <td className="px-4 py-4 text-center">
                             <div className="text-[10px] font-bold text-slate-500 bg-slate-100 inline-block px-1.5 rounded uppercase">{s.className}</div>
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            {(() => {
+                              const pkt = s.packetName || exams[s.examId]?.packetName;
+                              if (!pkt) return <span className="text-slate-300 font-mono text-xs">-</span>;
+                              
+                              const pLower = pkt.toLowerCase();
+                              let colorClass = 'bg-purple-100 text-purple-800 border-purple-200';
+                              if (pLower.includes('a')) colorClass = 'bg-indigo-100 text-indigo-800 border-indigo-200';
+                              else if (pLower.includes('b')) colorClass = 'bg-blue-100 text-blue-800 border-blue-200';
+                              else if (pLower.includes('c')) colorClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+                              else if (pLower.includes('d')) colorClass = 'bg-amber-100 text-amber-800 border-amber-200';
+
+                              return (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-extrabold uppercase tracking-wide border shadow-3xs ${colorClass}`}>
+                                  {pkt}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="px-4 py-4">
                              <div className="font-bold text-slate-600 text-[11px] line-clamp-1 mb-0.5">{exams[s.examId]?.title || 'Unknown Exam'}</div>

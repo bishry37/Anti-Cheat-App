@@ -81,3 +81,26 @@
   }
   --animate-pulse-subtle: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Enhanced styling for KaTeX math formulas */
+.katex {
+  font-size: 1.12em;
+  text-rendering: auto;
+  line-height: 1.2;
+}
+
+.katex-display {
+  margin: 0.75em 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.35em 0;
+  text-align: center;
+}
+
+.katex-display > .katex {
+  font-size: 1.2em;
+}
+
+.katex-html {
+  white-space: normal;
+}
