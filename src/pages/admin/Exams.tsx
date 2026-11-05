@@ -46,6 +46,7 @@ export default function Exams() {
     autoResetInterval: 'manual',
     randomizeQuestions: false,
     showScoreToStudent: false,
+    requireStudentPassword: true,
     maxViolations: 3
   });
 
@@ -271,6 +272,7 @@ export default function Exams() {
         autoResetInterval: formData.autoResetInterval || 'manual',
         randomizeQuestions: !!formData.randomizeQuestions,
         showScoreToStudent: !!formData.showScoreToStudent,
+        requireStudentPassword: formData.requireStudentPassword !== false,
         maxViolations: formData.maxViolations !== undefined ? Number(formData.maxViolations) : 3,
         isRandomPacket: !!formData.isRandomPacket,
         packetNames: selectedPackets,
@@ -338,7 +340,8 @@ export default function Exams() {
       ...exam,
       isRandomPacket: hasMulti,
       packetNames: exam.packetNames || (exam.packetName ? [exam.packetName] : []),
-      packageDistributionMode: exam.packageDistributionMode || 'round_robin'
+      packageDistributionMode: exam.packageDistributionMode || 'round_robin',
+      requireStudentPassword: exam.requireStudentPassword !== false
     });
     setIsAdding(true);
   };
@@ -359,6 +362,7 @@ export default function Exams() {
       targetClass: '',
       randomizeQuestions: false,
       showScoreToStudent: false,
+      requireStudentPassword: true,
       maxViolations: 3
     });
   };
@@ -789,6 +793,14 @@ export default function Exams() {
                             <input type="checkbox" className="sr-only peer" checked={formData.showScoreToStudent || false} onChange={e => setFormData({...formData, showScoreToStudent: e.target.checked})} />
                             <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
                             <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Izinkan Siswa Melihat Skor Akhir</span>
+                          </label>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <label className="relative inline-flex items-center cursor-pointer font-sans select-none">
+                            <input type="checkbox" className="sr-only peer" checked={formData.requireStudentPassword !== false} onChange={e => setFormData({...formData, requireStudentPassword: e.target.checked})} />
+                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
+                            <span className="ml-2 text-xs font-bold text-slate-700 uppercase">Wajibkan Password / PIN Siswa</span>
                           </label>
                         </div>
                       </div>

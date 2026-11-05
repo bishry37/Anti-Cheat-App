@@ -4,10 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { collection, query, where, getDocs, doc, setDoc, updateDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { Setting, Subject, Exam, StudentSession } from '../types';
-import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2, Key, Info } from 'lucide-react';
+import { Setting, Subject, Exam, StudentSession, StudentRecord } from '../types';
+import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2, Key, Info, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import brandLogo from '../assets/images/logo1.png';
+import { getStudentName, getStudentPin } from '../utils/studentUtils';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -41,11 +42,14 @@ export default function Home() {
 
   // Form State
   const [studentName, setStudentName] = useState('');
+  const [studentPassword, setStudentPassword] = useState('');
+  const [showStudentPassword, setShowStudentPassword] = useState(false);
   const [examToken, setExamToken] = useState('');
   const [isLoggingInStudent, setIsLoggingInStudent] = useState(false);
   
   // Student selection dropdown state
   const [availableStudents, setAvailableStudents] = useState<string[]>([]);
+  const [rawStudentRecords, setRawStudentRecords] = useState<(string | StudentRecord)[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchDropdownQuery, setSearchDropdownQuery] = useState('');
   
@@ -103,10 +107,11 @@ export default function Home() {
     matchingActiveExam && (!linkedExam || matchingActiveExam.id === linkedExam.id)
   );
 
-  // Automatically reset studentName and close dropdown if token becomes invalid/inactive
+  // Automatically reset studentName, studentPassword, and close dropdown if token becomes invalid/inactive
   useEffect(() => {
     if (!isTokenValidAndActive) {
       setStudentName('');
+      setStudentPassword('');
       setIsDropdownOpen(false);
       setSearchDropdownQuery('');
     }
@@ -309,16 +314,21 @@ export default function Home() {
 
         if (bestDoc) {
           const classData = bestDoc.data();
-          const students = (classData.students || []) as string[];
-          setAvailableStudents([...students].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })));
+          const rawStudents = (classData.students || []) as (string | StudentRecord)[];
+          setRawStudentRecords(rawStudents);
+          const studentNames = rawStudents.map(s => getStudentName(s));
+          setAvailableStudents([...studentNames].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })));
         } else {
+          setRawStudentRecords([]);
           setAvailableStudents([]);
         }
       }).catch((err) => {
         console.error("Gagal mengambil siswa:", err);
+        setRawStudentRecords([]);
         setAvailableStudents([]);
       });
     } else {
+      setRawStudentRecords([]);
       setAvailableStudents([]);
     }
   }, [isTokenValidAndActive, matchingActiveExam]);
@@ -396,6 +406,42 @@ export default function Home() {
     }
 
     const matchingExam = matchingExamByToken;
+
+    // Validate Student Password / PIN if required for this exam schedule
+    const isPinRequired = matchingExam.requireStudentPassword !== false;
+    if (isPinRequired) {
+      if (!studentPassword || !studentPassword.trim()) {
+        setErrorMessage('Harap masukkan Password / PIN Siswa.');
+        return;
+      }
+
+      let targetRecord: string | StudentRecord | undefined;
+      if (rawStudentRecords.length > 0) {
+        targetRecord = rawStudentRecords.find(s => getStudentName(s) === upperName);
+      }
+
+      if (!targetRecord && matchingExam.targetClass) {
+        try {
+          const snap = await getDocs(collection(db, 'classes'));
+          for (const d of snap.docs) {
+            const cData = d.data();
+            if ((cData.name || '').trim().toLowerCase() === (matchingExam.targetClass || '').trim().toLowerCase()) {
+              const students = (cData.students || []) as (string | StudentRecord)[];
+              targetRecord = students.find(s => getStudentName(s) === upperName);
+              if (targetRecord) break;
+            }
+          }
+        } catch (err) {
+          console.error("Gagal verifikasi PIN dari database kelas:", err);
+        }
+      }
+
+      const expectedPin = getStudentPin(targetRecord);
+      if (studentPassword.trim() !== expectedPin.trim()) {
+        setErrorMessage('Password / PIN Siswa salah. Silakan periksa kembali PIN Anda.');
+        return;
+      }
+    }
 
     try {
       setLoading(true);
@@ -934,11 +980,46 @@ export default function Home() {
                       </div>
                     )}
                   </div>
+
+                  {/* Password / PIN Siswa Input */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className={`block text-xs font-bold uppercase tracking-wider transition-colors ${!isTokenValidAndActive || !studentName ? 'text-slate-400' : 'text-slate-700'}`}>
+                        Password / PIN Siswa
+                      </label>
+                    </div>
+                    <div className="relative">
+                      <KeyRound className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${!isTokenValidAndActive || !studentName ? 'text-slate-300' : 'text-amber-500'}`} />
+                      <input 
+                        type={showStudentPassword ? "text" : "password"}
+                        disabled={!isTokenValidAndActive || !studentName}
+                        value={studentPassword}
+                        onChange={(e) => setStudentPassword(e.target.value)}
+                        placeholder={!isTokenValidAndActive || !studentName ? "PILIH NAMA TERLEBIH DAHULU..." : "MASUKKAN PIN (4 DIGIT)..."}
+                        className={`w-full pl-11 pr-11 py-3.5 border rounded-xl outline-none transition-all font-mono font-bold text-xs tracking-wider placeholder:font-sans placeholder:tracking-normal ${
+                          !isTokenValidAndActive || !studentName
+                            ? 'bg-slate-100/90 border-slate-200 text-slate-400 cursor-not-allowed select-none opacity-70'
+                            : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white'
+                        }`}
+                        maxLength={12}
+                      />
+                      {isTokenValidAndActive && studentName && (
+                        <button
+                          type="button"
+                          onClick={() => setShowStudentPassword(!showStudentPassword)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                          title={showStudentPassword ? "Sembunyikan PIN" : "Tampilkan PIN"}
+                        >
+                          {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <button 
                   type="submit"
-                  disabled={loading || !isTokenValidAndActive || !studentName.trim()}
+                  disabled={loading || !isTokenValidAndActive || !studentName.trim() || !studentPassword.trim()}
                   className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (

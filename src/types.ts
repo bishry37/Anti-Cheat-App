@@ -20,11 +20,17 @@ export interface Subject {
   createdAt: number;
 }
 
+export interface StudentRecord {
+  name: string;
+  pin?: string;
+  nisn?: string;
+}
+
 export interface Class {
   id?: string;
   adminId?: string;
   name: string;
-  students?: string[];
+  students?: (string | StudentRecord)[];
   createdAt: number;
 }
 
@@ -85,6 +91,7 @@ export interface Exam {
   shortCode?: string;
   randomizeQuestions?: boolean;
   showScoreToStudent?: boolean;
+  requireStudentPassword?: boolean;
   maxViolations?: number;
 }
 
