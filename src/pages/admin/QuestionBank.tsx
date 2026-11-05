@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useBlocker } from 'react-router-dom';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType, VerticalMergeType } from 'docx';
 import * as mammoth from 'mammoth';
+import { preprocessDocxMath } from '../../utils/docxMathPreprocessor';
 import { formatHTML } from '../../utils/textFormat';
 import { renderMathInContainers } from '../../utils/mathRenderer';
 import katex from 'katex';
@@ -399,6 +400,13 @@ export default function QuestionBank() {
                       new TextRun({ text: " : Untuk tipe soal ", size: 18 }),
                       new TextRun({ text: "Paragraf / Essay (Kunci Jawaban sebagai acuan koreksi)", bold: true, size: 18 })
                     ]
+                  }),
+                  new Paragraph({
+                    spacing: { before: 20, after: 20 },
+                    children: [
+                      new TextRun({ text: "• Rumus Matematika: ", bold: true, size: 18, color: "059669" }),
+                      new TextRun({ text: "Tuliskan langsung menggunakan Equation Editor Word (Insert > Equation / Alt +=) seperti pecahan, akar, pangkat, dll. Sistem otomatis mendeteksi dan merendernya dengan rapi ke siswa.", size: 18 })
+                    ]
                   })
                 ]
               })
@@ -773,10 +781,13 @@ export default function QuestionBank() {
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
-        const arrayBuffer = evt.target?.result as ArrayBuffer;
-        if (!arrayBuffer) {
+        const rawBuffer = evt.target?.result as ArrayBuffer;
+        if (!rawBuffer) {
           throw new Error("File array buffer is empty");
         }
+        
+        // Preprocess Word docx to convert native Word Equation Editor (OMML) formulas into LaTeX
+        const arrayBuffer = await preprocessDocxMath(rawBuffer);
         
         const result = await (mammoth as any).convertToHtml(
           { arrayBuffer },

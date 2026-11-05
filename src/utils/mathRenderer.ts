@@ -9,12 +9,27 @@ export const wrapBareLaTeX = (content: string | null | undefined): string => {
   if (!content) return '';
   const str = String(content);
   
-  // Replace bare common math commands like \frac{...}{...}, \sqrt{...}, \cbrt{...}, \sum, \int, \lim
-  // that do not have $ before or after them
-  return str.replace(
+  // Protect already-delimited math blocks: \(...\), \[...\], $$...$$, and $...$
+  const preserved: string[] = [];
+  const maskToken = '___PRESERVED_MATH_BLOCK_';
+  
+  const masked = str.replace(
+    /(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$\$[\s\S]*?\$\$|(?<!\\)\$[^$\n]+?(?<!\\)\$)/g,
+    (match) => {
+      const idx = preserved.length;
+      preserved.push(match);
+      return `${maskToken}${idx}___`;
+    }
+  );
+  
+  // Replace bare common math commands like \frac{...}{...}, \sqrt{...}, etc.
+  const wrapped = masked.replace(
     /(?<![\$\\\w])(\\(?:frac|sqrt|cbrt|sum|int|lim|prod)\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}(?:\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})?)(?![\$])/g,
     '$$$1$$'
   );
+  
+  // Restore preserved blocks
+  return wrapped.replace(/___PRESERVED_MATH_BLOCK_(\d+)___/g, (_, idx) => preserved[Number(idx)] || '');
 };
 
 /**
