@@ -1094,17 +1094,27 @@ export default function ResultReport() {
                               <p className="text-sm font-bold text-emerald-800 mt-0.5">{q.correctAnswer || '-'}</p>
                             </div>
                             <div className="flex items-center gap-2 mt-3 mb-4">
-                              {normalizeTextForGrading(studentAns) === normalizeTextForGrading(q.correctAnswer) ? (
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
-                                  <Check className="w-3.5 h-3.5" />
-                                  <span>Automatis: Benar (+{weight} Poin)</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded-full border border-red-100">
-                                  <X className="w-3.5 h-3.5" />
-                                  <span>Automatis: Salah (0 Poin)</span>
-                                </div>
-                              )}
+                              {(() => {
+                                const smartPoints = calculateSmartPoints(studentAns, q.correctAnswer, weight);
+                                const isFull = smartPoints === weight;
+                                const isPartial = smartPoints > 0 && !isFull;
+                                return isFull ? (
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Sistem Pintar: Benar (+{weight} Poin)</span>
+                                  </div>
+                                ) : isPartial ? (
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Sistem Pintar: Sebagian Benar (+{smartPoints} Poin)</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded-full border border-red-100">
+                                    <X className="w-3.5 h-3.5" />
+                                    <span>Sistem Pintar: Belum Sesuai (0 Poin)</span>
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             {/* Scoring Box for Isian Singkat */}
@@ -1116,9 +1126,7 @@ export default function ResultReport() {
                                   min={0}
                                   max={weight}
                                   step={0.5}
-                                  value={editingScores[q.id!] !== undefined ? editingScores[q.id!] : 
-                                    (normalizeTextForGrading(studentAns) === normalizeTextForGrading(q.correctAnswer) ? weight : 0)
-                                  }
+                                  value={editingScores[q.id!] !== undefined ? editingScores[q.id!] : calculateSmartPoints(studentAns, q.correctAnswer, weight)}
                                   onChange={(e) => {
                                     const val = Math.min(weight, Math.max(0, parseFloat(e.target.value) || 0));
                                     setEditingScores(prev => ({ ...prev, [q.id!]: val }));
@@ -1291,9 +1299,35 @@ export default function ResultReport() {
                             </div>
 
                             <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
-                              <span className="block text-[10px] font-bold text-emerald-800 uppercase mb-1">Contoh Jawaban Ideal:</span>
+                              <span className="block text-[10px] font-bold text-emerald-800 uppercase mb-1">Pedoman Kunci Jawaban:</span>
                               <p className="text-xs font-medium text-emerald-800 leading-relaxed">{q.correctAnswer || '-'}</p>
                             </div>
+
+                            {(() => {
+                              const smartPoints = calculateSmartPoints(studentAns, q.correctAnswer, weight);
+                              const isFull = smartPoints === weight;
+                              const isPartial = smartPoints > 0 && !isFull;
+                              return (
+                                <div className="flex items-center gap-2 mt-2 mb-1">
+                                  {isFull ? (
+                                    <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
+                                      <Check className="w-3.5 h-3.5" />
+                                      <span>Sistem Pintar: Benar / Parafrase Tepat (+{weight} Poin)</span>
+                                    </div>
+                                  ) : isPartial ? (
+                                    <div className="flex items-center gap-1.5 text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-200">
+                                      <Check className="w-3.5 h-3.5" />
+                                      <span>Sistem Pintar: Sebagian Benar (+{smartPoints} Poin)</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded-full border border-red-100">
+                                      <X className="w-3.5 h-3.5" />
+                                      <span>Sistem Pintar: Belum Sesuai (0 Poin)</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
 
                             {/* Scoring Box */}
                             <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
@@ -1304,7 +1338,7 @@ export default function ResultReport() {
                                   min={0}
                                   max={weight}
                                   step={0.5}
-                                  value={editingScores[q.id!] !== undefined ? editingScores[q.id!] : 0}
+                                  value={editingScores[q.id!] !== undefined ? editingScores[q.id!] : calculateSmartPoints(studentAns, q.correctAnswer, weight)}
                                   onChange={(e) => {
                                     const val = Math.min(weight, Math.max(0, parseFloat(e.target.value) || 0));
                                     setEditingScores(prev => ({ ...prev, [q.id!]: val }));
@@ -1314,6 +1348,14 @@ export default function ResultReport() {
                                 <span className="text-[11px] text-slate-500 font-medium font-mono">/ {weight} Poin</span>
                               </div>
                               <div className="flex gap-1 ml-auto">
+                                <button 
+                                  type="button"
+                                  onClick={() => setEditingScores(prev => ({ ...prev, [q.id!]: calculateSmartPoints(studentAns, q.correctAnswer, weight) }))}
+                                  className="px-2 py-0.5 text-[9px] font-bold text-purple-800 bg-purple-100 hover:bg-purple-200 rounded cursor-pointer uppercase transition-colors"
+                                  title="Gunakan nilai rekomendasi sistem pintar"
+                                >
+                                  Sistem Pintar
+                                </button>
                                 <button 
                                   type="button"
                                   onClick={() => setEditingScores(prev => ({ ...prev, [q.id!]: weight }))}
