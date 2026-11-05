@@ -233,13 +233,12 @@ export default function Classes() {
   const handleGenerateAllPins = async () => {
     if (!selectedClass?.id || draftStudents.length === 0) return;
     const updated = draftStudents.map(s => {
-      const name = getStudentName(s);
-      const pin = generateRandomPin();
-      const photo = getStudentPhoto(s);
-      return { name, pin, photo };
+      const rec = normalizeStudentRecord(s);
+      rec.pin = generateRandomPin();
+      return rec;
     });
     await saveStudentList(updated);
-    showToast('PIN semua siswa berhasil diacak!');
+    showToast('PIN semua siswa berhasil diacak ulang!');
   };
 
   const handleRemoveStudent = async (studentItem: string | StudentRecord) => {

@@ -987,45 +987,52 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Password / PIN Siswa Input */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className={`block text-xs font-bold uppercase tracking-wider transition-colors ${!isTokenValidAndActive || !studentName ? 'text-slate-400' : 'text-slate-700'}`}>
-                        Password / PIN Siswa
-                      </label>
+                  {/* Password / PIN Siswa Input (Conditional on requireStudentPassword) */}
+                  {matchingActiveExam?.requireStudentPassword !== false ? (
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className={`block text-xs font-bold uppercase tracking-wider transition-colors ${!isTokenValidAndActive || !studentName ? 'text-slate-400' : 'text-slate-700'}`}>
+                          Password / PIN Siswa
+                        </label>
+                      </div>
+                      <div className="relative">
+                        <KeyRound className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${!isTokenValidAndActive || !studentName ? 'text-slate-300' : 'text-amber-500'}`} />
+                        <input 
+                          type={showStudentPassword ? "text" : "password"}
+                          disabled={!isTokenValidAndActive || !studentName}
+                          value={studentPassword}
+                          onChange={(e) => setStudentPassword(e.target.value)}
+                          placeholder={!isTokenValidAndActive || !studentName ? "PILIH NAMA TERLEBIH DAHULU..." : "MASUKKAN PASSWORD / PIN SISWA..."}
+                          className={`w-full pl-11 pr-11 py-3.5 border rounded-xl outline-none transition-all font-mono font-bold text-xs tracking-wider placeholder:font-sans placeholder:tracking-normal ${
+                            !isTokenValidAndActive || !studentName
+                              ? 'bg-slate-100/90 border-slate-200 text-slate-400 cursor-not-allowed select-none opacity-70'
+                              : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white'
+                          }`}
+                          maxLength={12}
+                        />
+                        {isTokenValidAndActive && studentName && (
+                          <button
+                            type="button"
+                            onClick={() => setShowStudentPassword(!showStudentPassword)}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                            title={showStudentPassword ? "Sembunyikan PIN" : "Tampilkan PIN"}
+                          >
+                            {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="relative">
-                      <KeyRound className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${!isTokenValidAndActive || !studentName ? 'text-slate-300' : 'text-amber-500'}`} />
-                      <input 
-                        type={showStudentPassword ? "text" : "password"}
-                        disabled={!isTokenValidAndActive || !studentName}
-                        value={studentPassword}
-                        onChange={(e) => setStudentPassword(e.target.value)}
-                        placeholder={!isTokenValidAndActive || !studentName ? "PILIH NAMA TERLEBIH DAHULU..." : "MASUKKAN PASSWORD / PIN SISWA..."}
-                        className={`w-full pl-11 pr-11 py-3.5 border rounded-xl outline-none transition-all font-mono font-bold text-xs tracking-wider placeholder:font-sans placeholder:tracking-normal ${
-                          !isTokenValidAndActive || !studentName
-                            ? 'bg-slate-100/90 border-slate-200 text-slate-400 cursor-not-allowed select-none opacity-70'
-                            : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white'
-                        }`}
-                        maxLength={12}
-                      />
-                      {isTokenValidAndActive && studentName && (
-                        <button
-                          type="button"
-                          onClick={() => setShowStudentPassword(!showStudentPassword)}
-                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
-                          title={showStudentPassword ? "Sembunyikan PIN" : "Tampilkan PIN"}
-                        >
-                          {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      )}
+                  ) : (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                      <p className="text-xs font-extrabold text-emerald-800 uppercase tracking-wide">Password / PIN Dinonaktifkan</p>
+                      <p className="text-[10px] text-emerald-600 font-medium mt-0.5">Ujian ini tidak memerlukan password. Anda dapat langsung klik Mulai Ujian.</p>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <button 
                   type="submit"
-                  disabled={loading || !isTokenValidAndActive || !studentName.trim() || !studentPassword.trim()}
+                  disabled={loading || !isTokenValidAndActive || !studentName.trim() || (matchingActiveExam?.requireStudentPassword !== false && !studentPassword.trim())}
                   className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
