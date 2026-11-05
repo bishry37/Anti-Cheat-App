@@ -21,7 +21,6 @@ export default function ExamMonitor() {
   const [filterStatus, setFilterStatus] = useState<string>('online');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterExam, setFilterExam] = useState<string>('');
-  const [filterPacket, setFilterPacket] = useState<string>('');
 
   // Detail Modal
   const [selectedSession, setSelectedSession] = useState<StudentSession | null>(null);
@@ -208,12 +207,6 @@ export default function ExamMonitor() {
 
       // 1b. Exam filter
       if (filterExam && s.examId !== filterExam) return false;
-
-      // 1c. Packet filter
-      if (filterPacket) {
-        const studentPkt = s.packetName || exams[s.examId]?.packetName;
-        if (studentPkt !== filterPacket) return false;
-      }
 
       // 2. Status filter
       if (filterStatus) {
@@ -625,20 +618,6 @@ export default function ExamMonitor() {
                 ))}
              </select>
 
-             {/* Packet Filter Dropdown (Filter Paket Soal) */}
-             {availablePackets.length > 0 && (
-                <select
-                   value={filterPacket}
-                   onChange={(e) => setFilterPacket(e.target.value)}
-                   className="bg-purple-50 border border-purple-200 hover:border-purple-300 text-purple-700 text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer transition-all"
-                >
-                   <option value="">Semua Paket ({availablePackets.length})</option>
-                   {availablePackets.map(pkt => (
-                      <option key={pkt} value={pkt}>{pkt}</option>
-                   ))}
-                </select>
-             )}
-
              {/* Clear Finished History Button */}
              <button 
                 onClick={triggerClearHistory}
@@ -651,12 +630,11 @@ export default function ExamMonitor() {
              </button>
 
              {/* Reset Filter Button */}
-             {(searchQuery || filterClass || filterStatus !== 'online' || filterExam || filterPacket) && (
+             {(searchQuery || filterClass || filterStatus !== 'online' || filterExam) && (
                 <button 
                   onClick={() => {
                      setFilterClass('');
                      setFilterExam('');
-                     setFilterPacket('');
                      setFilterStatus('online');
                      setSearchQuery('');
                   }}
