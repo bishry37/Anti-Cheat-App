@@ -541,6 +541,55 @@ export default function Home() {
         }
       }
 
+      // Determine assigned question package (single or randomized multi-package)
+      let assignedPacket = matchingExam.packetName || '';
+
+      if (matchingExam.isRandomPacket && Array.isArray(matchingExam.packetNames) && matchingExam.packetNames.length > 0) {
+        const validPackets = matchingExam.packetNames.map(p => p.trim()).filter(Boolean);
+        if (validPackets.length > 0) {
+          if (matchingExam.packageDistributionMode === 'random') {
+            // Pure random assignment
+            const randomIndex = Math.floor(Math.random() * validPackets.length);
+            assignedPacket = validPackets[randomIndex];
+          } else {
+            // Balanced Round-Robin distribution across students in this class/exam
+            try {
+              const qExisting = query(
+                collection(db, 'student_sessions'),
+                where('examId', '==', matchingExam.id)
+              );
+              const snapExisting = await getDocs(qExisting);
+              
+              // Count how many students currently hold each packet
+              const counts: Record<string, number> = {};
+              validPackets.forEach(p => { counts[p] = 0; });
+              
+              snapExisting.docs.forEach(docSnap => {
+                const sData = docSnap.data();
+                if (sData.packetName && counts[sData.packetName] !== undefined) {
+                  counts[sData.packetName]++;
+                }
+              });
+
+              // Select the packet with the lowest current count for perfect balance
+              let minCount = Infinity;
+              let selectedPkt = validPackets[0];
+              for (const p of validPackets) {
+                if (counts[p] < minCount) {
+                  minCount = counts[p];
+                  selectedPkt = p;
+                }
+              }
+              assignedPacket = selectedPkt;
+            } catch (err) {
+              console.warn("Gagal mengecek kuota paket round-robin, fallback acak:", err);
+              const randomIndex = Math.floor(Math.random() * validPackets.length);
+              assignedPacket = validPackets[randomIndex];
+            }
+          }
+        }
+      }
+
       const sessionData: StudentSession = isResume ? {
         ...existingSessionData!,
         status: 'Aktif',
@@ -551,13 +600,13 @@ export default function Home() {
         token: examToken, // update token in case it changed
         deviceId: currentDeviceId, // Always bind new deviceId on resume so student can use ANY device
         examTitle: existingSessionData?.examTitle || matchingExam.title,
-        packetName: existingSessionData?.packetName || matchingExam.packetName,
+        packetName: existingSessionData?.packetName || assignedPacket || matchingExam.packetName,
       } : {
         studentName: upperName,
         className: matchingExam.targetClass || 'Tidak Diketahui',
         examId: matchingExam.id!,
         subjectId: matchingExam.subjectId,
-        packetName: matchingExam.packetName || '',
+        packetName: assignedPacket,
         examTitle: matchingExam.title,
         duration: matchingExam.duration,
         remainingSeconds: Math.round(matchingExam.duration * 60),

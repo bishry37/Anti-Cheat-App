@@ -480,9 +480,13 @@ export default function StudentExam() {
 
             let candidateQuestions = matchedBySubjectOrExam.length > 0 ? matchedBySubjectOrExam : allQuestions;
 
-            // Apply packetName filter if specified
-            if (exData.packetName && exData.packetName.trim() !== '' && exData.packetName !== 'Semua Paket' && exData.packetName !== 'Pilih Paket') {
-              const cleanExamPacket = exData.packetName.trim().toLowerCase();
+            // Apply packetName filter if specified (prioritize the student's assigned packet in multi-package exams)
+            const studentPacket = (sessData.packetName && sessData.packetName.trim() !== '') 
+              ? sessData.packetName 
+              : exData.packetName;
+
+            if (studentPacket && studentPacket.trim() !== '' && studentPacket !== 'Semua Paket' && studentPacket !== 'Pilih Paket') {
+              const cleanExamPacket = studentPacket.trim().toLowerCase();
               const packetFiltered = candidateQuestions.filter(q => {
                 if (!q.packetName) return true;
                 const qPacket = q.packetName.trim().toLowerCase();
@@ -1312,6 +1316,11 @@ export default function StudentExam() {
             <div className="flex items-center bg-slate-800 text-white px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider shadow-3xs">
               {session.className}
             </div>
+            {session.packetName && (
+              <div className="flex items-center bg-purple-600 text-white px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider shadow-3xs" title="Paket Soal yang Ditugaskan">
+                Paket: {session.packetName}
+              </div>
+            )}
             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight ml-1 mr-2">
               {subjectName}
             </span>

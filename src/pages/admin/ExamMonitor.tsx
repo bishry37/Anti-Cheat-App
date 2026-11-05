@@ -705,6 +705,11 @@ export default function ExamMonitor() {
                           <td className="px-6 py-4 text-center text-slate-300 font-mono text-[11px]">{idx + 1}</td>
                           <td className="px-4 py-4">
                             <div className="font-bold text-slate-800 text-sm">{s.studentName}</div>
+                            {s.packetName && (
+                              <span className="inline-block mt-0.5 text-[9px] font-bold text-purple-700 bg-purple-50 border border-purple-200/80 px-1.5 py-0.2 rounded uppercase tracking-wider">
+                                {s.packetName}
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-4 text-center">
                             <div className="text-[10px] font-bold text-slate-500 bg-slate-100 inline-block px-1.5 rounded uppercase">{s.className}</div>
@@ -928,14 +933,18 @@ export default function ExamMonitor() {
                   <div>{getStatusBadge(selectedSession.status)}</div>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Paket Soal</p>
+                  <p className="text-sm font-bold text-purple-700 uppercase">{selectedSession.packetName || 'Paket Tunggal'}</p>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Pelanggaran</p>
                   <p className="text-lg font-bold text-red-600">{selectedSession.violationsCount}</p>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 md:col-span-2">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Aktivitas Terakhir</p>
                    <p className="text-sm font-medium text-slate-800">
                      {new Date(selectedSession.lastActivity).toLocaleTimeString()}
-                     {Date.now() - selectedSession.lastActivity > 60000 ? ' (Kemungkinan Offline)' : ' (Online)'}
+                     {Date.now() - selectedSession.lastActivity > 60000 ? ' (Offline)' : ' (Online)'}
                    </p>
                 </div>
               </div>

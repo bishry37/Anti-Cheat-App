@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot, deleteField } from 'firebase/firestore';
 import { Exam, Subject, Class, AudioItem } from '../../types';
-import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Clock, Copy, CheckCircle2, Search, Filter, Music } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Clock, Copy, CheckCircle2, Search, Filter, Music, Shuffle, Layers, AlertCircle, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
@@ -37,6 +37,9 @@ export default function Exams() {
     title: '',
     subjectId: '',
     packetName: '',
+    packetNames: [],
+    isRandomPacket: false,
+    packageDistributionMode: 'round_robin',
     duration: 90,
     isActive: false,
     activeToken: '',
@@ -217,16 +220,38 @@ export default function Exams() {
       setErrorMsg("Lengkapi data exam, termasuk token aktif.");
       return;
     }
+
+    if (formData.isRandomPacket) {
+      const pkts = (formData.packetNames || []).map(p => p.trim()).filter(Boolean);
+      if (pkts.length < 2) {
+        setErrorMsg("Pilih atau tambahkan minimal 2 paket soal untuk mode Multi-Paket Acak (misal: Paket A dan Paket B).");
+        return;
+      }
+    } else {
+      if (!formData.packetName || formData.packetName.trim() === '') {
+        setErrorMsg("Pilih file soal terlebih dahulu.");
+        return;
+      }
+    }
+
     setProcessing(true);
     setErrorMsg(null);
     try {
       const cleanAudioId = formData.audioId && formData.audioId.trim() !== '' ? formData.audioId : null;
 
+      const selectedPackets = formData.isRandomPacket
+        ? (formData.packetNames || []).map(p => p.trim()).filter(Boolean)
+        : (formData.packetName ? [formData.packetName.trim()] : []);
+
       const payload: any = {
         ...formData,
         duration: Number(formData.duration),
         tokenUpdatedAt: Date.now(),
-        adminId: user.uid
+        adminId: user.uid,
+        isRandomPacket: !!formData.isRandomPacket,
+        packetNames: selectedPackets,
+        packetName: formData.isRandomPacket ? (selectedPackets[0] || '') : (formData.packetName || ''),
+        packageDistributionMode: formData.packageDistributionMode || 'round_robin'
       };
 
       delete payload.id;
@@ -291,7 +316,13 @@ export default function Exams() {
   const startEdit = (exam: Exam) => {
     setErrorMsg(null);
     setEditingId(exam.id!);
-    setFormData(exam);
+    const hasMulti = !!exam.isRandomPacket || (Array.isArray(exam.packetNames) && exam.packetNames.length > 1);
+    setFormData({
+      ...exam,
+      isRandomPacket: hasMulti,
+      packetNames: exam.packetNames || (exam.packetName ? [exam.packetName] : []),
+      packageDistributionMode: exam.packageDistributionMode || 'round_robin'
+    });
     setIsAdding(true);
   };
 
@@ -301,6 +332,9 @@ export default function Exams() {
       title: '',
       subjectId: '',
       packetName: '',
+      packetNames: [],
+      isRandomPacket: false,
+      packageDistributionMode: 'round_robin',
       duration: 90,
       isActive: false,
       activeToken: generateToken(),
@@ -329,7 +363,8 @@ export default function Exams() {
 
   const filteredExams = exams.filter(exam => {
     const matchesSearch = exam.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (exam.packetName || '').toLowerCase().includes(searchQuery.toLowerCase());
+      (exam.packetName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (exam.packetNames || []).some(p => p.toLowerCase().includes(searchQuery.toLowerCase()));
     
     const matchesStatus = filterStatus === 'all' ? true :
       filterStatus === 'active' ? exam.isActive : !exam.isActive;
@@ -413,31 +448,231 @@ export default function Exams() {
                           {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                       </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Pilih File Soal *</label>
-                        {(() => {
-                          const packetOptions = Array.from(new Set([
-                            ...(formData.packetName ? [formData.packetName] : []),
-                            ...availablePackets
-                          ])).filter(Boolean).sort();
-                          return (
-                            <>
-                              <select
-                                required
-                                value={formData.packetName || ''}
-                                onChange={e => setFormData({...formData, packetName: e.target.value})}
-                                disabled={!formData.subjectId}
-                                className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none disabled:opacity-50"
-                              >
-                                <option value="">-- {formData.subjectId ? (packetOptions.length > 0 ? 'Pilih File' : 'Belum ada file soal') : 'Pilih Mapel Terlebih Dahulu'} --</option>
-                                {packetOptions.map(p => <option key={p} value={p}>{p}</option>)}
-                              </select>
-                              {formData.subjectId && packetOptions.length === 0 && (
-                                 <p className="text-[10px] text-red-500 font-bold mt-1 uppercase">* Upload soal di Bank Soal terlebih dahulu</p>
+                      {/* Package Configuration */}
+                      <div className="p-3 bg-slate-50/90 rounded-lg border border-slate-200 space-y-3">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                            <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                            Konfigurasi Paket Soal *
+                          </label>
+                          <div className="flex bg-slate-200/80 p-0.5 rounded-md text-[10px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => setFormData({ ...formData, isRandomPacket: false })}
+                              className={`px-2 py-1 rounded transition-all cursor-pointer ${!formData.isRandomPacket ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                            >
+                              Paket Tunggal
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentP = formData.packetNames && formData.packetNames.length > 0 
+                                  ? formData.packetNames 
+                                  : (formData.packetName ? [formData.packetName] : (availablePackets.slice(0, 3)));
+                                setFormData({ 
+                                  ...formData, 
+                                  isRandomPacket: true,
+                                  packetNames: currentP
+                                });
+                              }}
+                              className={`px-2 py-1 rounded transition-all flex items-center gap-1 cursor-pointer ${formData.isRandomPacket ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                            >
+                              <Shuffle className="w-2.5 h-2.5" />
+                              Multi-Paket Acak (A, B, C)
+                            </button>
+                          </div>
+                        </div>
+
+                        {!formData.isRandomPacket ? (
+                          /* Mode Paket Tunggal */
+                          <div>
+                            {(() => {
+                              const packetOptions = Array.from(new Set([
+                                ...(formData.packetName ? [formData.packetName] : []),
+                                ...availablePackets
+                              ])).filter(Boolean).sort();
+                              return (
+                                <>
+                                  <select
+                                    required={!formData.isRandomPacket}
+                                    value={formData.packetName || ''}
+                                    onChange={e => setFormData({...formData, packetName: e.target.value})}
+                                    disabled={!formData.subjectId}
+                                    className="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none disabled:opacity-50"
+                                  >
+                                    <option value="">-- {formData.subjectId ? (packetOptions.length > 0 ? 'Pilih Paket File Soal' : 'Belum ada file soal') : 'Pilih Mapel Terlebih Dahulu'} --</option>
+                                    {packetOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                                  </select>
+                                  {formData.subjectId && packetOptions.length === 0 && (
+                                     <p className="text-[10px] text-red-500 font-bold mt-1 uppercase">* Upload soal di Bank Soal terlebih dahulu</p>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        ) : (
+                          /* Mode Multi-Paket Acak (A, B, C) */
+                          <div className="space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-slate-600">
+                                Pilih Paket Soal yang Dibagikan ke Siswa:
+                              </span>
+                              {availablePackets.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData({
+                                      ...formData,
+                                      packetNames: [...availablePackets]
+                                    });
+                                  }}
+                                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
+                                >
+                                  Pilih Semua ({availablePackets.length})
+                                </button>
                               )}
-                            </>
-                          );
-                        })()}
+                            </div>
+
+                            {/* Available packet chips / checkboxes */}
+                            {availablePackets.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1.5 bg-white border border-slate-200 rounded-md">
+                                {availablePackets.map(pkt => {
+                                  const isSelected = (formData.packetNames || []).includes(pkt);
+                                  return (
+                                    <button
+                                      key={pkt}
+                                      type="button"
+                                      onClick={() => {
+                                        const current = formData.packetNames || [];
+                                        const next = isSelected 
+                                          ? current.filter(p => p !== pkt)
+                                          : [...current, pkt];
+                                        setFormData({ ...formData, packetNames: next });
+                                      }}
+                                      className={`px-2 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                                        isSelected 
+                                          ? 'bg-indigo-50 border-indigo-400 text-indigo-700 shadow-3xs' 
+                                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                                      }`}
+                                    >
+                                      <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[9px] ${isSelected ? 'bg-indigo-600 text-white' : 'border border-slate-300'}`}>
+                                        {isSelected && <Check className="w-2.5 h-2.5" />}
+                                      </span>
+                                      <span>{pkt}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-800 flex items-start gap-1.5">
+                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="font-bold">Belum ada paket soal di Bank Soal untuk mata pelajaran ini.</p>
+                                  <p className="text-[10px] text-amber-700 mt-0.5">Silakan buat atau unggah file soal dengan nama paket (misal: "Paket A", "Paket B", "Paket C") di menu Bank Soal terlebih dahulu.</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Selected Packets Summary Pills */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                  Paket Terpilih ({formData.packetNames?.length || 0}):
+                                </span>
+                                {(formData.packetNames?.length || 0) < 2 && (
+                                  <span className="text-[10px] font-bold text-red-500">
+                                    * Minimal pilih 2 paket untuk mode acak
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-1 min-h-[30px] p-1.5 bg-white border border-slate-200 rounded">
+                                {(!formData.packetNames || formData.packetNames.length === 0) ? (
+                                  <span className="text-[11px] text-slate-400 italic">Belum ada paket yang dipilih</span>
+                                ) : (
+                                  formData.packetNames.map(pkt => (
+                                    <span
+                                      key={pkt}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200"
+                                    >
+                                      <span>{pkt}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setFormData({
+                                            ...formData,
+                                            packetNames: (formData.packetNames || []).filter(p => p !== pkt)
+                                          });
+                                        }}
+                                        className="text-indigo-400 hover:text-indigo-700 ml-0.5 cursor-pointer"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Distribution Strategy Mode */}
+                            <div className="pt-2 border-t border-slate-200">
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                                Metode Distribusi Paket ke Siswa di Kelas:
+                              </label>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <label
+                                  className={`p-2 rounded-lg border text-left cursor-pointer transition-all flex items-start gap-2 ${
+                                    formData.packageDistributionMode !== 'random'
+                                      ? 'bg-indigo-50/70 border-indigo-400 text-indigo-900 ring-1 ring-indigo-300'
+                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="distMode"
+                                    className="mt-0.5 sr-only"
+                                    checked={formData.packageDistributionMode !== 'random'}
+                                    onChange={() => setFormData({ ...formData, packageDistributionMode: 'round_robin' })}
+                                  />
+                                  <div className="flex-1">
+                                    <div className="text-xs font-bold flex items-center justify-between">
+                                      <span>Round-Robin (Seimbang)</span>
+                                      <span className="text-[8px] bg-indigo-200 text-indigo-800 px-1 py-0.2 rounded font-extrabold uppercase">Disarankan</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
+                                      Dibagi rata bergiliran (A &rarr; B &rarr; C &rarr; A). Siswa berdampingan/login bersamaan dijamin mendapat paket berbeda.
+                                    </p>
+                                  </div>
+                                </label>
+
+                                <label
+                                  className={`p-2 rounded-lg border text-left cursor-pointer transition-all flex items-start gap-2 ${
+                                    formData.packageDistributionMode === 'random'
+                                      ? 'bg-indigo-50/70 border-indigo-400 text-indigo-900 ring-1 ring-indigo-300'
+                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="distMode"
+                                    className="mt-0.5 sr-only"
+                                    checked={formData.packageDistributionMode === 'random'}
+                                    onChange={() => setFormData({ ...formData, packageDistributionMode: 'random' })}
+                                  />
+                                  <div className="flex-1">
+                                    <div className="text-xs font-bold">Acak Murni (Random)</div>
+                                    <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
+                                      Sistem mengundi paket secara acak independen untuk setiap siswa yang baru memulai ujian.
+                                    </p>
+                                  </div>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div className="p-2 bg-indigo-50/50 border border-indigo-100 rounded text-[10px] text-indigo-700 leading-tight">
+                              🔒 <strong>Keamanan:</strong> Paket yang didapat siswa akan langsung terkunci permanen ke akun mereka. Jika HP mati atau koneksi terputus, siswa tetap mengerjakan paket yang sama.
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Audio Listening (Opsional)</label>
@@ -699,7 +934,36 @@ export default function Exams() {
                       {getSubjectName(exam.subjectId)}
                     </td>
                     <td className="px-4 py-4">
-                      {exam.packetName ? (
+                      {exam.isRandomPacket && exam.packetNames && exam.packetNames.length > 0 ? (
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg shadow-3xs">
+                              <Shuffle className="w-3 h-3 text-indigo-500" />
+                              Multi-Paket ({exam.packetNames.length})
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded uppercase">
+                              {exam.packageDistributionMode === 'random' ? 'Acak' : 'Round-Robin'}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1 max-w-[200px]">
+                            {exam.packetNames.map(p => (
+                              <span key={p} className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200/80 px-1.5 py-0.5 rounded">
+                                {p}
+                              </span>
+                            ))}
+                          </div>
+                          {exam.audioId && (
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold uppercase tracking-tight">
+                              <div className="w-4 h-4 rounded bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+                                <Music className="w-2.5 h-2.5" />
+                              </div>
+                              <span className="truncate max-w-[120px]" title={getAudioName(exam.audioId)}>
+                                Audio: {getAudioName(exam.audioId)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ) : exam.packetName ? (
                         <div className="flex flex-col gap-1.5">
                           <span className="inline-block w-max text-xs font-bold text-blue-600 bg-blue-50/80 border border-blue-100/80 px-2.5 py-1 rounded-lg">
                             {exam.packetName}

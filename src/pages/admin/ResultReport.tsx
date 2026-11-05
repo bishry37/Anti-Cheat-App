@@ -432,6 +432,7 @@ export default function ResultReport() {
       'NAMA LENGKAP SISWA',
       'KELAS',
       'UJIAN / JADWAL',
+      'PAKET SOAL',
       'STATUS KEIKUTSERTAAN',
       'NILAI (SKOR)',
       'JAWABAN BENAR',
@@ -449,6 +450,7 @@ export default function ResultReport() {
         s.studentName.toUpperCase(),
         s.className,
         s.examTitle || exams[s.examId]?.title || (subjectsMap[s.subjectId] ? `Ujian ${subjectsMap[s.subjectId]}` : 'Ujian'),
+        s.packetName || '-',
         s.status === 'Didiskualifikasi' ? 'DIDISKUALIFIKASI' : s.status.toUpperCase(),
         s.score !== undefined ? Number(s.score.toFixed(2)) : 0,
         s.correctCount || 0,
@@ -464,15 +466,15 @@ export default function ResultReport() {
 
     // Apply merges to look like the screenshot layout
     const merges: XLSX.Range[] = [
-      { s: { r: 1, c: 1 }, e: { r: 1, c: 11 } },
+      { s: { r: 1, c: 1 }, e: { r: 1, c: 12 } },
       { s: { r: 3, c: 1 }, e: { r: 3, c: 2 } },
       { s: { r: 3, c: 4 }, e: { r: 3, c: 6 } },
       { s: { r: 4, c: 2 }, e: { r: 4, c: 3 } },
-      { s: { r: 4, c: 5 }, e: { r: 4, c: 11 } },
+      { s: { r: 4, c: 5 }, e: { r: 4, c: 12 } },
       { s: { r: 5, c: 2 }, e: { r: 5, c: 3 } },
-      { s: { r: 5, c: 5 }, e: { r: 5, c: 11 } },
+      { s: { r: 5, c: 5 }, e: { r: 5, c: 12 } },
       { s: { r: 6, c: 2 }, e: { r: 6, c: 3 } },
-      { s: { r: 6, c: 5 }, e: { r: 6, c: 11 } },
+      { s: { r: 6, c: 5 }, e: { r: 6, c: 12 } },
     ];
 
     if (filterExam && exams[filterExam]) {
@@ -487,6 +489,7 @@ export default function ResultReport() {
       { wch: 32 },  // NAMA LENGKAP SISWA
       { wch: 12 },  // KELAS
       { wch: 28 },  // UJIAN / JADWAL
+      { wch: 18 },  // PAKET SOAL
       { wch: 22 },  // STATUS KEIKUTSERTAAN
       { wch: 14 },  // Nilai (Skor)
       { wch: 16 },  // Jawaban Benar
@@ -860,15 +863,20 @@ export default function ResultReport() {
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="font-medium text-slate-700 leading-snug">{s.examTitle || exams[s.examId]?.title || (subjectsMap[s.subjectId] ? `Ujian ${subjectsMap[s.subjectId]}` : 'Ujian')}</div>
-                        <div className="flex flex-col gap-0.5 mt-0.5">
-                          <div className="text-[10px] text-slate-500 font-medium">{new Date(s.endTime || 0).toLocaleDateString()}</div>
-                          {exams[s.examId]?.audioId && (
-                            <div className="flex items-center gap-1 text-[8px] text-amber-600 font-black uppercase tracking-tight bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/40 w-max">
-                              <Music className="w-2 h-2" />
-                              <span className="truncate max-w-[100px]" title={audioNames[exams[s.examId]!.audioId!]}>Audio: {audioNames[exams[s.examId]!.audioId!]}</span>
-                            </div>
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          {s.packetName && (
+                            <span className="text-[9px] font-bold text-purple-700 bg-purple-50 border border-purple-200/80 px-1.5 py-0.2 rounded uppercase">
+                              {s.packetName}
+                            </span>
                           )}
+                          <span className="text-[10px] text-slate-500 font-medium">{new Date(s.endTime || 0).toLocaleDateString()}</span>
                         </div>
+                        {exams[s.examId]?.audioId && (
+                          <div className="flex items-center gap-1 text-[8px] text-amber-600 font-black uppercase tracking-tight bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/40 w-max mt-0.5">
+                            <Music className="w-2 h-2" />
+                            <span className="truncate max-w-[100px]" title={audioNames[exams[s.examId]!.audioId!]}>Audio: {audioNames[exams[s.examId]!.audioId!]}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-center">
                         <span className={`text-base font-bold ${s.score! >= 70 ? 'text-green-600' : 'text-red-500'}`}>

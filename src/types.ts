@@ -75,6 +75,9 @@ export interface Exam {
   isActive: boolean;
   activeToken: string;
   packetName?: string;
+  packetNames?: string[];
+  isRandomPacket?: boolean;
+  packageDistributionMode?: 'round_robin' | 'random';
   autoResetInterval: '5' | '10' | '15' | '30' | '60' | 'manual';
   tokenUpdatedAt: number;
   createdAt: number;
