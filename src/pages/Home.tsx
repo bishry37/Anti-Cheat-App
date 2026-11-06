@@ -799,6 +799,9 @@ export default function Home() {
                 transition={{ duration: 0.2 }}
                 className="space-y-5"
                 onSubmit={handleStudentLogin}
+                autoComplete="off"
+                data-lpignore="true"
+                data-form-type="other"
               >
                 <div className="mb-2 text-center">
                   <h2 className="text-xs font-bold text-blue-600 uppercase tracking-widest flex items-center justify-center">
@@ -834,6 +837,9 @@ export default function Home() {
                       <Lock className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isTokenValidAndActive ? 'text-emerald-500' : 'text-slate-400'}`} />
                       <input 
                         type="text" 
+                        name="cbt_exam_token_field"
+                        autoComplete="off"
+                        data-lpignore="true"
                         value={examToken}
                         onChange={(e) => setExamToken(e.target.value.toUpperCase())}
                         placeholder="Masukkan 6 digit token"
@@ -1000,6 +1006,11 @@ export default function Home() {
                         <KeyRound className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${!isTokenValidAndActive || !studentName ? 'text-slate-300' : 'text-amber-500'}`} />
                         <input 
                           type={showStudentPassword ? "text" : "password"}
+                          name="student_exam_pin_token"
+                          autoComplete="one-time-code"
+                          data-lpignore="true"
+                          data-1p-ignore="true"
+                          data-bwignore="true"
                           disabled={!isTokenValidAndActive || !studentName}
                           value={studentPassword}
                           onChange={(e) => setStudentPassword(e.target.value)}

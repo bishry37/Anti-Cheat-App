@@ -171,6 +171,18 @@ export default function StudentExam() {
   const questionsRef = useRef<Question[]>([]);
   const isSubmittingOrFinishedRef = useRef(false);
 
+  // Security & entry grace period tracking (to prevent browser popups like "Save password" from triggering violations)
+  const initialPageMountTime = useRef<number>(Date.now());
+  const hasEnteredFullscreenOnceRef = useRef<boolean>(false);
+  const isFullscreenRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    isFullscreenRef.current = isFullscreen;
+    if (isFullscreen) {
+      hasEnteredFullscreenOnceRef.current = true;
+    }
+  }, [isFullscreen]);
+
   // Synchronize state values directly into references
   useEffect(() => {
     answersRef.current = answers;
@@ -355,7 +367,14 @@ export default function StudentExam() {
           setLoadError("Sesi ujian tidak valid atau Anda bukan siswa yang terdaftar. Mohon logout lalu login sebagai Admin.");
           return;
         }
-        const sessData = { id: sessSnap.id, ...sessSnap.data() } as StudentSession;
+        const sessData = { ...sessSnap.data(), id: sessSnap.id } as StudentSession;
+        if (sessData.status === 'Tidak Fokus' || sessData.status === 'Melanggar') {
+          sessData.status = 'Aktif';
+          updateDoc(doc(db, 'student_sessions', user!.uid), {
+            status: 'Aktif',
+            lastActivity: Date.now()
+          }).catch(() => {});
+        }
         setSession(sessData);
 
         // Merge with local storage backup to handle extreme connection / power failure cases (scoped by student UID)
@@ -763,6 +782,18 @@ export default function StudentExam() {
     if (isUnloading.current) return;
     if (isSubmittingOrFinished) return;
 
+    // Grace Period Safeguard:
+    // If student just loaded exam page (within initial 25 seconds) OR hasn't entered fullscreen mode yet,
+    // NEVER record any violation. This guarantees native browser pop-ups (such as "Save password? / Simpan Sandi?",
+    // autofill prompts, translation bars, or permissions) will NOT be flagged as violations and will NOT
+    // set the student's status to 'Tidak Fokus' in Monitoring Peserta.
+    const timeSinceMount = Date.now() - initialPageMountTime.current;
+    const isJustLoggedIn = sessionStorage.getItem('just_logged_in_student') === 'true';
+    if (!hasEnteredFullscreenOnceRef.current || timeSinceMount < 25000 || (isJustLoggedIn && timeSinceMount < 35000)) {
+      console.log(`[Exam Security] Pelanggaran '${type}' diabaikan dalam masa toleransi awal masuk ujian / pop-up browser (${Math.round(timeSinceMount / 1000)}s).`);
+      return;
+    }
+
     try {
       // Fetch latest session data directly from Firestore for accuracy and to prevent race conditions
       const docRef = doc(db, 'student_sessions', user!.uid);
@@ -855,6 +886,7 @@ export default function StudentExam() {
               status: 'Aktif',
               lastActivity: Date.now()
             });
+            setSession(prev => prev ? { ...prev, status: 'Aktif' } : null);
           }
         }
       } catch (err) {
@@ -863,32 +895,66 @@ export default function StudentExam() {
     };
 
     const handleVisibilityChange = () => {
+      const timeSinceMount = Date.now() - initialPageMountTime.current;
+      if (!hasEnteredFullscreenOnceRef.current || timeSinceMount < 20000) {
+        if (!document.hidden) handleRegainFocus();
+        return;
+      }
+
       setTimeout(() => {
         if (!document.hidden) return;
         recordViolation('Pindah Tab Browser', 'Terdeteksi pindah tab! Tindakan ini dilarang.');
-      }, 500);
+      }, 700);
+
       if (!document.hidden) {
         handleRegainFocus();
       }
     };
 
     const handleBlur = () => {
+      // 1. If not yet in fullscreen mode (still on initial start screen), never flag blur
+      if (!isFullscreenRef.current || !hasEnteredFullscreenOnceRef.current) {
+        return;
+      }
+
+      // 2. If within initial grace period from entering exam, ignore
+      const timeSinceMount = Date.now() - initialPageMountTime.current;
+      if (timeSinceMount < 25000) {
+        return;
+      }
+
+      // 3. For any subsequent blur: check if it's a native browser pop-up (e.g. Save Password, permission, dropdown)
       setTimeout(() => {
-        // More robust check for browser UI like Save Password or generic focus loss
-        // Chrome's Save Password popup usually makes the window lose focus but the document remains "visible" 
-        // and doesn't trigger a true tab change immediately.
-        if (document.activeElement !== document.body && document.hasFocus()) {
+        // If student regained focus, ignore and ensure status is clean
+        if (document.hasFocus()) {
+          handleRegainFocus();
           return;
         }
-        
-        // If the window is blurred but the document is still visible, it might be a browser popup
-        if (!document.hidden && !document.fullscreenElement) {
-           // If we are not in fullscreen, focus loss is expected on some systems when UI pops up
-           // But if we ARE in fullscreen and lose focus, it's usually a violation unless it's a known OS overlay
+
+        // If active element is an input within our document, ignore
+        if (document.activeElement && document.activeElement !== document.body) {
+          return;
         }
 
-        recordViolation('Membuka aplikasi lain', 'Fokus hilang dari ujian! Jangan buka aplikasi lain.');
-      }, 1000); // Increased delay to 1000ms for more tolerance
+        // If the document is still visible on screen (!document.hidden), it is usually a browser chrome/bubble pop-up
+        // Give an extra 2.5s tolerance to allow student to click "Save/Never/X" without being marked 'Tidak Fokus'
+        if (!document.hidden) {
+          setTimeout(() => {
+            if (document.hasFocus()) {
+              handleRegainFocus();
+              return;
+            }
+            if (!document.hidden && !document.hasFocus() && isFullscreenRef.current) {
+              recordViolation('Membuka aplikasi lain', 'Fokus hilang dari ujian! Jangan buka aplikasi lain.');
+            }
+          }, 2500);
+          return;
+        }
+
+        if (document.hidden) {
+          recordViolation('Membuka aplikasi lain', 'Fokus hilang dari ujian! Jangan buka aplikasi lain.');
+        }
+      }, 1200);
     };
 
     const handleFocus = () => {
@@ -905,9 +971,13 @@ export default function StudentExam() {
 
       if (!fullscreenElement && supportsFullscreen) {
         setIsFullscreen(false);
-        recordViolation('Keluar Fullscreen', 'Keluar dari layar penuh! Ujian harus dikerjakan secara fullscreen.');
-      } else {
+        const timeSinceMount = Date.now() - initialPageMountTime.current;
+        if (hasEnteredFullscreenOnceRef.current && timeSinceMount > 20000) {
+          recordViolation('Keluar Fullscreen', 'Keluar dari layar penuh! Ujian harus dikerjakan secara fullscreen.');
+        }
+      } else if (fullscreenElement) {
         setIsFullscreen(true);
+        hasEnteredFullscreenOnceRef.current = true;
         handleRegainFocus();
       }
     };
@@ -987,6 +1057,15 @@ export default function StudentExam() {
 
   // Request Fullscreen
   const requestFullscreen = () => {
+    hasEnteredFullscreenOnceRef.current = true;
+    setIsFullscreen(true);
+    if (user) {
+      updateDoc(doc(db, 'student_sessions', user.uid), {
+        status: 'Aktif',
+        lastActivity: Date.now()
+      }).catch(() => {});
+      setSession(prev => prev ? { ...prev, status: 'Aktif' } : null);
+    }
     const docEl = document.documentElement as any;
     if (docEl.requestFullscreen) {
       docEl.requestFullscreen().catch((err: any) => {
