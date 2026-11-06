@@ -281,14 +281,20 @@ export default function StudentExam() {
     setSession(prev => prev ? { ...prev, status: 'Selesai', score, correctCount: correct, wrongCount: wrong } : null);
 
     try {
-      await updateDoc(doc(db, 'student_sessions', user!.uid), {
+      const docId = sessionVal.id || user!.uid;
+      const updateData = {
         status: 'Selesai',
         endTime: Date.now(),
         score,
         correctCount: correct,
         wrongCount: wrong,
-        answers: answersVal
-      });
+        answers: answersVal,
+        hiddenFromMonitor: false
+      };
+      await updateDoc(doc(db, 'student_sessions', docId), updateData);
+      if (user?.uid && user.uid !== docId) {
+        await updateDoc(doc(db, 'student_sessions', user.uid), updateData).catch(()=>{});
+      }
 
       // Clear local backup
       if (examVal.id && user?.uid) {
@@ -838,6 +844,7 @@ export default function StudentExam() {
     if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
 
     const handleRegainFocus = async () => {
+      if (isSubmittingOrFinishedRef.current) return;
       try {
         const docRef = doc(db, 'student_sessions', user!.uid);
         const docSnap = await getDoc(docRef);
@@ -1020,6 +1027,7 @@ export default function StudentExam() {
     }, 1000);
 
     const heartbeat = setInterval(() => {
+      if (isSubmittingOrFinishedRef.current) return;
       const curSecs = timeLeftRef.current;
       if (user?.uid) {
         updateDoc(doc(db, 'student_sessions', user.uid), {

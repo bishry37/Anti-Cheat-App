@@ -159,52 +159,43 @@ export default function ResultReport() {
     setSavingGrades(true);
 
     try {
+      const cleanScores: Record<string, number> = {};
+      Object.keys(editingScores).forEach(k => {
+        const v = editingScores[k];
+        if (typeof v === 'number' && !isNaN(v)) {
+          cleanScores[k] = Number(v.toFixed(2));
+        }
+      });
+
       let pointsEarned = 0;
       let totalWeight = 0;
-      
       const studentAnswers = selectedSession.answers || {};
 
       sessionQuestions.forEach(q => {
-        const isEssay = q.type === 'essay';
         const weight = q.weight || 10;
         totalWeight += weight;
 
-        if (q.type === 'pilihan_ganda' || q.type === 'listening') {
+        const manualScore = cleanScores[q.id!];
+        if (manualScore !== undefined) {
+          pointsEarned += manualScore;
+        } else if (q.type === 'pilihan_ganda' || q.type === 'listening') {
           if (studentAnswers[q.id!] === q.correctAnswer) {
             pointsEarned += weight;
           }
         } else if (q.type === 'pilihan_ganda_kompleks') {
-          const manualScore = editingScores[q.id!];
-          if (manualScore !== undefined) {
-            pointsEarned += manualScore;
-          } else {
-            const availCount = ['A', 'B', 'C', 'D', 'E'].filter(l => !isOptionEmpty((q as any)[`option${l}`])).length || 5;
-            const pgk = calculatePgkPoints(studentAnswers[q.id!], q.correctAnswer, weight, availCount);
-            pointsEarned += pgk.earned;
-          }
-        } else if (q.type === 'isian_singkat') {
-          // For short answer, if admin changed manual score use it, otherwise use smart auto score
-          const manualScore = editingScores[q.id!];
-          if (manualScore !== undefined) {
-            pointsEarned += manualScore;
-          } else {
-            pointsEarned += calculateSmartPoints(studentAnswers[q.id!] || '', q.correctAnswer || '', weight);
-          }
-        } else if (isEssay) {
-          // For essay, if admin changed manual score use it, otherwise use smart auto score
-          const manualScore = editingScores[q.id!];
-          if (manualScore !== undefined) {
-            pointsEarned += manualScore;
-          } else {
-            pointsEarned += calculateSmartPoints(studentAnswers[q.id!] || '', q.correctAnswer || '', weight);
-          }
+          const availCount = ['A', 'B', 'C', 'D', 'E'].filter(l => !isOptionEmpty((q as any)[`option${l}`])).length || 5;
+          const pgk = calculatePgkPoints(studentAnswers[q.id!], q.correctAnswer, weight, availCount);
+          pointsEarned += pgk.earned;
+        } else {
+          pointsEarned += calculateSmartPoints(studentAnswers[q.id!] || '', q.correctAnswer || '', weight);
         }
       });
 
-      const rootScore = totalWeight > 0 ? (pointsEarned / totalWeight) * 100 : 0;
+      const rootScore = totalWeight > 0 ? Number(((pointsEarned / totalWeight) * 100).toFixed(2)) : 0;
 
-      await updateDoc(doc(db, 'student_sessions', selectedSession.id!), {
-        essayScores: editingScores,
+      const docId = selectedSession.id!;
+      await updateDoc(doc(db, 'student_sessions', docId), {
+        essayScores: cleanScores,
         score: rootScore,
         lastGradedAt: Date.now()
       });
@@ -213,10 +204,11 @@ export default function ResultReport() {
       setSelectedSession(null);
       fetchResults();
     } catch (err) {
-      console.error(err);
+      console.error("Gagal simpan nilai koreksi:", err);
       showToast('Gagal menyimpan nilai koreksi.');
+    } finally {
+      setSavingGrades(false);
     }
-    setSavingGrades(false);
   };
 
   useEffect(() => {

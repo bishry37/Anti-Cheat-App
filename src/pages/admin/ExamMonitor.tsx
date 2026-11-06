@@ -420,12 +420,13 @@ export default function ExamMonitor() {
       }
     } else if (type === 'delete' && candidateId) {
       try {
+        await deleteDoc(doc(db, 'student_sessions', candidateId));
+        showToast('Siswa berhasil dihapus');
+      } catch (err) {
         await updateDoc(doc(db, 'student_sessions', candidateId), {
           hiddenFromMonitor: true
-        });
+        }).catch(()=>{});
         showToast('Siswa berhasil dihilangkan dari monitoring');
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
       }
     } else if (type === 'clear_history') {
       try {
@@ -439,12 +440,13 @@ export default function ExamMonitor() {
         let count = 0;
         await Promise.all(finishedSessions.map(async (s) => {
           try {
-            await updateDoc(doc(db, 'student_sessions', s.id!), {
-              hiddenFromMonitor: true
-            });
+            await deleteDoc(doc(db, 'student_sessions', s.id!));
             count++;
           } catch (e) {
-            console.error(`Gagal menghapus riwayat ${s.studentName}`, e);
+            await updateDoc(doc(db, 'student_sessions', s.id!), {
+              hiddenFromMonitor: true
+            }).catch(()=>{});
+            count++;
           }
         }));
         

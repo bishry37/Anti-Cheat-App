@@ -229,47 +229,90 @@ export const calculateSmartPoints = (
   const cAns = (correctAns || '').trim();
   if (!sAns || !cAns) return 0;
 
-  const sTokens = cleanAndTokenizeForSmartGrading(sAns);
-  const cTokens = cleanAndTokenizeForSmartGrading(cAns);
-  if (sTokens.length === 0 || cTokens.length === 0) return 0;
-
-  // 1. Cek kesamaan identik setelah ekspansi singkatan dan normalisasi
-  const sNorm = sTokens.join(' ');
-  const cNorm = cTokens.join(' ');
-  if (sNorm === cNorm) return weight;
-
-  // 2. Evaluasi cakupan konsep utama (Concept Coverage)
   const filler = new Set([
     'yang', 'dan', 'di', 'ke', 'dari', 'pada', 'untuk', 'dengan', 'adalah', 'ini', 'itu', 
     'atau', 'the', 'a', 'an', 'in', 'on', 'at', 'of', 'to', 'for', 'with', 'is', 'are', 'was', 'were', '/'
   ]);
-  const significantCTokens = cTokens.filter(t => !filler.has(t));
-  const targetTokens = significantCTokens.length > 0 ? significantCTokens : cTokens;
 
-  let matchedCount = 0;
-  const tempSTokens = [...sTokens];
+  const sRawTokens = cleanAndTokenizeForSmartGrading(sAns);
+  const sSignificantTokens = sRawTokens.filter(t => !filler.has(t));
+  const sTokens = sSignificantTokens.length > 0 ? sSignificantTokens : sRawTokens;
+  if (sTokens.length === 0) return 0;
 
-  targetTokens.forEach(cTok => {
-    const idx = tempSTokens.findIndex(sTok => isTokenMatch(sTok, cTok));
-    if (idx !== -1) {
-      matchedCount++;
-      tempSTokens.splice(idx, 1);
+  // Split correctAnswer by '/' or 'OR' or ';' or '\n' or 'atau' or 'and/or'
+  const rawAlternatives = cAns.split(/\/|\\|;|\n|\bOR\b|\batau\b|\band\/or\b/gi);
+  const acceptablePhrases: string[][] = [];
+
+  rawAlternatives.forEach(alt => {
+    const trimmedAlt = alt.trim();
+    if (!trimmedAlt) return;
+
+    // Extract parts outside parentheses and inside parentheses
+    const parts: string[] = [trimmedAlt];
+
+    // Extract all parenthesized content e.g. "(FOMO)", "(OR FILTER BUBBLES)"
+    const parenMatches = trimmedAlt.match(/\(([^)]+)\)/g);
+    if (parenMatches) {
+      parenMatches.forEach(p => {
+        let inner = p.replace(/[()]/g, '').trim();
+        inner = inner.replace(/^(OR|atau|AND|dan)\s+/i, '').trim();
+        if (inner) parts.push(inner);
+      });
+      const withoutParen = trimmedAlt.replace(/\([^)]+\)/g, '').trim();
+      if (withoutParen) parts.push(withoutParen);
     }
+
+    parts.forEach(part => {
+      let cleanPart = part.replace(/^(OR|atau|AND|dan)\s+/i, '').trim();
+      const rawToks = cleanAndTokenizeForSmartGrading(cleanPart);
+      const sigToks = rawToks.filter(t => !filler.has(t));
+      const finalToks = sigToks.length > 0 ? sigToks : rawToks;
+      if (finalToks.length > 0) {
+        acceptablePhrases.push(finalToks);
+      }
+    });
   });
 
-  const coverage = matchedCount / targetTokens.length;
+  let maxCoverage = 0;
 
-  // Kurva penilaian fleksibel:
-  // - Cakupan >= 80%: Nilai Penuh (100% bobot soal) -> mendukung parafrase, urutan alternatif, dan kata tambahan
-  // - Cakupan >= 65%: 90% bobot soal
-  // - Cakupan >= 50%: 75% bobot soal
-  // - Cakupan >= 35%: 50% bobot soal
-  // - Cakupan >= 20%: 25% bobot soal
-  if (coverage >= 0.8) return weight;
-  if (coverage >= 0.65) return Number((weight * 0.9).toFixed(1));
-  if (coverage >= 0.5) return Number((weight * 0.75).toFixed(1));
-  if (coverage >= 0.35) return Number((weight * 0.5).toFixed(1));
-  if (coverage >= 0.2) return Number((weight * 0.25).toFixed(1));
+  for (const cTokens of acceptablePhrases) {
+    if (cTokens.length === 0) continue;
+
+    // Stemmed joined string comparison
+    const sStemNorm = sTokens.map(lightStem).join(' ');
+    const cStemNorm = cTokens.map(lightStem).join(' ');
+    if (sStemNorm === cStemNorm) return weight;
+
+    let matchCount = 0;
+    cTokens.forEach(cTok => {
+      if (sTokens.some(sTok => isTokenMatch(sTok, cTok))) {
+        matchCount++;
+      }
+    });
+
+    const coverage = matchCount / Math.max(cTokens.length, sTokens.length);
+    if (coverage > maxCoverage) {
+      maxCoverage = coverage;
+    }
+
+    // Full points criteria:
+    // 1. All significant tokens of candidate phrase are matched by student (e.g., student wrote "the fear of missing out" vs "fear of missing out" -> matched 3/3)
+    // 2. Student provided a single word/acronym (e.g. "FOMO") that is contained in cTokens or is equal to cTokens
+    // 3. Match count is at least 75% of candidate phrase tokens
+    if (
+      matchCount === cTokens.length ||
+      (sTokens.length === cTokens.length && matchCount >= cTokens.length * 0.75) ||
+      (sTokens.length === 1 && cTokens.some(cTok => isTokenMatch(sTokens[0], cTok)))
+    ) {
+      return weight;
+    }
+  }
+
+  if (maxCoverage >= 0.7) return weight;
+  if (maxCoverage >= 0.5) return Number((weight * 0.9).toFixed(1));
+  if (maxCoverage >= 0.35) return Number((weight * 0.75).toFixed(1));
+  if (maxCoverage >= 0.2) return Number((weight * 0.5).toFixed(1));
+  if (maxCoverage >= 0.1) return Number((weight * 0.25).toFixed(1));
 
   return 0;
 };
