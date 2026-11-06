@@ -1836,17 +1836,6 @@ export default function QuestionBank() {
                     <span>{totalWeight % 1 === 0 ? totalWeight.toFixed(0) : totalWeight.toFixed(2).replace(/\.?0+$/, '')} / 100</span>
                   </span>
                 )}
-                {hasEditedWeights && selectedTemplateFilter !== null && selectedTemplateFilter !== 'all' && (
-                  <button
-                    type="button"
-                    onClick={handleResetWeightsTo100}
-                    disabled={processing}
-                    className="text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded transition-colors inline-flex items-center space-x-1 cursor-pointer"
-                    title="Reset pembagian bobot soal ke standar sistem agar otomatis kembali genap 100"
-                  >
-                    <span>↺ Reset Bobot ke 100 (Sistem)</span>
-                  </button>
-                )}
               </div>
 
             <div className="flex items-center space-x-2">
