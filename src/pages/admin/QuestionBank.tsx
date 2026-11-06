@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { RichTextEditor } from '../../components/RichTextEditor';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, deleteDoc, doc, orderBy, where, writeBatch, updateDoc, addDoc } from 'firebase/firestore';
@@ -20,30 +20,54 @@ const stripSimpleHTML = (val: string | undefined | null): string => {
   let str = String(val).trim();
   if (!str) return '';
 
-  // Remove paragraph tags (<p...>, </p>)
+  if (typeof DOMParser !== 'undefined') {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(str, 'text/html');
+
+      // 1. Unroll KaTeX formulas to TeX representation
+      const katexEls = doc.querySelectorAll('.katex');
+      katexEls.forEach(el => {
+        const annot = el.querySelector('annotation[encoding*="tex"]');
+        const tex = annot ? (annot.textContent || '') : (el.textContent || '');
+        el.replaceWith(doc.createTextNode(tex));
+      });
+
+      // 2. Unroll Quill formula spans to TeX representation
+      const qlEls = doc.querySelectorAll('.ql-formula');
+      qlEls.forEach(el => {
+        const tex = el.getAttribute('data-value') || el.textContent || '';
+        el.replaceWith(doc.createTextNode(tex));
+      });
+
+      // 3. If it has media/table elements, preserve HTML without p tags
+      if (doc.querySelector('img, table, tr, td, audio, video, iframe, svg')) {
+        let inner = doc.body.innerHTML.trim();
+        inner = inner.replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '').trim();
+        return inner;
+      }
+
+      // 4. If it has simple styling tags (bold, italic, underline, sub, sup)
+      if (doc.querySelector('u, b, strong, i, em, s, strike, sub, sup, ins, font')) {
+        let inner = doc.body.innerHTML.trim();
+        inner = inner.replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '').trim();
+        return inner;
+      }
+
+      // 5. Otherwise return plain text content
+      return (doc.body.textContent || doc.body.innerText || '').trim();
+    } catch {
+      // fallback
+    }
+  }
+
+  // Fallback string replacement
+  str = str.replace(/<span[^>]*class="[^"]*ql-formula[^"]*"[^>]*data-value="([^"]+)"[^>]*>[\s\S]*?<\/span>/gi, '$1');
   str = str.replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '').trim();
-
-  // If it has images, tables, math, audio, video, iframe, svg, return as is
-  if (/<(img|table|tr|td|math|audio|video|iframe|svg)/i.test(str)) {
+  if (/<(img|table|tr|td|audio|video|iframe|svg)/i.test(str)) {
     return str.trim();
   }
-
-  // If it has formatting tags (u, b, strong, i, em, s, strike, sub, sup, ins, span, font), preserve it
-  if (/<(u|b|strong|i|em|s|strike|sub|sup|ins|span|font)/i.test(str)) {
-    return str.trim();
-  }
-
-  // Otherwise, extract plain text content (handling entities like &nbsp;, &amp;)
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(str, 'text/html');
-    const text = doc.body.textContent || doc.body.innerText || '';
-    return text.trim();
-  } catch (e) {
-    // fallback
-  }
-
-  return str.trim();
+  return str.replace(/<[^>]*>/g, '').trim();
 };
 
 const isOptionEmpty = (val: string | undefined | null): boolean => {
@@ -85,6 +109,30 @@ export default function QuestionBank() {
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
   const isDirty = false;
   const setIsDirty = (_val: boolean) => {};
+
+  const [hasEditedWeights, setHasEditedWeights] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (selectedSubject && selectedTemplateFilter) {
+      const key = `cbt_custom_weights_${selectedSubject}_${selectedTemplateFilter}`;
+      try {
+        const saved = localStorage.getItem(key) === 'true';
+        setHasEditedWeights(saved);
+      } catch {
+        setHasEditedWeights(false);
+      }
+    } else {
+      setHasEditedWeights(false);
+    }
+  }, [selectedSubject, selectedTemplateFilter]);
+
+  const totalWeight = useMemo(() => {
+    if (!questions || questions.length === 0) return 0;
+    return questions.reduce((acc, q) => acc + (Number(q.weight) || 0), 0);
+  }, [questions]);
+
+  const isWeight100 = Math.abs(totalWeight - 100) < 0.05;
+  const weightDiff = Number((100 - totalWeight).toFixed(2));
 
   const isEditingChanged = () => {
     if (!editingData || !originalEditingData) return false;
@@ -311,6 +359,37 @@ export default function QuestionBank() {
     } catch (err) {
       console.error("Error auto adjusting weights:", err);
     }
+  };
+
+  const handleResetWeightsTo100 = async () => {
+    if (!selectedSubject || !selectedTemplateFilter || selectedTemplateFilter === 'all') {
+      showCustomAlert('Pilih Berkas Soal', 'Pilih salah satu berkas template soal untuk mereset bobot nilainya.', false);
+      return;
+    }
+    showCustomConfirm(
+      'Reset Bobot ke 100?',
+      'Sistem akan otomatis menghitung dan membagikan bobot nilai ke seluruh soal dalam berkas ini secara proporsional sehingga total nilainya tepat 100.',
+      async () => {
+        setProcessing(true);
+        try {
+          await autoAdjustWeights(selectedSubject, selectedTemplateFilter);
+          const key = `cbt_custom_weights_${selectedSubject}_${selectedTemplateFilter}`;
+          try {
+            localStorage.removeItem(key);
+          } catch {}
+          setHasEditedWeights(false);
+          await fetchQuestions();
+          showCustomAlert('Berhasil Reset', 'Bobot nilai seluruh soal berhasil direset ke standar sistem dan genap 100.', true);
+        } catch (err) {
+          console.error(err);
+          showCustomAlert('Gagal Reset', 'Terjadi kesalahan saat mereset bobot soal.', false);
+        } finally {
+          setProcessing(false);
+        }
+      },
+      false,
+      'Reset Bobot Sekarang'
+    );
   };
 
   const fetchQuestions = async () => {
@@ -1195,8 +1274,8 @@ export default function QuestionBank() {
         try {
           await deleteDoc(doc(db, 'questions', id));
           
-          // Auto adjust weights to sum to 100
-          if (qToDelete.packetName) {
+          // Auto adjust weights to sum to 100 if user has not set custom weights
+          if (!hasEditedWeights && qToDelete.packetName) {
             await autoAdjustWeights(selectedSubject, qToDelete.packetName);
           }
           
@@ -1372,6 +1451,11 @@ export default function QuestionBank() {
         return 1; // 'pilihan_ganda'
       };
 
+      const rawWeight = editingData.weight;
+      const parsedWeight = rawWeight !== undefined && rawWeight !== null && rawWeight !== '' && !isNaN(Number(rawWeight))
+        ? Number(rawWeight)
+        : (qType === 'essay' ? 10 : qType === 'listening' ? 5 : qType === 'pilihan_ganda_kompleks' ? 2 : 1);
+
       await updateDoc(doc(db, 'questions', editingQuestionId), {
         number: Number(editingData.number),
         question: editingData.question || '',
@@ -1383,13 +1467,19 @@ export default function QuestionBank() {
         correctAnswer: isPg ? String(editingData.correctAnswer || (qType === 'pilihan_ganda_kompleks' ? 'A' : 'A')) : (editingData.correctAnswer || ''),
         type: qType,
         typeCode: mapTypeToCode(qType),
-        weight: Number(editingData.weight !== undefined && editingData.weight !== null && editingData.weight !== 0 ? editingData.weight : (qType === 'essay' ? 10 : qType === 'listening' ? 5 : qType === 'pilihan_ganda_kompleks' ? 2 : 1)),
+        weight: parsedWeight,
         lastEditedAt: Date.now()
       } as any);
-      
-      // Auto adjust weights to sum to 100
-      if (editingData.packetName) {
-        await autoAdjustWeights(selectedSubject, editingData.packetName);
+
+      // Track if the user has customized question points
+      const origWeight = originalEditingData?.weight !== undefined ? Number(originalEditingData.weight) : 0;
+      if (Math.abs(parsedWeight - origWeight) > 0.001) {
+        setHasEditedWeights(true);
+        if (selectedSubject && editingData.packetName) {
+          try {
+            localStorage.setItem(`cbt_custom_weights_${selectedSubject}_${editingData.packetName}`, 'true');
+          } catch {}
+        }
       }
       
       setEditingQuestionId(null);
@@ -1496,8 +1586,10 @@ export default function QuestionBank() {
       
       await batch.commit();
       
-      // Auto adjust weights to sum to 100
-      await autoAdjustWeights(selectedSubject, selectedTemplateFilter!);
+      // Auto adjust weights to sum to 100 if user has not set custom weights
+      if (!hasEditedWeights) {
+        await autoAdjustWeights(selectedSubject, selectedTemplateFilter!);
+      }
       
       setIsAddingQuestion(false);
       setAddingData({
@@ -1734,6 +1826,27 @@ export default function QuestionBank() {
                 <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 px-2.5 py-1 border border-slate-200 rounded">
                   {questions.length} Soal
                 </span>
+                {questions.length > 0 && selectedTemplateFilter !== null && (
+                  <span className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 border rounded flex items-center space-x-1 ${
+                    isWeight100 
+                      ? 'bg-green-50 text-green-700 border-green-200' 
+                      : 'bg-amber-50 text-amber-700 border-amber-300'
+                  }`}>
+                    <span>Bobot:</span>
+                    <span>{totalWeight % 1 === 0 ? totalWeight.toFixed(0) : totalWeight.toFixed(2).replace(/\.?0+$/, '')} / 100</span>
+                  </span>
+                )}
+                {hasEditedWeights && selectedTemplateFilter !== null && selectedTemplateFilter !== 'all' && (
+                  <button
+                    type="button"
+                    onClick={handleResetWeightsTo100}
+                    disabled={processing}
+                    className="text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                    title="Reset pembagian bobot soal ke standar sistem agar otomatis kembali genap 100"
+                  >
+                    <span>↺ Reset Bobot ke 100 (Sistem)</span>
+                  </button>
+                )}
               </div>
 
             <div className="flex items-center space-x-2">
@@ -1767,6 +1880,36 @@ export default function QuestionBank() {
                 </div>
               </div>
             </div>
+
+            {/* Weight Warning & Reset Notification Banner */}
+            {questions.length > 0 && selectedTemplateFilter !== null && !isWeight100 && (
+              <div className="mx-4 mt-3 mb-1 p-3 bg-amber-50 border border-amber-300 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 shadow-xs">
+                <div className="flex items-start space-x-2.5">
+                  <span className="text-base leading-none shrink-0 mt-0.5">⚠️</span>
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wide text-amber-800">
+                      Peringatan Bobot Soal: Total Bobot Saat Ini {totalWeight % 1 === 0 ? totalWeight.toFixed(0) : totalWeight.toFixed(2).replace(/\.?0+$/, '')} / 100
+                    </div>
+                    <p className="text-[11px] text-amber-700 mt-0.5">
+                      {weightDiff > 0 
+                        ? `Total bobot soal belum genap 100 (Kurang ${weightDiff} poin). Sesuaikan nilai per soal atau gunakan tombol reset sistem.`
+                        : `Total bobot soal melebihi 100 (Kelebihan ${Math.abs(weightDiff)} poin). Sesuaikan nilai per soal atau gunakan tombol reset sistem.`}
+                    </p>
+                  </div>
+                </div>
+                {hasEditedWeights && (
+                  <button
+                    type="button"
+                    onClick={handleResetWeightsTo100}
+                    disabled={processing}
+                    className="shrink-0 inline-flex items-center space-x-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold rounded shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
+                    title="Reset pembagian bobot nilai ke standar sistem agar otomatis kembali genap 100"
+                  >
+                    <span>↺ Reset Bobot ke 100 (Sistem)</span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Questions List */}
             <div className="overflow-auto flex-1 divide-y divide-slate-100">
@@ -1842,8 +1985,13 @@ export default function QuestionBank() {
                       <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Bobot Nilai</label>
                       <input 
                         type="number"
-                        value={addingData.weight || ''}
-                        onChange={e => setAddingData({ ...addingData, weight: parseInt(e.target.value) || 0 })}
+                        step="any"
+                        min="0"
+                        value={addingData.weight !== undefined && addingData.weight !== null ? addingData.weight : ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setAddingData({ ...addingData, weight: val === '' ? ('' as any) : parseFloat(val) || 0 });
+                        }}
                         className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800"
                       />
                     </div>
@@ -1853,7 +2001,7 @@ export default function QuestionBank() {
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                         {['A', 'B', 'C', 'D', 'E'].map(l => (
-                          <div key={l} className="relative group">
+                          <div key={l} className="relative group space-y-1">
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
                               Pilihan {l}
                             </label>
@@ -1862,6 +2010,7 @@ export default function QuestionBank() {
                                 type="text"
                                 value={(addingData as any)[`option${l}`] || ''}
                                 onChange={e => setAddingData({ ...addingData, [`option${l}`]: e.target.value })}
+                                placeholder={`Pilihan ${l}...`}
                                 className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500"
                               />
                               <button 
@@ -1873,6 +2022,17 @@ export default function QuestionBank() {
                                 <X className="w-3 h-3" />
                               </button>
                             </div>
+                            {/* Live formula / math preview */}
+                            {(addingData as any)[`option${l}`] && (
+                              <div className="bg-slate-50 rounded border border-slate-200 px-2 py-1 min-h-[26px] text-xs text-slate-800 flex items-center overflow-x-auto shadow-3xs" title="Pratinjau tampilan rumus">
+                                <span className="text-[9px] font-bold text-blue-600 mr-1.5 select-none shrink-0 uppercase tracking-wider">Hasil:</span>
+                                <div 
+                                  className="ql-editor p-0 text-xs inline-block [&_p]:m-0 [&_p]:p-0"
+                                  dir="auto"
+                                  dangerouslySetInnerHTML={{ __html: formatHTML(String((addingData as any)[`option${l}`])) }}
+                                />
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -2028,8 +2188,13 @@ export default function QuestionBank() {
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Bobot Nilai</label>
                             <input 
                               type="number"
-                              value={editingData.weight || ''}
-                              onChange={e => setEditingData({ ...editingData, weight: parseInt(e.target.value) || 0 })}
+                              step="any"
+                              min="0"
+                              value={editingData.weight !== undefined && editingData.weight !== null ? editingData.weight : ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setEditingData({ ...editingData, weight: val === '' ? ('' as any) : parseFloat(val) || 0 });
+                              }}
                               className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800"
                             />
                           </div>
@@ -2039,7 +2204,7 @@ export default function QuestionBank() {
                           <>
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                               {['A', 'B', 'C', 'D', 'E'].map(l => (
-                                <div key={l}>
+                                <div key={l} className="space-y-1">
                                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
                                     Pilihan {l}
                                   </label>
@@ -2048,6 +2213,7 @@ export default function QuestionBank() {
                                       type="text"
                                       value={(editingData as any)[`option${l}`] || ''}
                                       onChange={e => setEditingData({ ...editingData, [`option${l}`]: e.target.value })}
+                                      placeholder={`Pilihan ${l}...`}
                                       className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                     <button 
@@ -2059,6 +2225,17 @@ export default function QuestionBank() {
                                       <X className="w-3 h-3" />
                                     </button>
                                   </div>
+                                  {/* Live formula / math preview */}
+                                  {(editingData as any)[`option${l}`] && (
+                                    <div className="bg-slate-50 rounded border border-slate-200 px-2 py-1 min-h-[26px] text-xs text-slate-800 flex items-center overflow-x-auto shadow-3xs" title="Pratinjau tampilan rumus">
+                                      <span className="text-[9px] font-bold text-blue-600 mr-1.5 select-none shrink-0 uppercase tracking-wider">Hasil:</span>
+                                      <div 
+                                        className="ql-editor p-0 text-xs inline-block [&_p]:m-0 [&_p]:p-0"
+                                        dir="auto"
+                                        dangerouslySetInnerHTML={{ __html: formatHTML(String((editingData as any)[`option${l}`])) }}
+                                      />
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>

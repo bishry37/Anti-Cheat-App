@@ -80,13 +80,46 @@ export const renderMathInString = (content: string | null | undefined): string =
     return safeRender(tex, false);
   });
 
-  // 4. Render bare LaTeX commands like \frac{a}{b}, \sqrt{a}, etc.
-  str = str.replace(/(\\(?:frac|sqrt|cbrt|sum|int|lim|prod|vec|hat|bar|overline|underline|binom)\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}(?:\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})?)/g, (full, tex) => {
+  // 4. Render bare full-equation candidates in plain text segments (e.g. \frac{\sin x}{\cos x}, \sin(30^\circ), \cos \theta = \frac{1}{2})
+  str = str.replace(/(>|^)([^<]*\\[a-zA-Z]+[^<]*)(<|$)/g, (full, open, text, close) => {
+    if (!text.includes('\\')) return full;
+
+    // Check if there is an option label prefix like "A. " or "1. "
+    const prefixMatch = text.match(/^([A-Ea-e1-9]\s*[\.\):\-]\s*)(.*)$/);
+    const prefix = prefixMatch ? prefixMatch[1] : '';
+    const mathCandidate = prefixMatch ? prefixMatch[2].trim() : text.trim();
+
+    // If the candidate looks like a pure math expression, try rendering the entire expression with KaTeX
+    if (mathCandidate && !/[a-zA-Z]{5,}/.test(mathCandidate.replace(/\\[a-zA-Z]+/g, ''))) {
+      try {
+        const rendered = katex.renderToString(mathCandidate, { throwOnError: false, displayMode: false });
+        if (rendered && !rendered.includes('katex-error')) {
+          return `${open}${prefix}${rendered}${close}`;
+        }
+      } catch {
+        // Fallback to pattern replacements below
+      }
+    }
+    return full;
+  });
+
+  // 5. Render bare LaTeX commands like \frac{a}{b}, \frac 1 2, \sqrt{a}, etc.
+  str = str.replace(/(\\(?:frac|dfrac|tfrac)\s*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}|[0-9a-zA-Z])(?:\s*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}|[0-9a-zA-Z]))?)/g, (full, tex) => {
     return safeRender(tex, false);
   });
 
-  // 5. Render bare standalone LaTeX symbols like \pm, \times, \div, \le, \ge, \ne, \approx, \infty, \pi, \alpha, \beta, \theta, etc.
-  str = str.replace(/(?<![\w\\])(\\(?:pm|times|div|le|ge|ne|approx|equiv|infty|pi|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|sigma|omega|Delta|Omega|to|leftarrow|leftrightarrow|in|notin|subset|subseteq|cup|cap|angle|perp))\b/g, (full, tex) => {
+  // 6. Render bare roots like \sqrt{x}, \sqrt[3]{x}, etc.
+  str = str.replace(/(\\(?:sqrt|cbrt)(?:\[[^\]]*\])?\s*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}|[0-9a-zA-Z]))/g, (full, tex) => {
+    return safeRender(tex, false);
+  });
+
+  // 7. Render trigonometry and logarithmic functions like \sin(x), \cos(\theta), \tan 45^\circ, \log(x), \ln(x)
+  str = str.replace(/(\\(?:sin|cos|tan|cot|sec|csc|arcsin|arccos|arctan|log|ln|exp|lim)\b(?:\^[0-9a-zA-Z]+)?(?:\s*\{[^{}]*\}|\s*\([^)]*\)|\s*[0-9a-zA-Z]+(?:\^[0-9a-zA-Z]+)?)?)/g, (full, tex) => {
+    return safeRender(tex, false);
+  });
+
+  // 8. Render bare standalone LaTeX symbols like \pm, \times, \div, \le, \ge, \ne, \approx, \infty, \pi, \alpha, \beta, \theta, etc.
+  str = str.replace(/(?<![\w\\])(\\(?:pm|times|div|cdot|le|ge|ne|approx|equiv|infty|pi|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|sigma|omega|Delta|Omega|degree|circ|to|leftarrow|leftrightarrow|in|notin|subset|subseteq|cup|cap|angle|perp))\b/g, (full, tex) => {
     return safeRender(tex, false);
   });
 

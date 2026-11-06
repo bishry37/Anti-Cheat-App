@@ -1027,10 +1027,10 @@ export default function ResultReport() {
                         <button 
                           onClick={() => handleOpenGradingModal(s)}
                           className="px-2 py-1 rounded text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 flex items-center justify-center gap-1 transition-colors cursor-pointer" 
-                          title="Detail & Koreksi"
+                          title="Koreksi"
                         >
                           <Award className="w-3.5 h-3.5" />
-                          <span>Detail & Koreksi</span>
+                          <span>Koreksi</span>
                         </button>
                         <button 
                           onClick={() => triggerDelete(s.id!, s.studentName)} 
@@ -1531,7 +1531,7 @@ export default function ResultReport() {
                 ) : (
                   <>
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Simpan Koreksi & Nilai</span>
+                    <span>Simpan Koreksi</span>
                   </>
                 )}
               </button>
