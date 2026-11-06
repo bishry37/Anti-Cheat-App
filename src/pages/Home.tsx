@@ -644,6 +644,7 @@ export default function Home() {
 
       const sessionData: StudentSession = isResume ? {
         ...existingSessionData!,
+        id: uid,
         status: 'Aktif',
         lastActivity: Date.now(),
         startTime: Date.now(), // Reset startTime to NOW so countdown starts smoothly with remaining duration

@@ -177,7 +177,7 @@ export default function ExamMonitor() {
       
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const data = snapshot.docs
-          .map(d => ({ id: d.id, ...d.data() } as StudentSession))
+          .map(d => ({ ...d.data(), id: d.id } as StudentSession))
           .filter(s => !s.hiddenFromMonitor);
         // Sort active first, then newest
         data.sort((a, b) => {

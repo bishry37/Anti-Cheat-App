@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, getDoc, orderBy, where, doc, deleteDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, getDocs, getDoc, orderBy, where, doc, deleteDoc, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { StudentSession, Exam, Question, Class, Subject, Setting, AudioItem } from '../../types';
 import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Check, Clock, Users, Search, LayoutGrid, Music } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -101,19 +101,48 @@ export default function ResultReport() {
     setSessionQuestions([]);
     try {
       const examObj = exams[session.examId];
-      const targetPacket = session.packetName || examObj?.packetName;
-      let qQuery;
-      if (targetPacket) {
-        qQuery = query(collection(db, 'questions'), 
-          where('subjectId', '==', session.subjectId),
-          where('packetName', '==', targetPacket)
-        );
-      } else {
-        qQuery = query(collection(db, 'questions'), where('subjectId', '==', session.subjectId));
+      const targetSubId = session.subjectId || examObj?.subjectId || '';
+      const targetPacket = session.packetName || examObj?.packetName || '';
+
+      let qSnap: any = null;
+      if (targetSubId && targetPacket) {
+        try {
+          qSnap = await getDocs(query(collection(db, 'questions'), 
+            where('subjectId', '==', targetSubId),
+            where('packetName', '==', targetPacket)
+          ));
+        } catch (e) {
+          console.warn("Targeted packet query failed, falling back to subject query", e);
+        }
+      }
+      if (!qSnap || qSnap.empty) {
+        if (targetSubId) {
+          try {
+            qSnap = await getDocs(query(collection(db, 'questions'), where('subjectId', '==', targetSubId)));
+          } catch (e) {
+            console.warn("Subject query failed:", e);
+          }
+        }
+      }
+      if (!qSnap || qSnap.empty) {
+        if (user) {
+          try {
+            qSnap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
+          } catch (e) {
+            console.warn("AdminId query failed:", e);
+          }
+        }
+      }
+      if (!qSnap || qSnap.empty) {
+        try {
+          qSnap = await getDocs(collection(db, 'questions'));
+        } catch (e) {
+          console.warn("Global questions collection getDocs failed:", e);
+        }
       }
       
-      const qSnap = await getDocs(qQuery);
-      const qs = qSnap.docs.map(d => {
+      const allDocs = qSnap ? qSnap.docs : [];
+      let qs = allDocs.map((d: any) => {
         const data = d.data() as any;
         let qType = data.type;
         const tCode = data.typeCode;
@@ -129,12 +158,22 @@ export default function ResultReport() {
           qType = 'pilihan_ganda';
         }
         return {
-          id: d.id,
           ...data,
+          id: d.id,
           type: qType,
           typeCode: tCode || (qType === 'pilihan_ganda_kompleks' ? 4 : qType === 'listening' ? 2 : qType === 'essay' ? 3 : 1)
         } as Question;
       });
+
+      // Filter questions to match targetSubId and targetPacket if available
+      if (targetSubId) {
+        const matchingSub = qs.filter(q => q.subjectId === targetSubId);
+        if (matchingSub.length > 0) qs = matchingSub;
+      }
+      if (targetPacket) {
+        const matchingPkt = qs.filter(q => !q.packetName || q.packetName === targetPacket || q.packetName === 'Semua Paket');
+        if (matchingPkt.length > 0) qs = matchingPkt;
+      }
       
       const typeOrder: Record<string, number> = { 'pilihan_ganda': 1, 'listening': 2, 'essay': 3, 'pilihan_ganda_kompleks': 4, 'isian_singkat': 5 };
       const sortedQs = qs.sort((a, b) => {
@@ -161,51 +200,128 @@ export default function ResultReport() {
     try {
       const cleanScores: Record<string, number> = {};
       Object.keys(editingScores).forEach(k => {
+        if (!k || k === 'undefined' || k === 'null') return;
         const v = editingScores[k];
-        if (typeof v === 'number' && !isNaN(v)) {
+        if (typeof v === 'number' && Number.isFinite(v) && !isNaN(v)) {
           cleanScores[k] = Number(v.toFixed(2));
         }
       });
 
       let pointsEarned = 0;
       let totalWeight = 0;
+      let correctCount = 0;
+      let wrongCount = 0;
       const studentAnswers = selectedSession.answers || {};
 
+      if (sessionQuestions.length === 0) {
+        // Fallback: if session questions could not be loaded, save cleanScores directly
+        const docId = selectedSession.id;
+        if (!docId) throw new Error('ID sesi siswa tidak ditemukan.');
+
+        const updatePayload: Record<string, any> = {
+          essayScores: cleanScores,
+          lastGradedAt: Date.now()
+        };
+        await setDoc(doc(db, 'student_sessions', docId), updatePayload, { merge: true });
+
+        showToast('Koreksi nilai berhasil disimpan!');
+        setSelectedSession(null);
+        fetchResults();
+        return;
+      }
+
       sessionQuestions.forEach(q => {
-        const weight = q.weight || 10;
+        const qId = q.id;
+        if (!qId) return;
+        const weight = typeof q.weight === 'number' && Number.isFinite(q.weight) && q.weight > 0 ? q.weight : 10;
         totalWeight += weight;
 
-        const manualScore = cleanScores[q.id!];
-        if (manualScore !== undefined) {
-          pointsEarned += manualScore;
+        let qEarned = 0;
+        const manualScore = cleanScores[qId];
+        if (manualScore !== undefined && typeof manualScore === 'number' && Number.isFinite(manualScore)) {
+          qEarned = Math.min(weight, Math.max(0, manualScore));
         } else if (q.type === 'pilihan_ganda' || q.type === 'listening') {
-          if (studentAnswers[q.id!] === q.correctAnswer) {
-            pointsEarned += weight;
+          if (studentAnswers[qId] === q.correctAnswer) {
+            qEarned = weight;
           }
         } else if (q.type === 'pilihan_ganda_kompleks') {
           const availCount = ['A', 'B', 'C', 'D', 'E'].filter(l => !isOptionEmpty((q as any)[`option${l}`])).length || 5;
-          const pgk = calculatePgkPoints(studentAnswers[q.id!], q.correctAnswer, weight, availCount);
-          pointsEarned += pgk.earned;
+          const pgk = calculatePgkPoints(studentAnswers[qId], q.correctAnswer, weight, availCount);
+          qEarned = pgk.earned;
         } else {
-          pointsEarned += calculateSmartPoints(studentAnswers[q.id!] || '', q.correctAnswer || '', weight);
+          // essay / isian singkat
+          qEarned = calculateSmartPoints(studentAnswers[qId] || '', q.correctAnswer || '', weight);
+        }
+
+        pointsEarned += qEarned;
+        if (qEarned >= (weight * 0.5)) {
+          correctCount++;
+        } else {
+          wrongCount++;
         }
       });
 
-      const rootScore = totalWeight > 0 ? Number(((pointsEarned / totalWeight) * 100).toFixed(2)) : 0;
+      const rootScore = totalWeight > 0 
+        ? Number(((pointsEarned / totalWeight) * 100).toFixed(2)) 
+        : (typeof selectedSession.score === 'number' && Number.isFinite(selectedSession.score) ? selectedSession.score : 0);
 
-      const docId = selectedSession.id!;
-      await updateDoc(doc(db, 'student_sessions', docId), {
+      const docId = selectedSession.id;
+      if (!docId) {
+        throw new Error('ID sesi siswa tidak valid.');
+      }
+
+      const updatePayload: Record<string, any> = {
         essayScores: cleanScores,
         score: rootScore,
+        correctCount,
+        wrongCount,
         lastGradedAt: Date.now()
-      });
+      };
 
-      showToast('Koreksi jawaban berhasil disimpan!');
+      // Use setDoc with merge: true to avoid any NOT_FOUND issues
+      await setDoc(doc(db, 'student_sessions', docId), updatePayload, { merge: true });
+
+      // Synchronize any duplicate/resumed sessions for this student and exam
+      if (selectedSession.studentName && selectedSession.examId) {
+        try {
+          const dupQuery = query(
+            collection(db, 'student_sessions'),
+            where('studentName', '==', selectedSession.studentName),
+            where('examId', '==', selectedSession.examId)
+          );
+          const dupSnap = await getDocs(dupQuery);
+          for (const d of dupSnap.docs) {
+            if (d.id !== docId) {
+              await setDoc(doc(db, 'student_sessions', d.id), updatePayload, { merge: true }).catch(() => {});
+            }
+          }
+        } catch (e) {
+          console.warn("Sync duplicate sessions note:", e);
+        }
+      }
+
+      // Optimistically update local session state immediately
+      setSessions(prev => prev.map(s => {
+        if (s.id === docId || (s.studentName === selectedSession.studentName && s.examId === selectedSession.examId)) {
+          return {
+            ...s,
+            essayScores: cleanScores,
+            score: rootScore,
+            correctCount,
+            wrongCount,
+            lastGradedAt: Date.now()
+          };
+        }
+        return s;
+      }));
+
+      showToast('Koreksi jawaban & nilai berhasil disimpan!');
       setSelectedSession(null);
       fetchResults();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Gagal simpan nilai koreksi:", err);
-      showToast('Gagal menyimpan nilai koreksi.');
+      const msg = err?.message || 'Gagal menyimpan nilai koreksi.';
+      showToast(`Gagal: ${msg}`);
     } finally {
       setSavingGrades(false);
     }
@@ -282,7 +398,7 @@ export default function ResultReport() {
         where('className', '==', filterClass)
       );
       getDocs(baseQ).then(baseSnap => {
-        const allClassSess = baseSnap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
+        const allClassSess = baseSnap.docs.map(d => ({ ...d.data(), id: d.id } as StudentSession));
         setAllClassSessions(deduplicateStudentSessions(allClassSess));
       }).catch(e => console.error(e));
     } else {
@@ -302,7 +418,7 @@ export default function ResultReport() {
     }
 
     const unsub = onSnapshot(q, (snap) => {
-      let data = snap.docs.map(d => ({ id: d.id, ...d.data() } as StudentSession));
+      let data = snap.docs.map(d => ({ ...d.data(), id: d.id } as StudentSession));
       let deduplicatedData = deduplicateStudentSessions(data);
       // Manual sort since compound index might fail without setup
       deduplicatedData.sort((a,b) => (b.endTime || 0) - (a.endTime || 0));
@@ -533,13 +649,28 @@ export default function ResultReport() {
   };
 
   const executeDelete = async () => {
-    const { id } = confirmDelete;
+    const { id, studentName } = confirmDelete;
     setConfirmDelete(prev => ({ ...prev, isOpen: false }));
     try {
       await deleteDoc(doc(db, 'student_sessions', id));
+      if (studentName && user) {
+        try {
+          const dupQ = query(
+            collection(db, 'student_sessions'),
+            where('adminId', '==', user.uid),
+            where('studentName', '==', studentName)
+          );
+          const dupSnap = await getDocs(dupQ);
+          for (const d of dupSnap.docs) {
+            await deleteDoc(d.ref).catch(() => {});
+          }
+        } catch (e) {
+          console.warn("Delete duplicate session docs note:", e);
+        }
+      }
       // Refresh local list
-      setSessions(prev => prev.filter(s => s.id !== id));
-      setAllClassSessions(prev => prev.filter(s => s.id !== id));
+      setSessions(prev => prev.filter(s => s.id !== id && s.studentName !== studentName));
+      setAllClassSessions(prev => prev.filter(s => s.id !== id && s.studentName !== studentName));
       showToast('Hasil ujian berhasil dihapus');
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'student_sessions');
