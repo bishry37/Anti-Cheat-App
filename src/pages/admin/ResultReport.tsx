@@ -394,11 +394,12 @@ export default function ResultReport() {
     if (filterClass) {
       const baseQ = query(
         collection(db, 'student_sessions'),
-        where('adminId', '==', user.uid),
-        where('className', '==', filterClass)
+        where('adminId', '==', user.uid)
       );
       getDocs(baseQ).then(baseSnap => {
-        const allClassSess = baseSnap.docs.map(d => ({ ...d.data(), id: d.id } as StudentSession));
+        const allClassSess = baseSnap.docs
+          .map(d => ({ ...d.data(), id: d.id } as StudentSession))
+          .filter(s => !s.hiddenFromMonitor && s.className === filterClass);
         setAllClassSessions(deduplicateStudentSessions(allClassSess));
       }).catch(e => console.error(e));
     } else {
@@ -407,20 +408,22 @@ export default function ResultReport() {
 
     let q = query(
       collection(db, 'student_sessions'), 
-      where('adminId', '==', user.uid),
-      where('status', 'in', ['Selesai', 'Didiskualifikasi'])
+      where('adminId', '==', user.uid)
     );
-    if (filterClass) {
-        q = query(q, where('className', '==', filterClass));
-    }
-    if (filterExam) {
-       q = query(q, where('examId', '==', filterExam));
-    }
 
     const unsub = onSnapshot(q, (snap) => {
-      let data = snap.docs.map(d => ({ ...d.data(), id: d.id } as StudentSession));
+      let data = snap.docs
+        .map(d => ({ ...d.data(), id: d.id } as StudentSession))
+        .filter(s => !s.hiddenFromMonitor && (s.status === 'Selesai' || s.status === 'Didiskualifikasi'));
+      
+      if (filterClass) {
+        data = data.filter(s => s.className === filterClass);
+      }
+      if (filterExam) {
+        data = data.filter(s => s.examId === filterExam);
+      }
+
       let deduplicatedData = deduplicateStudentSessions(data);
-      // Manual sort since compound index might fail without setup
       deduplicatedData.sort((a,b) => (b.endTime || 0) - (a.endTime || 0));
       setSessions(deduplicatedData);
       setLoading(false);
