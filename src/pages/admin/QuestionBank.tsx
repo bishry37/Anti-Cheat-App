@@ -1272,7 +1272,14 @@ export default function QuestionBank() {
       'Apakah Anda yakin ingin menghapus soal ini dari bank soal?',
       async () => {
         try {
-          // Immediately filter out the deleted question locally for instant UI update
+          // 1. Explicitly delete the document first
+          const deletePromise = deleteDoc(doc(db, 'questions', id));
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Timeout")), 6000)
+          );
+          await Promise.race([deletePromise, timeoutPromise]);
+
+          // 2. Immediately filter out the deleted question locally
           const remainingQuestions = questions.filter(q => q.id !== id);
 
           // Rebalance weights among remaining questions so total weight equals 100
@@ -1309,17 +1316,16 @@ export default function QuestionBank() {
           setHasEditedWeights(false);
           setIsDirty(true);
 
-          // Perform Firestore updates in background
-          const batch = writeBatch(db);
-          batch.delete(doc(db, 'questions', id));
-
-          rebalanced.forEach(q => {
-            if (q.id) {
-              batch.update(doc(db, 'questions', q.id), { weight: q.weight });
-            }
-          });
-
-          await batch.commit();
+          // 3. Update remaining weights in background
+          if (rebalanced.length > 0) {
+            const batch = writeBatch(db);
+            rebalanced.forEach(q => {
+              if (q.id) {
+                batch.update(doc(db, 'questions', q.id), { weight: q.weight });
+              }
+            });
+            await batch.commit().catch(console.error);
+          }
 
           showCustomAlert(
             'Soal Berhasil Dihapus',
@@ -1327,8 +1333,9 @@ export default function QuestionBank() {
             true
           );
         } catch (err) {
-          handleFirestoreError(err, OperationType.DELETE, 'questions');
-          fetchQuestions(); // rollback on error
+          console.error("Error deleting question:", err);
+          fetchQuestions();
+          showCustomAlert('Gagal Hapus', 'Terjadi kesalahan saat menghapus soal.', false);
         }
       },
       true,

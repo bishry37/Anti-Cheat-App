@@ -283,22 +283,31 @@ export default function Exams() {
       }
 
       if (editingId) {
-        await updateDoc(doc(db, 'exams', editingId), payload);
+        setExams(prev => prev.map(ex => ex.id === editingId ? { ...ex, ...payload } : ex));
+        setIsAdding(false);
+        setEditingId(null);
+        resetForm();
+        setProcessing(false);
+        await updateDoc(doc(db, 'exams', editingId), payload).catch(console.error);
       } else {
-        await addDoc(collection(db, 'exams'), {
+        const newCreatedAt = Date.now();
+        const tempId = 'temp_' + Math.random().toString(36).substring(2, 9);
+        setExams(prev => [...prev, { id: tempId, ...payload, createdAt: newCreatedAt }]);
+        setIsAdding(false);
+        setEditingId(null);
+        resetForm();
+        setProcessing(false);
+        const docRef = await addDoc(collection(db, 'exams'), {
           ...payload,
-          createdAt: Date.now()
+          createdAt: newCreatedAt
         });
+        // Replace temp id with real id in state
+        setExams(prev => prev.map(ex => ex.id === tempId ? { ...ex, id: docRef.id } : ex));
       }
-
-      setIsAdding(false);
-      setEditingId(null);
-      resetForm();
     } catch (err: any) {
       console.error("Error saving exam schedule:", err);
-      setErrorMsg(err?.message ? `Gagal menyimpan: ${err.message}` : "Terjadi kesalahan saat menyimpan jadwal ujian.");
-    } finally {
       setProcessing(false);
+      setErrorMsg(err?.message ? `Gagal menyimpan: ${err.message}` : "Terjadi kesalahan saat menyimpan jadwal ujian.");
     }
   };
 
@@ -312,15 +321,13 @@ export default function Exams() {
 
   const executeDelete = async () => {
     if (!modalConfig || !modalConfig.idToDelete) return;
-    setProcessing(true);
+    const idToDelete = modalConfig.idToDelete;
+    setModalConfig(null);
+    setExams(prev => prev.filter(ex => ex.id !== idToDelete));
     try {
-      await deleteDoc(doc(db, 'exams', modalConfig.idToDelete));
-      setModalConfig(null);
+      await deleteDoc(doc(db, 'exams', idToDelete));
     } catch (err: any) {
       console.error("Error deleting exam:", err);
-      setErrorMsg(err?.message ? `Gagal menghapus: ${err.message}` : "Terjadi kesalahan saat menghapus jadwal ujian.");
-    } finally {
-      setProcessing(false);
     }
   };
 
