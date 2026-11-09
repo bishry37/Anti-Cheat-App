@@ -1462,7 +1462,7 @@ export default function StudentExam() {
               <StudentCardPhoto
                 photo={studentPhoto || session.studentPhoto}
                 studentName={session.studentName}
-                className="w-7 h-9 rounded border border-slate-300 shadow-3xs shrink-0"
+                className="w-10 h-14 rounded-md border border-slate-300 shadow-3xs shrink-0 object-cover"
                 showPlaceholderLabel={false}
               />
               <div className="flex items-center bg-blue-600 text-white px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider shadow-3xs">
