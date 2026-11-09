@@ -1274,49 +1274,20 @@ export default function QuestionBank() {
           // 1. Delete document from Firestore
           await deleteDoc(doc(db, 'questions', id));
 
-          // 2. Immediately update local state and rebalance weights so sum is 100
-          const remainingQuestions = questions.filter(q => q.id !== id);
-          const typeUnits: Record<string, number> = { 
-            'pilihan_ganda': 1, 
-            'pilihan_ganda_kompleks': 2, 
-            'listening': 5, 
-            'essay': 10,
-            'isian_singkat': 1 
-          };
+          // 2. Clear custom weight override in localStorage
+          if (selectedSubject && qToDelete.packetName) {
+            const key = `cbt_custom_weights_${selectedSubject}_${qToDelete.packetName}`;
+            try { localStorage.removeItem(key); } catch {}
+          }
+          setHasEditedWeights(false);
 
-          let totalUnits = 0;
-          remainingQuestions.forEach(q => {
-            totalUnits += typeUnits[q.type || 'pilihan_ganda'] || 1;
-          });
-
-          const unitValue = totalUnits > 0 ? 100 / totalUnits : 0;
-          let currentWeightSum = 0;
-
-          const rebalanced = remainingQuestions.map((q, idx) => {
-            let qWeight = (typeUnits[q.type || 'pilihan_ganda'] || 1) * unitValue;
-            if (idx === remainingQuestions.length - 1) {
-              qWeight = Number((100 - currentWeightSum).toFixed(2));
-            } else {
-              qWeight = Number(qWeight.toFixed(2));
-              currentWeightSum += qWeight;
-            }
-            return { ...q, weight: qWeight };
-          });
-
-          setQuestions(rebalanced);
-          setOriginalQuestions(rebalanced);
-
-          if (rebalanced.length > 0) {
-            const batch = writeBatch(db);
-            rebalanced.forEach(q => {
-              if (q.id) {
-                batch.update(doc(db, 'questions', q.id), { weight: q.weight });
-              }
-            });
-            await batch.commit();
+          // 3. Rebalance weights in Firestore so total weight stays 100
+          if (selectedSubject && qToDelete.packetName) {
+            await autoAdjustWeights(selectedSubject, qToDelete.packetName);
           }
 
-          setIsDirty(true);
+          // 4. Fetch updated questions from Firestore to verify state
+          await fetchQuestions();
 
           showCustomAlert(
             'Soal Berhasil Dihapus',

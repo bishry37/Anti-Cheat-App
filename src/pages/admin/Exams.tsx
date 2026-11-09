@@ -289,7 +289,6 @@ export default function Exams() {
       setIsAdding(false);
       setEditingId(null);
       resetForm();
-      await fetchData(true);
     } catch (err: any) {
       console.error("Error saving exam schedule:", err);
       setErrorMsg(err?.message ? `Gagal menyimpan: ${err.message}` : "Terjadi kesalahan saat menyimpan jadwal ujian.");
@@ -312,7 +311,6 @@ export default function Exams() {
     try {
       await deleteDoc(doc(db, 'exams', modalConfig.idToDelete));
       setModalConfig(null);
-      await fetchData(true);
     } catch (err: any) {
       console.error("Error deleting exam:", err);
       setErrorMsg(err?.message ? `Gagal menghapus: ${err.message}` : "Terjadi kesalahan saat menghapus jadwal ujian.");
