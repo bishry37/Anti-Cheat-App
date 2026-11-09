@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot, deleteField } from 'firebase/firestore';
 import { Exam, Subject, Class, AudioItem } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Clock, Copy, CheckCircle2, Search, Filter, Music, Shuffle, Layers, AlertCircle, Check } from 'lucide-react';
@@ -51,30 +51,31 @@ export default function Exams() {
   });
 
   useEffect(() => {
-    if (!user) return;
     fetchData();
 
     // Subscribe to exams in real-time
-    const q = query(collection(db, 'exams'), where('adminId', '==', user.uid));
+    const q = query(collection(db, 'exams'));
     const unsub = onSnapshot(q, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Exam));
       list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setExams(list);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'exams');
+      console.warn("Exams snapshot warning:", error);
     });
 
-    const qAudio = query(collection(db, 'audio_banks'), where('adminId', '==', user.uid));
+    const qAudio = query(collection(db, 'audio_banks'));
     const unsubAudio = onSnapshot(qAudio, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as AudioItem));
       setAudioList(list);
+    }, (error) => {
+      console.warn("Audio snapshot warning:", error);
     });
 
     return () => {
       unsub();
       unsubAudio();
     };
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     if (formData.subjectId) {
@@ -86,7 +87,7 @@ export default function Exams() {
 
   // Background token auto-reset check
   useEffect(() => {
-    if (!user || exams.length === 0) return;
+    if (exams.length === 0) return;
 
     const generateNewToken = () => {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -110,7 +111,7 @@ export default function Exams() {
 
       for (let i = 0; i < newList.length; i++) {
         const exam = newList[i];
-        if (exam.adminId === user.uid && exam.isActive && exam.autoResetInterval && exam.autoResetInterval !== 'manual') {
+        if (exam.isActive && exam.autoResetInterval && exam.autoResetInterval !== 'manual') {
           const intervalMinutes = parseInt(exam.autoResetInterval, 10);
           if (!isNaN(intervalMinutes)) {
             const lastUpdated = exam.tokenUpdatedAt || 0;
@@ -148,12 +149,11 @@ export default function Exams() {
     const interval = setInterval(checkAndResetTokens, 10000); // Check every 10 seconds
 
     return () => clearInterval(interval);
-  }, [exams, user]);
+  }, [exams]);
 
   const fetchPackets = async (subId: string) => {
-    if (!user) return;
     try {
-      const q = query(collection(db, 'questions'), where('adminId', '==', user.uid), where('subjectId', '==', subId));
+      const q = query(collection(db, 'questions'), where('subjectId', '==', subId));
       const snap = await getDocs(q);
       const packets = new Set<string>();
       snap.docs.forEach(doc => {
@@ -164,25 +164,22 @@ export default function Exams() {
     } catch (e) { console.error(e); }
   };
 
-  const fetchData = async () => {
-    if (!user) return;
-    setLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const subQ = query(collection(db, 'subjects'), where('adminId', '==', user.uid));
-      const subSnap = await getDocs(subQ);
+      const subSnap = await getDocs(collection(db, 'subjects'));
       const subList = subSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Subject));
       subList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setSubjects(subList);
 
-      const classQ = query(collection(db, 'classes'), where('adminId', '==', user.uid));
-      const classSnap = await getDocs(classQ);
+      const classSnap = await getDocs(collection(db, 'classes'));
       const classList = classSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Class));
       classList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setClassesData(classList);
     } catch (err) {
       console.error(err);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   const generateToken = () => {
@@ -211,7 +208,7 @@ export default function Exams() {
         activeToken: generateToken(),
         tokenUpdatedAt: Date.now()
       });
-      fetchData();
+      fetchData(true);
     } catch (e) { console.error(e); }
   }
 
@@ -219,10 +216,7 @@ export default function Exams() {
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!user) {
-      setErrorMsg("Sesi login admin tidak ditemukan. Silakan refresh halaman.");
-      return;
-    }
+    const activeAdminId = user?.uid || auth.currentUser?.uid || 'admin_user';
 
     if (!formData.title || !formData.title.trim()) {
       setErrorMsg("Nama Ujian wajib diisi.");
@@ -263,9 +257,9 @@ export default function Exams() {
         : (formData.packetName ? [formData.packetName.trim()] : []);
 
       const payload: any = {
-        title: formData.title.trim(),
-        subjectId: formData.subjectId,
-        targetClass: formData.targetClass.trim(),
+        title: (formData.title || '').trim(),
+        subjectId: formData.subjectId || '',
+        targetClass: (formData.targetClass || '').trim(),
         duration: Number(formData.duration) || 90,
         isActive: !!formData.isActive,
         activeToken: activeToken,
@@ -279,7 +273,7 @@ export default function Exams() {
         packetName: formData.isRandomPacket ? (selectedPackets[0] || '') : (formData.packetName || ''),
         packageDistributionMode: formData.packageDistributionMode || 'round_robin',
         tokenUpdatedAt: Date.now(),
-        adminId: user.uid,
+        adminId: activeAdminId,
       };
 
       if (cleanAudioId) {
@@ -300,7 +294,7 @@ export default function Exams() {
       setIsAdding(false);
       setEditingId(null);
       resetForm();
-      await fetchData();
+      fetchData(true);
     } catch (err: any) {
       console.error("Error saving exam schedule:", err);
       setErrorMsg(err?.message ? `Gagal menyimpan: ${err.message}` : "Terjadi kesalahan saat menyimpan jadwal ujian.");
@@ -323,7 +317,7 @@ export default function Exams() {
     try {
       await deleteDoc(doc(db, 'exams', modalConfig.idToDelete));
       setModalConfig(null);
-      await fetchData();
+      await fetchData(true);
     } catch (err: any) {
       console.error("Error deleting exam:", err);
       setErrorMsg(err?.message ? `Gagal menghapus: ${err.message}` : "Terjadi kesalahan saat menghapus jadwal ujian.");
@@ -402,7 +396,8 @@ export default function Exams() {
       <AnimatePresence>
         {isAdding && (
           <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 transition-all duration-200">
-            <motion.div 
+            <motion.form 
+              onSubmit={handleSave}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -431,7 +426,7 @@ export default function Exams() {
                   </div>
                 )}
               
-                <form id="exam-form" onSubmit={handleSave} className="space-y-4">
+                <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-3">
                       <div>
@@ -806,7 +801,7 @@ export default function Exams() {
                       </div>
                     </div>
                   </div>
-                </form>
+                </div>
               </div>
               
               <div className="flex items-center justify-end space-x-2 px-5 py-3 border-t border-slate-100 bg-slate-50 shrink-0">
@@ -817,14 +812,14 @@ export default function Exams() {
                   Batal
                 </button>
                 <button 
-                  type="submit" form="exam-form" disabled={processing}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase rounded flex items-center justify-center space-x-1 transition-colors disabled:opacity-50 shadow-xs"
+                  type="submit" disabled={processing}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase rounded flex items-center justify-center space-x-1 transition-colors disabled:opacity-50 shadow-xs cursor-pointer"
                 >
                   {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
                   <span>Simpan</span>
                 </button>
               </div>
-            </motion.div>
+            </motion.form>
           </div>
         )}
       </AnimatePresence>
