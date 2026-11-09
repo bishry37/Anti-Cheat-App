@@ -307,28 +307,19 @@ export default function QuestionBank() {
   };
 
   const autoAdjustWeights = async (subjectId: string, packetName: string) => {
-    if (!user || !subjectId || !packetName) return;
+    if (!user || !subjectId || !packetName || packetName === 'all') return;
     try {
-      let q;
-      if (packetName === 'all') {
-        q = query(
-          collection(db, 'questions'),
-          where('adminId', '==', user.uid),
-          where('subjectId', '==', subjectId)
-        );
-      } else {
-        q = query(
-          collection(db, 'questions'),
-          where('adminId', '==', user.uid),
-          where('subjectId', '==', subjectId),
-          where('packetName', '==', packetName)
-        );
-      }
+      const q = query(
+        collection(db, 'questions'),
+        where('adminId', '==', user.uid),
+        where('subjectId', '==', subjectId),
+        where('packetName', '==', packetName)
+      );
       const snap = await getDocs(q);
       if (snap.empty) return;
 
       const questionsToUpdate = snap.docs.map(d => {
-        const data = d.data() as Partial<Question>;
+        const data = d.data();
         return { id: d.id, type: data.type || 'pilihan_ganda' };
       });
       
@@ -355,7 +346,7 @@ export default function QuestionBank() {
         let qWeight = (typeUnits[qData.type] || 1) * unitValue;
 
         if (idx === questionsToUpdate.length - 1) {
-          qWeight = Number((100 - currentWeightSum).toFixed(2));
+          qWeight = 100 - currentWeightSum;
         } else {
           qWeight = Number(qWeight.toFixed(2));
           currentWeightSum += qWeight;
@@ -371,27 +362,23 @@ export default function QuestionBank() {
   };
 
   const handleResetWeightsTo100 = async () => {
-    if (!selectedSubject) {
-      showCustomAlert('Pilih Mata Pelajaran', 'Silakan pilih mata pelajaran terlebih dahulu.', false);
+    if (!selectedSubject || !selectedTemplateFilter || selectedTemplateFilter === 'all') {
+      showCustomAlert('Pilih Berkas Soal', 'Pilih salah satu berkas template soal untuk mereset bobot nilainya.', false);
       return;
     }
-    const targetTemplate = selectedTemplateFilter || 'all';
     showCustomConfirm(
       'Reset Bobot ke 100?',
       'Sistem akan otomatis menghitung dan membagikan bobot nilai ke seluruh soal dalam berkas ini secara proporsional sehingga total nilainya tepat 100.',
       async () => {
         setProcessing(true);
         try {
-          await autoAdjustWeights(selectedSubject, targetTemplate);
-          if (targetTemplate !== 'all') {
-            const key = `cbt_custom_weights_${selectedSubject}_${targetTemplate}`;
-            try {
-              localStorage.removeItem(key);
-            } catch {}
-          }
+          await autoAdjustWeights(selectedSubject, selectedTemplateFilter);
+          const key = `cbt_custom_weights_${selectedSubject}_${selectedTemplateFilter}`;
+          try {
+            localStorage.removeItem(key);
+          } catch {}
           setHasEditedWeights(false);
           await fetchQuestions();
-          setIsDirty(false);
           showCustomAlert('Berhasil Reset', 'Bobot nilai seluruh soal berhasil direset ke standar sistem dan genap 100.', true);
         } catch (err) {
           console.error(err);
@@ -1278,38 +1265,24 @@ export default function QuestionBank() {
 
   const handleDeleteQuestion = (id: string) => {
     const qToDelete = questions.find(q => q.id === id);
-    if (!qToDelete && !id) return;
-    const qNum = qToDelete?.number ? ` No. ${qToDelete.number}` : '';
+    if (!qToDelete) return;
 
     showCustomConfirm(
       'Hapus Soal',
-      `Apakah Anda yakin ingin menghapus Soal${qNum} ini dari bank soal? Tindakan ini tidak dapat dibatalkan.`,
+      'Apakah Anda yakin ingin menghapus soal ini dari bank soal?',
       async () => {
-        setProcessing(true);
         try {
           await deleteDoc(doc(db, 'questions', id));
           
-          if (editingQuestionId === id) {
-            setEditingQuestionId(null);
-            setEditingData(null);
-          }
-          
-          // Optimistically update local questions list
-          setQuestions(prev => prev.filter(q => q.id !== id));
-          setOriginalQuestions(prev => prev.filter(q => q.id !== id));
-
           // Auto adjust weights to sum to 100 if user has not set custom weights
-          if (!hasEditedWeights && qToDelete?.packetName) {
+          if (!hasEditedWeights && qToDelete.packetName) {
             await autoAdjustWeights(selectedSubject, qToDelete.packetName);
           }
           
-          await fetchQuestions();
+          fetchQuestions();
           setIsDirty(true);
-          showCustomAlert('Berhasil', 'Soal berhasil dihapus.', true);
         } catch (err) {
           handleFirestoreError(err, OperationType.DELETE, 'questions');
-        } finally {
-          setProcessing(false);
         }
       },
       true,
@@ -1913,16 +1886,17 @@ export default function QuestionBank() {
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleResetWeightsTo100}
-                  disabled={processing}
-                  className="shrink-0 inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold rounded shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
-                  title="Reset pembagian bobot nilai ke standar sistem agar otomatis kembali genap 100"
-                >
-                  {processing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                  <span>↺ Reset Bobot ke 100 (Sistem)</span>
-                </button>
+                {hasEditedWeights && (
+                  <button
+                    type="button"
+                    onClick={handleResetWeightsTo100}
+                    disabled={processing}
+                    className="shrink-0 inline-flex items-center space-x-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold rounded shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
+                    title="Reset pembagian bobot nilai ke standar sistem agar otomatis kembali genap 100"
+                  >
+                    <span>↺ Reset Bobot ke 100 (Sistem)</span>
+                  </button>
+                )}
               </div>
             )}
 
@@ -2137,7 +2111,6 @@ export default function QuestionBank() {
                           <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">Mode Edit Soal</span>
                           <div className="flex items-center space-x-2">
                             <button
-                              type="button"
                               onClick={handleUpdateQuestion}
                               disabled={processing}
                               className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-bold uppercase flex items-center space-x-1 shadow transition cursor-pointer"
@@ -2146,17 +2119,6 @@ export default function QuestionBank() {
                               <span>Simpan</span>
                             </button>
                             <button
-                              type="button"
-                              onClick={() => handleDeleteQuestion(q.id!)}
-                              disabled={processing}
-                              className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded text-[10px] font-bold uppercase flex items-center space-x-1 transition cursor-pointer"
-                              title="Hapus Soal Ini Langsung"
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                              <span>Hapus Soal</span>
-                            </button>
-                            <button
-                              type="button"
                               onClick={cancelEditing}
                               className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-bold uppercase flex items-center space-x-1 transition cursor-pointer"
                             >
@@ -2342,7 +2304,7 @@ export default function QuestionBank() {
                            {questions.findIndex(item => item.id === q.id) + 1}
                         </div>
                         <div className="flex-1">
-                          <div dir="auto" className="font-semibold text-slate-800 text-sm leading-snug pr-28 sm:pr-36 py-0 pl-0 ql-editor" dangerouslySetInnerHTML={{ __html: formatHTML(q.question) }} />
+                          <div dir="auto" className="font-semibold text-slate-800 text-sm leading-snug pr-20 py-0 pl-0 ql-editor" dangerouslySetInnerHTML={{ __html: formatHTML(q.question) }} />
                           <div className="flex items-center space-x-2 mt-1.5">
                             {selectedTemplateFilter === 'all' && q.packetName && (
                               <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 font-bold uppercase rounded border border-slate-200">
@@ -2419,31 +2381,21 @@ export default function QuestionBank() {
                         </div>
                       )}
 
-                      {/* Question card action buttons */}
-                      <div className="absolute top-3.5 right-3.5 flex items-center space-x-1.5 p-1 rounded-md bg-white border border-slate-200 shadow-xs z-10">
+                      {/* Floating actions */}
+                      <div className="absolute top-4 right-4 flex items-center space-x-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity bg-gradient-to-l from-white pl-4 group-hover:from-slate-50 p-0.5 rounded">
                         <button 
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startEditing(q);
-                          }}
-                          className="px-2.5 py-1 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 border border-slate-200 shadow-3xs" 
+                          onClick={() => startEditing(q)}
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded bg-white border border-slate-200 transition-colors shadow-sm cursor-pointer" 
                           title="Edit Soal Langsung"
                         >
-                          <Edit2 className="w-3.5 h-3.5 text-blue-600" />
-                          <span className="hidden sm:inline">Edit</span>
+                          <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button 
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteQuestion(q.id!);
-                          }}
-                          className="px-2.5 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 border border-red-200 shadow-3xs" 
-                          title="Hapus Soal Langsung"
+                          onClick={() => handleDeleteQuestion(q.id!)}
+                          className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded bg-white border border-slate-200 transition-colors shadow-sm cursor-pointer" 
+                          title="Hapus Soal"
                         >
-                          <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                          <span className="hidden sm:inline">Hapus</span>
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
