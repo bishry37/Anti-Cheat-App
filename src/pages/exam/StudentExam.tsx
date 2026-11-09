@@ -1520,8 +1520,8 @@ export default function StudentExam() {
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 bg-slate-50 scroll-smooth">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 w-full max-w-4xl mx-auto p-4 sm:p-6 md:p-8 flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 bg-slate-50">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 w-full max-w-4xl mx-auto p-3 sm:p-5 md:p-6 flex flex-col h-auto md:min-h-full">
             {currentQ ? (
                <div className="flex-1 flex flex-col">
                   <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
@@ -1554,7 +1554,7 @@ export default function StudentExam() {
                       </div>
                    )}
                    
-                   <div dir="auto" className="prose max-w-none text-slate-800 text-sm sm:text-base font-medium mb-6 leading-relaxed ql-editor px-0 py-0" dangerouslySetInnerHTML={{ __html: formatHTML(currentQ.question) }} />
+                   <div dir="auto" className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed ql-editor px-0 py-0" dangerouslySetInnerHTML={{ __html: formatHTML(currentQ.question) }} />
 
                   {currentQ.type === 'essay' ? (
                      <div className="mt-4 flex flex-col flex-1">
@@ -1708,6 +1708,48 @@ export default function StudentExam() {
                )}
             </div>
           </div>
+        </div>
+
+        {/* Sidebar Nav */}
+        <div className="w-64 bg-white border-l border-slate-200 overflow-y-auto shrink-0 flex flex-col hidden lg:flex">
+           <div className="p-3 border-b border-slate-100 bg-slate-50/50 flex flex-col space-y-1">
+             <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Navigasi Soal</h3>
+             <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1 relative">
+                <div className="absolute top-0 left-0 bottom-0 bg-blue-500 transition-all" style={{width: `${questions.length ? (Object.keys(answers).length / questions.length) * 100 : 0}%`}} />
+             </div>
+             <span className="text-[10px] font-bold text-slate-500 text-right">{Object.keys(answers).length} / {questions.length} Dijawab</span>
+           </div>
+           <div className="p-3 grid grid-cols-5 gap-1.5 auto-rows-max">
+             {questions.map((q, idx) => {
+               const isAnswered = !!answers[q.id!];
+               const isCurrent = currentQuestionIndex === idx;
+               
+               return (
+                 <button
+                   key={q.id}
+                   onClick={() => changeQuestion(idx)}
+                   className={`h-8 rounded flex items-center justify-center font-bold text-[11px] transition-colors ${
+                     isCurrent 
+                       ? 'ring-1 ring-offset-1 ring-blue-500 bg-blue-600 text-white shadow-sm' 
+                       : isAnswered 
+                         ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                         : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300'
+                   }`}
+                 >
+                   {idx + 1}
+                 </button>
+               )
+             })}
+           </div>
+           <div className="hidden mt-auto p-3 border-t border-slate-100 bg-slate-50 flex flex-col gap-1.5 text-center">
+             <button
+               onClick={() => setShowConfirmModal(true)}
+               className="w-full py-2.5 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold text-xs uppercase tracking-wider rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+             >
+               <Save size={14} />
+               Kumpulkan Ujian
+             </button>
+           </div>
         </div>
       </div>
     </div>
