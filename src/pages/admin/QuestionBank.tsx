@@ -1274,7 +1274,7 @@ export default function QuestionBank() {
           // 1. Delete document from Firestore
           await deleteDoc(doc(db, 'questions', id));
 
-          // 2. Rebalance weights among remaining questions
+          // 2. Rebalance weights among remaining questions so sum is 100
           const remainingQuestions = questions.filter(q => q.id !== id);
           const typeUnits: Record<string, number> = { 
             'pilihan_ganda': 1, 
