@@ -21,7 +21,9 @@ export default function Classes() {
   const [modalConfig, setModalConfig] = useState<{
     title: string;
     description: string;
-    idToDelete: string | null;
+    idToDelete?: string | null;
+    confirmText?: string;
+    onConfirm?: () => Promise<void> | void;
   } | null>(null);
 
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
@@ -34,10 +36,12 @@ export default function Classes() {
   const [toast, setToast] = useState<string | null>(null);
 
   const [draftStudents, setDraftStudents] = useState<(string | StudentRecord)[]>([]);
-  const [editingStudentIndex, setEditingStudentIndex] = useState<number | null>(null);
-  const [editingStudentValue, setEditingStudentValue] = useState('');
-  const [editingStudentPinValue, setEditingStudentPinValue] = useState('');
-  const [editingStudentPhotoValue, setEditingStudentPhotoValue] = useState('');
+  const [editingStudent, setEditingStudent] = useState<{
+    originalName: string;
+    name: string;
+    pin: string;
+    photo?: string;
+  } | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -50,40 +54,55 @@ export default function Classes() {
     } else {
       setDraftStudents([]);
     }
-    setEditingStudentIndex(null);
-    setEditingStudentValue('');
-    setEditingStudentPinValue('');
-    setEditingStudentPhotoValue('');
+    setEditingStudent(null);
   }, [selectedClass?.id]);
 
   useEffect(() => {
-    if (user) {
-      fetchClasses();
-      const unsubSetting = onSnapshot(doc(db, 'settings', user.uid), (docSnap) => {
+    const qClasses = query(collection(db, 'classes'));
+    const unsubClasses = onSnapshot(qClasses, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Class));
+      list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      setClassesList(list);
+      setLoading(false);
+    }, (err) => {
+      console.error("Classes snapshot error:", err);
+      setLoading(false);
+    });
+
+    let unsubSetting = () => {};
+    if (user?.uid) {
+      unsubSetting = onSnapshot(doc(db, 'settings', user.uid), (docSnap) => {
         if (docSnap.exists()) {
           setSetting(docSnap.data() as Setting);
         }
       });
-      return () => unsubSetting();
     }
-  }, [user]);
+
+    return () => {
+      unsubClasses();
+      unsubSetting();
+    };
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (selectedClass) {
+      const found = classesList.find(c => c.id === selectedClass.id);
+      if (found) {
+        setSelectedClass(found);
+        setDraftStudents(found.students || []);
+      }
+    }
+  }, [classesList]);
 
   const fetchClasses = async () => {
-    setLoading(true);
     try {
       const snap = await getDocs(collection(db, 'classes'));
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Class));
       list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setClassesList(list);
-      if (selectedClass) {
-        const found = list.find(c => c.id === selectedClass.id);
-        if (found) setSelectedClass(found);
-        else setSelectedClass(null);
-      }
     } catch (err) {
       console.error(err);
     }
-    setLoading(false);
   };
 
   const handleSave = async () => {
@@ -172,8 +191,8 @@ export default function Classes() {
     setNameInput('');
   };
 
-  const saveStudentList = async (updatedStudents: (string | StudentRecord)[]) => {
-    if (!selectedClass?.id) return;
+  const saveStudentList = async (updatedStudents: (string | StudentRecord)[]): Promise<boolean> => {
+    if (!selectedClass?.id) return false;
     setProcessing(true);
     try {
       const sortedStudents = [...updatedStudents].sort((a, b) => 
@@ -203,8 +222,11 @@ export default function Classes() {
       setClassesList(prev => prev.map(c => c.id === selectedClass.id ? updatedClassObj : c));
       setDraftStudents(cleanedStudents);
       showToast('Siswa & Password berhasil disimpan!');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'classes');
+      return true;
+    } catch (err: any) {
+      console.error("Gagal menyimpan data siswa:", err);
+      showToast(err?.message ? `Gagal menyimpan: ${err.message}` : 'Terjadi kesalahan saat menyimpan data siswa.');
+      return false;
     } finally {
       setProcessing(false);
     }
@@ -243,52 +265,84 @@ export default function Classes() {
     await saveStudentList(combined);
   };
 
-
   const handleRemoveStudent = async (studentItem: string | StudentRecord) => {
     const targetName = getStudentName(studentItem);
     const updated = draftStudents.filter(s => getStudentName(s) !== targetName);
     await saveStudentList(updated);
   };
 
-  const startEditStudent = (idx: number, item: string | StudentRecord) => {
-    setEditingStudentIndex(idx);
-    setEditingStudentValue(getStudentName(item));
-    setEditingStudentPinValue(getStudentPin(item));
-    setEditingStudentPhotoValue(getStudentPhoto(item) || '');
+  const openEditStudentModal = (item: string | StudentRecord) => {
+    const name = getStudentName(item);
+    const pin = getStudentPin(item);
+    const photo = getStudentPhoto(item) || '';
+    setEditingStudent({
+      originalName: name,
+      name,
+      pin,
+      photo
+    });
   };
 
-  const handleSaveStudentEdit = async (idx: number) => {
-    const val = editingStudentValue.trim().toUpperCase();
-    if (!val) return;
-    
-    // Check duplicate
-    const otherNames = draftStudents.filter((_, i) => i !== idx).map(s => getStudentName(s));
-    if (otherNames.includes(val)) {
+  const handleSaveStudentModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent || !selectedClass?.id) return;
+
+    const trimmedName = editingStudent.name.trim().toUpperCase();
+    const trimmedPin = editingStudent.pin.trim() || generateRandomPin();
+    const trimmedPhoto = (editingStudent.photo || '').trim();
+
+    if (!trimmedName) {
+      showToast('Nama siswa tidak boleh kosong.');
+      return;
+    }
+
+    // Check duplicate name with other students
+    const duplicate = draftStudents.some(
+      s => getStudentName(s) === trimmedName && getStudentName(s) !== editingStudent.originalName
+    );
+    if (duplicate) {
       showToast('Siswa dengan nama tersebut sudah ada.');
       return;
     }
-    
-    const pin = editingStudentPinValue.trim() || generateRandomPin();
-    const photo = editingStudentPhotoValue.trim();
-    
-    const newRecord: StudentRecord = { name: val, pin };
-    if (photo) newRecord.photo = photo;
 
-    const updated = [...draftStudents];
-    updated[idx] = newRecord;
+    const updated = draftStudents.map(s => {
+      if (getStudentName(s) === editingStudent.originalName) {
+        const rec: StudentRecord = { name: trimmedName, pin: trimmedPin };
+        if (trimmedPhoto) rec.photo = trimmedPhoto;
+        return rec;
+      }
+      return s;
+    });
 
-    setEditingStudentIndex(null);
-    setEditingStudentValue('');
-    setEditingStudentPinValue('');
-    setEditingStudentPhotoValue('');
-    await saveStudentList(updated);
+    const success = await saveStudentList(updated);
+    if (success) {
+      setEditingStudent(null);
+      showToast(`Password siswa ${trimmedName} berhasil diubah menjadi: ${trimmedPin}`);
+    }
   };
 
-  const handleCancelStudentEdit = () => {
-    setEditingStudentIndex(null);
-    setEditingStudentValue('');
-    setEditingStudentPinValue('');
-    setEditingStudentPhotoValue('');
+  const handleResetAllPins = () => {
+    if (!selectedClass || draftStudents.length === 0) return;
+    setModalConfig({
+      title: 'Reset Semua PIN Siswa?',
+      description: `Sistem akan membuat Password / PIN acak baru untuk seluruh ${draftStudents.length} siswa di kelas "${selectedClass.name}". Lanjutkan?`,
+      idToDelete: null,
+      confirmText: 'Ya, Reset Semua',
+      onConfirm: async () => {
+        const updated = draftStudents.map(s => {
+          const name = getStudentName(s);
+          const photo = getStudentPhoto(s);
+          const rec: StudentRecord = {
+            name,
+            pin: generateRandomPin()
+          };
+          if (photo) rec.photo = photo;
+          return rec;
+        });
+        await saveStudentList(updated);
+        showToast(`PIN seluruh siswa di kelas ${selectedClass.name} berhasil direset acak!`);
+      }
+    });
   };
 
   return (
@@ -454,7 +508,7 @@ export default function Classes() {
                   </div>
                 </div>
 
-                {/* Action Toolbar (Single Student Add Removed per User Request) */}
+                {/* Action Toolbar */}
                 <div className="p-3.5 border-b border-slate-100 flex items-center justify-between gap-2.5 shrink-0 bg-white">
                   <div className="flex items-center gap-2">
                     <button
@@ -465,6 +519,18 @@ export default function Classes() {
                       <Plus className="w-4 h-4" />
                       <span>Impor Banyak Siswa (Bulk)</span>
                     </button>
+                    {draftStudents.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleResetAllPins}
+                        disabled={processing}
+                        className="bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition shadow-2xs disabled:opacity-50"
+                        title="Buat PIN baru secara acak untuk seluruh siswa di kelas ini"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Reset Semua PIN Acak</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -522,102 +588,56 @@ export default function Classes() {
                     return (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {filtered.map((item, idx) => {
-                          const originalIndex = draftStudents.indexOf(item);
-                          const isEditingThis = editingStudentIndex === originalIndex;
                           const name = getStudentName(item);
                           const pin = getStudentPin(item);
+                          const originalIndex = draftStudents.findIndex(s => getStudentName(s) === name);
 
                           return (
                             <div
                               key={name + idx}
                               style={{ contentVisibility: 'auto' }}
-                              className={`flex items-center justify-between px-3 py-2 bg-white border rounded-lg shadow-2xs hover:border-blue-200 transition group/item hover:bg-slate-50/50 ${
-                                isEditingThis ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-slate-150/80'
-                              }`}
+                              className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded-lg shadow-2xs hover:border-blue-300 transition group/item hover:bg-slate-50/60"
                             >
-                              {isEditingThis ? (
-                                <div className="flex flex-col gap-1.5 w-full py-1">
-                                  <div className="flex items-center gap-1.5 w-full">
-                                    <input
-                                      type="text"
-                                      value={editingStudentValue}
-                                      onChange={(e) => setEditingStudentValue(e.target.value)}
-                                      placeholder="NAMA SISWA"
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleSaveStudentEdit(originalIndex);
-                                        if (e.key === 'Escape') handleCancelStudentEdit();
-                                      }}
-                                      className="flex-1 min-w-0 px-2 py-1 text-xs font-bold uppercase bg-slate-50 border border-blue-400 rounded outline-none focus:bg-white"
-                                      autoFocus
-                                    />
-                                    <input
-                                      type="text"
-                                      value={editingStudentPinValue}
-                                      onChange={(e) => setEditingStudentPinValue(e.target.value)}
-                                      placeholder="Password / PIN"
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleSaveStudentEdit(originalIndex);
-                                        if (e.key === 'Escape') handleCancelStudentEdit();
-                                      }}
-                                      className="w-28 sm:w-36 px-2 py-1 text-xs font-mono font-bold bg-slate-50 border border-blue-400 rounded outline-none focus:bg-white text-center"
-                                    />
-                                    <button
-                                      onClick={() => handleSaveStudentEdit(originalIndex)}
-                                      className="p-1 px-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded cursor-pointer transition text-xs font-bold"
-                                      title="Simpan"
-                                    >
-                                      <Check className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={handleCancelStudentEdit}
-                                      className="p-1 px-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded cursor-pointer transition text-xs font-bold"
-                                      title="Batal"
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                  <input
-                                    type="url"
-                                    value={editingStudentPhotoValue}
-                                    onChange={(e) => setEditingStudentPhotoValue(e.target.value)}
-                                    placeholder="Link Google Drive Foto Siswa (Opsional)..."
-                                    className="w-full px-2 py-1 text-[11px] font-medium bg-slate-50 border border-blue-300 rounded outline-none focus:bg-white"
-                                  />
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <span className="text-[10px] text-slate-500 group-hover/item:text-blue-600 font-bold bg-slate-100 w-5 h-5 rounded-full flex items-center justify-center border border-slate-200/70 shrink-0">
+                                  {originalIndex !== -1 ? originalIndex + 1 : idx + 1}
+                                </span>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-xs text-slate-800 font-bold uppercase tracking-tight truncate">
+                                    {name}
+                                  </span>
+                                  {/* Clickable PIN Badge */}
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditStudentModal(item)}
+                                    className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-300 hover:border-amber-400 px-2 py-0.5 rounded-md w-fit mt-0.5 cursor-pointer transition shadow-3xs group/pin"
+                                    title="Klik untuk mengubah Password / PIN siswa ini"
+                                  >
+                                    <Key className="w-3 h-3 text-amber-600 group-hover/pin:rotate-12 transition-transform" />
+                                    <span>PIN: {pin}</span>
+                                    <Edit2 className="w-2.5 h-2.5 text-amber-600/70 group-hover/pin:text-amber-800 ml-0.5" />
+                                  </button>
                                 </div>
-                              ) : (
-                                <>
-                                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    <span className="text-[9px] text-slate-400 group-hover/item:text-blue-500 font-semibold bg-slate-50 w-5 h-5 rounded-full flex items-center justify-center border border-slate-100/50 shrink-0">
-                                      {originalIndex + 1}
-                                    </span>
-                                    <div className="flex flex-col min-w-0">
-                                      <span className="text-xs text-slate-800 font-bold uppercase tracking-tight truncate">
-                                        {name}
-                                      </span>
-                                      <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200/70 px-1.5 py-0.2 rounded w-fit mt-0.5">
-                                        <Key className="w-2.5 h-2.5 text-amber-600" />
-                                        PIN: {pin}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1 opacity-90 group-hover/item:opacity-100 shrink-0">
-                                    <button
-                                      onClick={() => startEditStudent(originalIndex, item)}
-                                      className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
-                                      title="Edit Nama & PIN Siswa"
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleRemoveStudent(item)}
-                                      className="p-1 text-slate-350 hover:text-red-500 hover:bg-red-50 rounded transition cursor-pointer"
-                                      title="Hapus Siswa"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </>
-                              )}
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditStudentModal(item)}
+                                  className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 bg-white rounded-md transition cursor-pointer shadow-3xs flex items-center gap-1 text-[11px] font-semibold"
+                                  title="Edit Nama & PIN Siswa"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Ubah PIN</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveStudent(item)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 hover:border-red-200 bg-white rounded-md transition cursor-pointer shadow-3xs"
+                                  title="Hapus Siswa"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
@@ -682,15 +702,138 @@ export default function Classes() {
               </button>
               <button
                 type="button"
-                onClick={executeDelete}
+                onClick={async () => {
+                  if (modalConfig.onConfirm) {
+                    await modalConfig.onConfirm();
+                    setModalConfig(null);
+                  } else {
+                    await executeDelete();
+                  }
+                }}
                 disabled={processing}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center space-x-2 flex-1 justify-center disabled:opacity-50"
               >
                 {processing && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
-                <span>Hapus</span>
+                <span>{modalConfig.confirmText || 'Hapus'}</span>
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Modal Edit Siswa & Password / PIN */}
+      {editingStudent && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[90] animate-in fade-in duration-200">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col"
+          >
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-200 text-amber-700 flex items-center justify-center shadow-3xs">
+                  <Key className="w-4 h-4 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
+                    Edit Password & Siswa
+                  </h3>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    Kelas: <span className="text-blue-600 font-extrabold">{selectedClass?.name}</span>
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setEditingStudent(null)} 
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200/50 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveStudentModal} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 uppercase mb-1">
+                  Nama Lengkap Siswa *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingStudent.name}
+                  onChange={(e) => setEditingStudent({ ...editingStudent, name: e.target.value })}
+                  placeholder="Contoh: AHMAD IBRAHIM"
+                  className="w-full px-3 py-2 text-xs font-bold uppercase bg-slate-50 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-extrabold text-slate-700 uppercase flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Password / PIN Ujian Siswa *</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-bold">Wajib Diisi</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    required
+                    value={editingStudent.pin}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, pin: e.target.value })}
+                    placeholder="Contoh: 12345"
+                    className="flex-1 px-3 py-2 text-sm font-mono font-bold bg-white border border-amber-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 tracking-widest text-center"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setEditingStudent({ ...editingStudent, pin: generateRandomPin() })}
+                    className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-3xs shrink-0"
+                    title="Buat PIN acak baru otomatis"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Acak PIN</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed font-medium">
+                  💡 Ketik password bebas (angka/huruf) atau klik <strong>Acak PIN</strong> untuk menghasilkan 5 digit acak.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-extrabold text-slate-600 uppercase mb-1">
+                  Link Foto Siswa (Opsional)
+                </label>
+                <input
+                  type="url"
+                  value={editingStudent.photo || ''}
+                  onChange={(e) => setEditingStudent({ ...editingStudent, photo: e.target.value })}
+                  placeholder="https://drive.google.com/file/d/..."
+                  className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingStudent(null)}
+                  disabled={processing}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 text-xs font-bold uppercase rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={processing || !editingStudent.name.trim() || !editingStudent.pin.trim()}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold uppercase rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                >
+                  {processing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>{processing ? 'Menyimpan...' : 'Simpan Password'}</span>
+                </button>
+              </div>
+            </form>
+          </motion.div>
         </div>
       )}
 
