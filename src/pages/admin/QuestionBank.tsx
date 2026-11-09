@@ -1274,7 +1274,7 @@ export default function QuestionBank() {
           // 1. Delete document from Firestore
           await deleteDoc(doc(db, 'questions', id));
 
-          // 2. Rebalance weights among remaining questions so sum is 100
+          // 2. Immediately update local state and rebalance weights so sum is 100
           const remainingQuestions = questions.filter(q => q.id !== id);
           const typeUnits: Record<string, number> = { 
             'pilihan_ganda': 1, 
@@ -1303,6 +1303,9 @@ export default function QuestionBank() {
             return { ...q, weight: qWeight };
           });
 
+          setQuestions(rebalanced);
+          setOriginalQuestions(rebalanced);
+
           if (rebalanced.length > 0) {
             const batch = writeBatch(db);
             rebalanced.forEach(q => {
@@ -1313,7 +1316,6 @@ export default function QuestionBank() {
             await batch.commit();
           }
 
-          await fetchQuestions();
           setIsDirty(true);
 
           showCustomAlert(
