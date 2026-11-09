@@ -1296,7 +1296,9 @@ export default function QuestionBank() {
         console.log("Deleting question:", id);
         try {
           // 1. Delete document from Firestore
-          await deleteDoc(doc(db, 'questions', id));
+          const batch = writeBatch(db);
+          batch.delete(doc(db, 'questions', id));
+          await batch.commit();
           console.log("Doc deleted from Firestore");
 
           // 3. Clear custom weight override in localStorage

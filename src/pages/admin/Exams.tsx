@@ -297,14 +297,16 @@ export default function Exams() {
 
     setProcessing(true);
     try {
+      console.log("Saving exam to Firestore:", { id: currentEditId || targetExamId, firestorePayload });
       if (currentEditId) {
-        await updateDoc(doc(db, 'exams', currentEditId), firestorePayload);
+        await setDoc(doc(db, 'exams', currentEditId), firestorePayload, { merge: true });
       } else {
         await setDoc(doc(db, 'exams', targetExamId), {
           ...firestorePayload,
           createdAt: Date.now()
         });
       }
+      console.log("Save successful");
     } catch (err: any) {
       console.error("Error saving exam schedule:", err);
       setErrorMsg(err?.message ? `Gagal menyimpan: ${err.message}` : "Terjadi kesalahan saat menyimpan jadwal ujian.");
