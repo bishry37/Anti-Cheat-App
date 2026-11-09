@@ -23,15 +23,12 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Always force logout when visiting the root login page 
-  // to ensure a fresh session and default to student portal.
+  // Auto redirect logged in admin to /admin dashboard
   useEffect(() => {
-    // If they did not just sign in and they hit the landing page, 
-    // force clean their session so they really are logged out.
-    if (!sessionStorage.getItem('just_logged_in_admin') && !sessionStorage.getItem('just_logged_in_student')) {
-      logout().catch(console.error);
+    if (user && isAdmin) {
+      navigate('/admin', { replace: true });
     }
-  }, []);
+  }, [user, isAdmin, navigate]);
 
   // Data
   const [setting, setSetting] = useState<Setting | null>(null);

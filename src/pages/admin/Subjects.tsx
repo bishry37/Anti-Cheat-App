@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot } from 'firebase/firestore';
 import { Subject } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -21,21 +21,20 @@ export default function Subjects() {
   } | null>(null);
 
   useEffect(() => {
-    if (user) fetchSubjects();
-  }, [user]);
-
-  const fetchSubjects = async () => {
+    if (!user) return;
     setLoading(true);
-    try {
-      const snap = await getDocs(collection(db, 'subjects'));
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
+    const q = query(collection(db, 'subjects'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
       list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setSubjects(list);
-    } catch (err) {
+      setLoading(false);
+    }, (err) => {
       console.error(err);
-    }
-    setLoading(false);
-  };
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [user]);
 
   const handleSave = async () => {
     if (!nameInput.trim() || !user) return;
@@ -53,7 +52,6 @@ export default function Subjects() {
       setIsAdding(false);
       setEditingId(null);
       setNameInput('');
-      await fetchSubjects();
     } catch (err) {
       handleFirestoreError(err, editingId ? OperationType.UPDATE : OperationType.CREATE, 'subjects');
     } finally {
@@ -75,7 +73,6 @@ export default function Subjects() {
     try {
       await deleteDoc(doc(db, 'subjects', modalConfig.idToDelete));
       setModalConfig(null);
-      await fetchSubjects();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'subjects');
     } finally {
