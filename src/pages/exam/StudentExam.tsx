@@ -1174,21 +1174,32 @@ export default function StudentExam() {
     };
   }, [user, session?.status, isSubmittingOrFinished]);
 
-  // Reset main content scroll position to top whenever question index changes
-  useEffect(() => {
+  const scrollToTop = useCallback(() => {
     if (mainContentRef.current) {
       mainContentRef.current.scrollTop = 0;
     }
     window.scrollTo(0, 0);
-  }, [currentQuestionIndex]);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    requestAnimationFrame(() => {
+      if (mainContentRef.current) {
+        mainContentRef.current.scrollTop = 0;
+      }
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    });
+  }, []);
+
+  // Reset main content scroll position to top whenever question index changes
+  useEffect(() => {
+    scrollToTop();
+  }, [currentQuestionIndex, scrollToTop]);
 
   // Handle question change and persistence
   const changeQuestion = async (newIndex: number) => {
     setCurrentQuestionIndex(newIndex);
-    if (mainContentRef.current) {
-      mainContentRef.current.scrollTop = 0;
-    }
-    window.scrollTo(0, 0);
+    scrollToTop();
     if (user) {
       try {
         await updateDoc(doc(db, 'student_sessions', user.uid), {
@@ -1734,15 +1745,19 @@ export default function StudentExam() {
         </div>
 
         {/* Sidebar Nav */}
-        <div className={`w-64 bg-white border-l border-slate-200 shrink-0 flex flex-col hidden lg:flex ${questions.length > 25 ? 'overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full' : 'overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'}`}>
-           <div className="p-3 border-b border-slate-100 bg-slate-50/50 flex flex-col space-y-1">
-             <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Navigasi Soal</h3>
+        <div className={`w-44 sm:w-52 lg:w-64 bg-white border-l border-slate-200 shrink-0 flex-col hidden landscape:flex lg:flex ${
+          questions.length > 25 
+            ? 'overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full' 
+            : 'overflow-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0'
+        }`}>
+           <div className="p-2.5 sm:p-3 border-b border-slate-100 bg-slate-50/50 flex flex-col space-y-1">
+             <h3 className="font-bold text-slate-800 text-[10px] sm:text-[11px] uppercase tracking-wider">Navigasi Soal</h3>
              <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1 relative">
                 <div className="absolute top-0 left-0 bottom-0 bg-blue-500 transition-all" style={{width: `${questions.length ? (Object.keys(answers).length / questions.length) * 100 : 0}%`}} />
              </div>
-             <span className="text-[10px] font-bold text-slate-500 text-right">{Object.keys(answers).length} / {questions.length} Dijawab</span>
+             <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 text-right">{Object.keys(answers).length} / {questions.length} Dijawab</span>
            </div>
-           <div className="p-3 grid grid-cols-5 gap-1.5 auto-rows-max">
+           <div className="p-2 sm:p-3 grid grid-cols-4 sm:grid-cols-5 gap-1 sm:gap-1.5 auto-rows-max">
              {questions.map((q, idx) => {
                const isAnswered = !!answers[q.id!];
                const isCurrent = currentQuestionIndex === idx;
@@ -1751,7 +1766,7 @@ export default function StudentExam() {
                  <button
                    key={q.id}
                    onClick={() => changeQuestion(idx)}
-                   className={`h-8 rounded flex items-center justify-center font-bold text-[11px] transition-colors ${
+                   className={`h-7 sm:h-8 rounded flex items-center justify-center font-bold text-[10px] sm:text-[11px] transition-colors ${
                      isCurrent 
                        ? 'ring-1 ring-offset-1 ring-blue-500 bg-blue-600 text-white shadow-sm' 
                        : isAnswered 
