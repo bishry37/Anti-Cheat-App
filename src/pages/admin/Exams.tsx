@@ -164,9 +164,9 @@ export default function Exams() {
     } catch (e) { console.error(e); }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const subQ = query(collection(db, 'subjects'), where('adminId', '==', user.uid));
       const subSnap = await getDocs(subQ);
@@ -182,7 +182,7 @@ export default function Exams() {
     } catch (err) {
       console.error(err);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   const generateToken = () => {
@@ -300,7 +300,7 @@ export default function Exams() {
       setIsAdding(false);
       setEditingId(null);
       resetForm();
-      await fetchData();
+      await fetchData(true);
     } catch (err: any) {
       console.error("Error saving exam schedule:", err);
       setErrorMsg(err?.message ? `Gagal menyimpan: ${err.message}` : "Terjadi kesalahan saat menyimpan jadwal ujian.");
@@ -323,7 +323,7 @@ export default function Exams() {
     try {
       await deleteDoc(doc(db, 'exams', modalConfig.idToDelete));
       setModalConfig(null);
-      await fetchData();
+      await fetchData(true);
     } catch (err: any) {
       console.error("Error deleting exam:", err);
       setErrorMsg(err?.message ? `Gagal menghapus: ${err.message}` : "Terjadi kesalahan saat menghapus jadwal ujian.");
