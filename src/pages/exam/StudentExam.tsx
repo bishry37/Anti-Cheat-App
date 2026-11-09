@@ -181,6 +181,7 @@ export default function StudentExam() {
   const initialPageMountTime = useRef<number>(Date.now());
   const hasEnteredFullscreenOnceRef = useRef<boolean>(false);
   const isFullscreenRef = useRef<boolean>(false);
+  const isViolationActiveRef = useRef<boolean>(false);
 
   useEffect(() => {
     isFullscreenRef.current = isFullscreen;
@@ -822,6 +823,12 @@ export default function StudentExam() {
       return;
     }
 
+    // Ignore secondary violation triggers while the student is still away until they return to the exam page
+    if (isViolationActiveRef.current) {
+      return;
+    }
+    isViolationActiveRef.current = true;
+
     try {
       // Fetch latest session data directly from Firestore for accuracy and to prevent race conditions
       const docRef = doc(db, 'student_sessions', user!.uid);
@@ -905,6 +912,8 @@ export default function StudentExam() {
 
     const handleRegainFocus = async () => {
       if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
+      // Reset active violation state when student returns back to the exam page
+      isViolationActiveRef.current = false;
       try {
         const docRef = doc(db, 'student_sessions', user!.uid);
         const docSnap = await getDoc(docRef);
@@ -1069,6 +1078,7 @@ export default function StudentExam() {
 
   // Request Fullscreen
   const requestFullscreen = () => {
+    isViolationActiveRef.current = false;
     hasEnteredFullscreenOnceRef.current = true;
     setIsFullscreen(true);
     if (user && sessionRef.current?.status !== 'Selesai' && !isSubmittingOrFinishedRef.current) {
@@ -1711,7 +1721,7 @@ export default function StudentExam() {
         </div>
 
         {/* Sidebar Nav */}
-        <div className="w-64 bg-white border-l border-slate-200 overflow-y-auto shrink-0 flex flex-col hidden lg:flex">
+        <div className="w-64 bg-white border-l border-slate-200 overflow-y-auto shrink-0 flex flex-col hidden lg:flex [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full">
            <div className="p-3 border-b border-slate-100 bg-slate-50/50 flex flex-col space-y-1">
              <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Navigasi Soal</h3>
              <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1 relative">
