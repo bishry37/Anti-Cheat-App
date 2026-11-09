@@ -58,21 +58,19 @@ export const StudentCardPhoto: React.FC<StudentCardPhotoProps> = ({
     onStatusChange?.('success');
   };
 
-  // If photo is not uploaded/provided, or if the link is broken: display clean photo frame with simple silhouette
+  // If photo is omitted or empty (optional field) or if the link is completely broken
   if (!currentSrc || hasError) {
     return (
       <div 
-        className={`bg-slate-100 border border-slate-300 rounded overflow-hidden shrink-0 flex flex-col items-center justify-center text-slate-400 select-none relative ${className}`}
-        title={hasError ? "Foto tidak dapat dimuat (menampilkan siluet foto)" : "Frame Foto Peserta (Siluet)"}
+        className={`bg-slate-100 border border-slate-300 rounded overflow-hidden shrink-0 flex flex-col items-center justify-center text-slate-400 select-none ${className}`}
+        title={hasError ? "Foto tidak dapat dimuat (menampilkan bingkai foto)" : "Foto Siswa (Kosong)"}
       >
-        <div className="w-full h-full flex flex-col items-center justify-center p-0.5 bg-gradient-to-b from-slate-50 to-slate-100">
-          <UserCircle className="w-3/5 h-3/5 text-slate-300 stroke-[1.6]" />
-          {showPlaceholderLabel && (
-            <span className="text-[6.5px] font-black uppercase tracking-tighter text-slate-400 leading-none mt-0.5">
-              2x3
-            </span>
-          )}
-        </div>
+        <UserCircle className="w-6 h-6 text-slate-300" />
+        {showPlaceholderLabel && (
+          <span className="text-[6.5px] font-black uppercase tracking-tighter text-slate-400 leading-none mt-0.5">
+            2x3
+          </span>
+        )}
       </div>
     );
   }

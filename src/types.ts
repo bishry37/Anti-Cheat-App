@@ -100,7 +100,6 @@ export interface StudentSession {
   id?: string; // uid
   adminId?: string;
   studentName: string;
-  studentPhoto?: string;
   className: string;
   examId: string;
   subjectId: string;

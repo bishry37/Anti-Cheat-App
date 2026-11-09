@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db, handleFirestoreError, OperationType, auth } from '../../lib/firebase';
 import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, addDoc, onSnapshot } from 'firebase/firestore';
-import { StudentSession, Exam, Question, Setting, Violation, AudioItem, StudentRecord } from '../../types';
+import { StudentSession, Exam, Question, Setting, Violation, AudioItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
-import { StudentCardPhoto } from '../../components/StudentCardPhoto';
-import { getStudentName, getStudentPhoto } from '../../utils/studentUtils';
 import { ShieldAlert, Maximize, Clock, Save, AlertTriangle, LogOut, Loader2, Wifi, WifiOff, Play, Check, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
@@ -130,9 +128,6 @@ export default function StudentExam() {
   const navigate = useNavigate();
 
   const [session, setSession] = useState<StudentSession | null>(null);
-  const [studentPhoto, setStudentPhoto] = useState<string | undefined>(
-    sessionStorage.getItem('cbt_student_photo') || undefined
-  );
   const [exam, setExam] = useState<Exam | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [settings, setSettings] = useState<Setting | null>(null);
@@ -375,28 +370,6 @@ export default function StudentExam() {
           }).catch(() => {});
         }
         setSession(sessData);
-
-        // Resolve student photo for exam page
-        let photo = sessData.studentPhoto || sessionStorage.getItem('cbt_student_photo') || undefined;
-        if (!photo && sessData.className && sessData.studentName) {
-          try {
-            const qClass = query(collection(db, 'classes'), where('name', '==', sessData.className));
-            const classSnap = await getDocs(qClass);
-            if (!classSnap.empty) {
-              const students = (classSnap.docs[0].data().students || []) as (string | StudentRecord)[];
-              const found = students.find(s => getStudentName(s) === sessData.studentName);
-              if (found) {
-                photo = getStudentPhoto(found);
-              }
-            }
-          } catch (e) {
-            console.warn("Fallback photo lookup error:", e);
-          }
-        }
-        if (photo) {
-          setStudentPhoto(photo);
-          sessionStorage.setItem('cbt_student_photo', photo);
-        }
 
         // Merge with local storage backup to handle extreme connection / power failure cases (scoped by student UID)
         let localBackup: Record<string, string> = {};
@@ -713,9 +686,6 @@ export default function StudentExam() {
       if (docSnap.exists()) {
         const dat = { id: docSnap.id, ...docSnap.data() } as StudentSession;
         setSession(dat);
-        if (dat.studentPhoto) {
-          setStudentPhoto(dat.studentPhoto);
-        }
         
         // Match user's warning timestamp upon first mount to prevent showing legacy warnings
         if (!initialized) {
@@ -1458,16 +1428,8 @@ export default function StudentExam() {
         <div className="flex flex-col justify-center">
           <h1 className="font-bold text-slate-800 text-sm leading-tight">{exam.title}</h1>
           <div className="flex items-center flex-wrap gap-2 mt-1">
-            <div className="flex items-center gap-2">
-              <StudentCardPhoto
-                photo={studentPhoto || session.studentPhoto}
-                studentName={session.studentName}
-                className="w-7 h-9 rounded border border-slate-300 shadow-3xs shrink-0"
-                showPlaceholderLabel={false}
-              />
-              <div className="flex items-center bg-blue-600 text-white px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider shadow-3xs">
-                {session.studentName}
-              </div>
+            <div className="flex items-center bg-blue-600 text-white px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider shadow-3xs">
+              {session.studentName}
             </div>
             <div className="flex items-center bg-slate-800 text-white px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider shadow-3xs">
               {session.className}

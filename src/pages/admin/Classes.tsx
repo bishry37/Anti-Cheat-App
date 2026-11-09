@@ -630,10 +630,37 @@ export default function Classes() {
                                 <span className="text-[10px] text-slate-500 group-hover/item:text-blue-600 font-bold bg-slate-100 w-5 h-5 rounded-full flex items-center justify-center border border-slate-200/70 shrink-0">
                                   {originalIndex !== -1 ? originalIndex + 1 : idx + 1}
                                 </span>
+
+                                {/* Student Photo Thumbnail / Avatar */}
+                                <button
+                                  type="button"
+                                  onClick={() => openEditStudentModal(item)}
+                                  className="shrink-0 cursor-pointer group/thumb focus:outline-hidden"
+                                  title={getStudentPhoto(item) ? "Foto Siswa Terpasang (Klik untuk ganti)" : "Foto Belum Ada (Opsional - Klik untuk tambah)"}
+                                >
+                                  <StudentCardPhoto
+                                    photo={getStudentPhoto(item)}
+                                    studentName={name}
+                                    className="w-7 h-9 rounded border border-slate-200 group-hover/thumb:border-blue-400 group-hover/thumb:scale-105 transition-all shadow-3xs"
+                                    showPlaceholderLabel={false}
+                                  />
+                                </button>
+
                                 <div className="flex flex-col min-w-0">
-                                  <span className="text-xs text-slate-800 font-bold uppercase tracking-tight truncate">
-                                    {name}
-                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-slate-800 font-bold uppercase tracking-tight truncate">
+                                      {name}
+                                    </span>
+                                    {getStudentPhoto(item) ? (
+                                      <span className="text-[8px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.2 rounded shrink-0 flex items-center gap-0.5" title="Foto Siswa Siap Tampil">
+                                        <Camera className="w-2.5 h-2.5" /> FOTO
+                                      </span>
+                                    ) : (
+                                      <span className="text-[8px] font-medium text-slate-400 bg-slate-100 px-1 py-0.2 rounded shrink-0" title="Foto Siswa Kosong (Opsional)">
+                                        Tanpa Foto
+                                      </span>
+                                    )}
+                                  </div>
                                   {/* Clickable PIN Badge */}
                                   <button
                                     type="button"
