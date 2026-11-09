@@ -817,15 +817,8 @@ export default function StudentExam() {
     if (isUnloading.current) return;
     if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai' || sessionRef.current?.status === 'Didiskualifikasi') return;
 
-    // Grace Period Safeguard:
-    // If student just loaded exam page (within initial 25 seconds) OR hasn't entered fullscreen mode yet,
-    // NEVER record any violation. This guarantees native browser pop-ups (such as "Save password? / Simpan Sandi?",
-    // autofill prompts, translation bars, or permissions) will NOT be flagged as violations and will NOT
-    // set the student's status to 'Tidak Fokus' in Monitoring Peserta.
-    const timeSinceMount = Date.now() - initialPageMountTime.current;
-    const isJustLoggedIn = sessionStorage.getItem('just_logged_in_student') === 'true';
-    if (!hasEnteredFullscreenOnceRef.current || timeSinceMount < 25000 || (isJustLoggedIn && timeSinceMount < 35000)) {
-      console.log(`[Exam Security] Pelanggaran '${type}' diabaikan dalam masa toleransi awal masuk ujian / pop-up browser (${Math.round(timeSinceMount / 1000)}s).`);
+    // Only ignore if student has not entered fullscreen mode yet (is on start screen)
+    if (!hasEnteredFullscreenOnceRef.current) {
       return;
     }
 
@@ -933,8 +926,7 @@ export default function StudentExam() {
 
     const handleVisibilityChange = () => {
       if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
-      const timeSinceMount = Date.now() - initialPageMountTime.current;
-      if (!hasEnteredFullscreenOnceRef.current || timeSinceMount < 20000) {
+      if (!hasEnteredFullscreenOnceRef.current) {
         if (!document.hidden) handleRegainFocus();
         return;
       }
@@ -943,7 +935,7 @@ export default function StudentExam() {
         if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
         if (!document.hidden) return;
         recordViolation('Pindah Tab Browser', 'Terdeteksi pindah tab! Tindakan ini dilarang.');
-      }, 700);
+      }, 500);
 
       if (!document.hidden) {
         handleRegainFocus();
@@ -957,16 +949,8 @@ export default function StudentExam() {
         return;
       }
 
-      // 2. If within initial grace period from entering exam, ignore
-      const timeSinceMount = Date.now() - initialPageMountTime.current;
-      if (timeSinceMount < 25000) {
-        return;
-      }
-
-      // 3. For any subsequent blur: check if it's a native browser pop-up (e.g. Save Password, permission, dropdown)
       setTimeout(() => {
         if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
-        // If student regained focus, ignore and ensure status is clean
         if (document.hasFocus()) {
           handleRegainFocus();
           return;
@@ -977,26 +961,10 @@ export default function StudentExam() {
           return;
         }
 
-        // If the document is still visible on screen (!document.hidden), it is usually a browser chrome/bubble pop-up
-        // Give an extra 2.5s tolerance to allow student to click "Save/Never/X" without being marked 'Tidak Fokus'
-        if (!document.hidden) {
-          setTimeout(() => {
-            if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
-            if (document.hasFocus()) {
-              handleRegainFocus();
-              return;
-            }
-            if (!document.hidden && !document.hasFocus() && isFullscreenRef.current) {
-              recordViolation('Membuka aplikasi lain', 'Fokus hilang dari ujian! Jangan buka aplikasi lain.');
-            }
-          }, 2500);
-          return;
-        }
-
-        if (document.hidden) {
+        if (document.hidden || !document.hasFocus()) {
           recordViolation('Membuka aplikasi lain', 'Fokus hilang dari ujian! Jangan buka aplikasi lain.');
         }
-      }, 1200);
+      }, 500);
     };
 
     const handleFocus = () => {
@@ -1014,8 +982,7 @@ export default function StudentExam() {
 
       if (!fullscreenElement && supportsFullscreen) {
         setIsFullscreen(false);
-        const timeSinceMount = Date.now() - initialPageMountTime.current;
-        if (hasEnteredFullscreenOnceRef.current && timeSinceMount > 20000) {
+        if (hasEnteredFullscreenOnceRef.current) {
           recordViolation('Keluar Fullscreen', 'Keluar dari layar penuh! Ujian harus dikerjakan secara fullscreen.');
         }
       } else if (fullscreenElement) {
