@@ -255,10 +255,8 @@ export default function QuestionBank() {
   }, [blocker]);
 
   const fetchSubjects = async () => {
-    if (!user) return;
     try {
-      const q = query(collection(db, 'subjects'), where('adminId', '==', user.uid));
-      const snap = await getDocs(q);
+      const snap = await getDocs(collection(db, 'subjects'));
       const subs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
       subs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setSubjects(subs);
@@ -306,7 +304,7 @@ export default function QuestionBank() {
     }
   };
 
-  const autoAdjustWeights = async (subjectId: string, packetName: string) => {
+  const autoAdjustWeights = async (subjectId: string, packetName: string, excludeId?: string) => {
     if (!subjectId || !packetName || packetName === 'all') return;
     try {
       const q = query(
@@ -315,9 +313,13 @@ export default function QuestionBank() {
         where('packetName', '==', packetName)
       );
       const snap = await getDocs(q);
-      if (snap.empty) return;
+      let docs = snap.docs;
+      if (excludeId) {
+        docs = docs.filter(d => d.id !== excludeId);
+      }
+      if (docs.length === 0) return;
 
-      const questionsToUpdate = snap.docs.map(d => {
+      const questionsToUpdate = docs.map(d => {
         const data = d.data();
         return { id: d.id, type: data.type || 'pilihan_ganda' };
       });
@@ -1305,7 +1307,7 @@ export default function QuestionBank() {
 
           // 4. Rebalance weights in Firestore so total weight stays 100
           if (selectedSubject && qToDelete.packetName) {
-            await autoAdjustWeights(selectedSubject, qToDelete.packetName);
+            await autoAdjustWeights(selectedSubject, qToDelete.packetName, id);
           }
 
           // 5. Fetch updated questions from Firestore to verify state
