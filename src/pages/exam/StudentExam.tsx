@@ -369,22 +369,31 @@ export default function StudentExam() {
         const sessData = { ...sessSnap.data(), id: sessSnap.id } as StudentSession;
         if (sessData.status === 'Tidak Fokus' || sessData.status === 'Melanggar') {
           sessData.status = 'Aktif';
-          updateDoc(doc(db, 'student_sessions', user!.uid), {
-            status: 'Aktif',
-            lastActivity: Date.now()
-          }).catch(() => {});
         }
+        
+        // Immediately refresh lastActivity and set status to Aktif on load
+        sessData.lastActivity = Date.now();
+        sessData.status = 'Aktif';
+        updateDoc(doc(db, 'student_sessions', user!.uid), {
+          status: 'Aktif',
+          lastActivity: Date.now()
+        }).catch(() => {});
         setSession(sessData);
 
         // Resolve student photo for exam page (prioritize session data, then class lookup)
         let photo = sessData.studentPhoto || undefined;
         if (!photo && sessData.className && sessData.studentName) {
           try {
-            const qClass = query(collection(db, 'classes'), where('name', '==', sessData.className));
-            const classSnap = await getDocs(qClass);
-            if (!classSnap.empty) {
-              const students = (classSnap.docs[0].data().students || []) as (string | StudentRecord)[];
-              const found = students.find(s => getStudentName(s) === sessData.studentName);
+            const cleanClassName = sessData.className.trim().toLowerCase();
+            const cleanStudentName = sessData.studentName.trim().toLowerCase();
+            const allClassesSnap = await getDocs(collection(db, 'classes'));
+            const matchedClassDoc = allClassesSnap.docs.find(d => {
+              const cName = (d.data().name || '').trim().toLowerCase();
+              return cName === cleanClassName;
+            });
+            if (matchedClassDoc) {
+              const students = (matchedClassDoc.data().students || []) as (string | StudentRecord)[];
+              const found = students.find(s => getStudentName(s).trim().toLowerCase() === cleanStudentName);
               if (found) {
                 photo = getStudentPhoto(found);
               }
@@ -395,6 +404,7 @@ export default function StudentExam() {
         }
         if (photo) {
           setStudentPhoto(photo);
+          try { sessionStorage.setItem('cbt_student_photo', photo); } catch (e) {}
         } else {
           setStudentPhoto(undefined);
         }
@@ -1161,6 +1171,31 @@ export default function StudentExam() {
     return () => { clearInterval(timer); clearInterval(heartbeat); };
   }, [session?.status, session?.examId, user?.uid, isFullscreen, isSubmittingOrFinished, submitExam]);
 
+  // Throttled interaction heartbeat to update lastActivity in Firestore on mobile user interaction
+  const lastActivityUpdateRef = useRef<number>(0);
+  useEffect(() => {
+    if (!user || !session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
+
+    const handleUserInteraction = () => {
+      const now = Date.now();
+      // Update at most once every 10 seconds on touch/scroll to keep online status fresh
+      if (now - lastActivityUpdateRef.current > 10000) {
+        lastActivityUpdateRef.current = now;
+        updateDoc(doc(db, 'student_sessions', user.uid), {
+          lastActivity: now,
+          remainingSeconds: timeLeftRef.current
+        }).catch(() => {});
+      }
+    };
+
+    const events = ['pointerdown', 'touchstart', 'scroll', 'click', 'keydown'];
+    events.forEach(evt => window.addEventListener(evt, handleUserInteraction, { passive: true }));
+
+    return () => {
+      events.forEach(evt => window.removeEventListener(evt, handleUserInteraction));
+    };
+  }, [user, session?.status, isSubmittingOrFinished]);
+
   // Handle question change and persistence
   const changeQuestion = async (newIndex: number) => {
     setCurrentQuestionIndex(newIndex);
@@ -1312,7 +1347,7 @@ export default function StudentExam() {
   }
 
   return (
-    <div ref={containerRef} className="h-screen overflow-hidden bg-slate-50 flex flex-col select-none">
+    <div ref={containerRef} className="h-[100dvh] overflow-hidden bg-slate-50 flex flex-col select-none">
 
       {/* Admin Warning Modal Overlay */}
       {session && session.adminWarningTime && session.adminWarningTime > acknowledgedWarningTime && (
@@ -1455,60 +1490,61 @@ export default function StudentExam() {
       )}
 
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-4 py-2 shrink-0 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex flex-col justify-center">
-          <h1 className="font-bold text-slate-800 text-sm leading-tight">{exam.title}</h1>
-          <div className="flex items-center flex-wrap gap-2 mt-1">
-            <div className="flex items-center gap-2">
+      <header className="bg-white border-b border-slate-200 px-2 sm:px-4 py-1.5 sm:py-2 shrink-0 flex items-center justify-between sticky top-0 z-40 gap-2">
+        <div className="flex flex-col justify-center min-w-0 flex-1">
+          <h1 className="font-bold text-slate-800 text-xs sm:text-sm leading-tight truncate max-w-[150px] sm:max-w-xs md:max-w-md">{exam.title}</h1>
+          <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 mt-0.5">
+            <div className="flex items-center gap-1.5">
               <StudentCardPhoto
                 photo={studentPhoto || session.studentPhoto}
                 studentName={session.studentName}
-                className="w-10 h-14 rounded-md border border-slate-300 shadow-3xs shrink-0 object-cover"
+                className="w-8 h-11 sm:w-10 sm:h-14 rounded-md border border-slate-300 shadow-3xs shrink-0 object-cover"
                 showPlaceholderLabel={false}
               />
-              <div className="flex items-center bg-blue-600 text-white px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider shadow-3xs">
+              <div className="flex items-center bg-blue-600 text-white px-2 sm:px-2.5 py-0.5 rounded text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-3xs truncate max-w-[110px] sm:max-w-none">
                 {session.studentName}
               </div>
             </div>
-            <div className="flex items-center bg-slate-800 text-white px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider shadow-3xs">
+            <div className="flex items-center bg-slate-800 text-white px-2 sm:px-2.5 py-0.5 rounded text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-3xs">
               {session.className}
             </div>
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight ml-1 mr-2">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight hidden sm:inline">
               {subjectName}
             </span>
             {isOnline ? (
-              <div className="flex items-center bg-emerald-500 text-white px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-widest leading-none shadow-3xs transition-all duration-300">
+              <div className="flex items-center bg-emerald-500 text-white px-1.5 sm:px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-widest leading-none shadow-3xs transition-all duration-300">
                 <span className="w-1.5 h-1.5 bg-white rounded-full mr-1 animate-pulse"></span>
-                <Wifi className="w-3 h-3 mr-1" />
+                <Wifi className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
                 <span>ONLINE</span>
               </div>
             ) : (
-              <div className="flex items-center bg-rose-500 text-white px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-widest leading-none shadow-3xs animate-bounce border border-rose-600">
+              <div className="flex items-center bg-rose-500 text-white px-1.5 sm:px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-widest leading-none shadow-3xs animate-bounce border border-rose-600">
                 <span className="w-1.5 h-1.5 bg-white rounded-full mr-1 animate-ping"></span>
-                <WifiOff className="w-3 h-3 mr-1" />
-                <span>OFFLINE (TERPUTUS)</span>
+                <WifiOff className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
+                <span>OFFLINE</span>
               </div>
             )}
           </div>
         </div>
-        <div className="flex items-center space-x-3 text-slate-700">
-          <div className="font-mono text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full font-medium">
+        <div className="flex items-center space-x-1.5 sm:space-x-3 text-slate-700 shrink-0">
+          <div className="hidden md:block font-mono text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full font-medium">
             {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
-          <div className="flex items-center text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border border-red-100">
-            <ShieldAlert className="w-3.5 h-3.5 mr-1" />
-            <span>Pelanggaran: {session.violationsCount}</span>
+          <div className="flex items-center text-red-600 font-bold bg-red-50 px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] uppercase tracking-wider border border-red-100">
+            <ShieldAlert className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1" />
+            <span className="hidden sm:inline">Pelanggaran: </span>
+            <span>{session.violationsCount}</span>
           </div>
-          <div className={`flex items-center px-3 py-1 rounded border ${timeLeft < 300 ? 'bg-red-50 border-red-200 text-red-700 animate-pulse' : 'bg-blue-50 border-blue-200 text-blue-700'}`}>
-            <Clock className="w-4 h-4 mr-1.5" />
-            <span className="font-mono stroke-2 font-bold text-sm tracking-widest">{formatTime(timeLeft)}</span>
+          <div className={`flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded border ${timeLeft < 300 ? 'bg-red-50 border-red-200 text-red-700 animate-pulse' : 'bg-blue-50 border-blue-200 text-blue-700'}`}>
+            <Clock className="w-3.5 h-3.5 mr-1 sm:mr-1.5" />
+            <span className="font-mono stroke-2 font-bold text-xs sm:text-sm tracking-widest">{formatTime(timeLeft)}</span>
           </div>
           <button
             onClick={() => setShowConfirmModal(true)}
-            className="flex items-center bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold text-xs uppercase tracking-wider rounded-lg px-3 py-1.5 shadow-sm transition-all duration-150 cursor-pointer"
+            className="flex items-center bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold text-[10px] sm:text-xs uppercase tracking-wider rounded-lg px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm transition-all duration-150 cursor-pointer"
             title="Kumpulkan ujian sekarang"
           >
-            <Save className="w-3.5 h-3.5 mr-1.5" />
+            <Save className="w-3.5 h-3.5 mr-1 sm:mr-1.5 hidden sm:inline" />
             <span>Kumpulkan</span>
           </button>
         </div>
@@ -1517,8 +1553,8 @@ export default function StudentExam() {
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 w-full max-w-4xl mx-auto p-4 md:p-6 flex flex-col min-h-full">
+        <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 bg-slate-50">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 w-full max-w-4xl mx-auto p-3 sm:p-5 md:p-6 flex flex-col h-auto md:min-h-full">
             {currentQ ? (
                <div className="flex-1 flex flex-col">
                   <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
