@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db, handleFirestoreError, OperationType, auth } from '../../lib/firebase';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs, addDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, addDoc, onSnapshot } from 'firebase/firestore';
 import { StudentSession, Exam, Question, Setting, Violation, AudioItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { ShieldAlert, Maximize, Clock, Save, AlertTriangle, LogOut, Loader2, Wifi, WifiOff, Play, Check, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { formatHTML, calculateSmartPoints, calculatePgkPoints } from '../../utils/textFormat';
+import { calculateSessionScore } from '../../utils/sessionUtils';
 import { getAudioSourceUrls, formatAudioSrc } from '../../lib/audioUtils';
 import { renderMathInContainers } from '../../utils/mathRenderer';
 import katex from 'katex';
@@ -231,7 +232,7 @@ export default function StudentExam() {
     const questionsVal = questionsRef.current;
     const answersVal = answersRef.current;
 
-    if (!sessionVal || !examVal || isSubmittingOrFinishedVal) return;
+    if (!sessionVal || !examVal || isSubmittingOrFinishedVal || sessionVal.status === 'Selesai') return;
     
     // Set submitting flag immediately to prevent duplicate runs and ignore external alerts
     setIsSubmittingOrFinished(true);
@@ -245,52 +246,24 @@ export default function StudentExam() {
       return;
     }
 
-    // Calculate weight-based score
-    let pointsEarned = 0;
-    let totalWeight = 0;
-    let correct = 0;
-    let wrong = 0;
-    
-    questionsVal.forEach(q => {
-      const weight = q.weight || 10;
-      totalWeight += weight;
-      
-      const studentAns = answersVal[q.id!];
-      
-      if (q.type === 'pilihan_ganda' || q.type === 'listening') {
-        if (studentAns === q.correctAnswer) {
-          correct++;
-          pointsEarned += weight;
-        } else {
-          wrong++;
+    // Clean & sanitize answersVal (prevent any undefined or null keys from crashing Firestore setDoc/updateDoc)
+    const cleanAnswers: Record<string, string> = {};
+    if (answersVal && typeof answersVal === 'object') {
+      Object.keys(answersVal).forEach(k => {
+        if (answersVal[k] !== undefined && answersVal[k] !== null) {
+          cleanAnswers[k] = String(answersVal[k]);
         }
-      } else if (q.type === 'pilihan_ganda_kompleks') {
-        const totalOptions = ((q as any).shuffledOptions?.length) || (['A', 'B', 'C', 'D', 'E'].filter(l => !isOptionEmpty(q[`option${l}` as keyof Question])).length) || 5;
-        const pgk = calculatePgkPoints(studentAns, q.correctAnswer, weight, totalOptions);
-        pointsEarned += pgk.earned;
-        if (pgk.isFull || pgk.isPartial) {
-          correct++;
-        } else {
-          wrong++;
-        }
-      } else {
-        // Smart grading for isian_singkat and essay
-        const earned = calculateSmartPoints(studentAns || '', q.correctAnswer || '', weight);
-        pointsEarned += earned;
-        if (earned === weight) {
-          correct++;
-        } else if (earned > 0) {
-          correct++; 
-        } else {
-          wrong++;
-        }
-      }
-    });
+      });
+    }
 
-    const score = totalWeight > 0 ? (pointsEarned / totalWeight) * 100 : 0;
+    // Calculate weight-based score using shared calculateSessionScore
+    const { score, correctCount, wrongCount } = calculateSessionScore(cleanAnswers, questionsVal);
 
     // Set local session state status to Complete instantly for fast UI feedback
-    setSession(prev => prev ? { ...prev, status: 'Selesai', score, correctCount: correct, wrongCount: wrong } : null);
+    setSession(prev => prev ? { ...prev, status: 'Selesai', score, correctCount, wrongCount, answers: cleanAnswers } : null);
+    if (sessionRef.current) {
+      sessionRef.current = { ...sessionRef.current, status: 'Selesai', score, correctCount, wrongCount, answers: cleanAnswers };
+    }
 
     try {
       const docId = sessionVal.id || user!.uid;
@@ -298,14 +271,37 @@ export default function StudentExam() {
         status: 'Selesai',
         endTime: Date.now(),
         score,
-        correctCount: correct,
-        wrongCount: wrong,
-        answers: answersVal,
+        correctCount,
+        wrongCount,
+        answers: cleanAnswers,
         hiddenFromMonitor: false
       };
-      await updateDoc(doc(db, 'student_sessions', docId), updateData);
+
+      // 1. Update main session doc with setDoc merge: true
+      await setDoc(doc(db, 'student_sessions', docId), updateData, { merge: true });
+
+      // 2. Also ensure doc under user.uid is updated if docId is different
       if (user?.uid && user.uid !== docId) {
-        await updateDoc(doc(db, 'student_sessions', user.uid), updateData).catch(()=>{});
+        await setDoc(doc(db, 'student_sessions', user.uid), updateData, { merge: true }).catch(() => {});
+      }
+
+      // 3. Synchronize any matching session docs for this student and exam
+      if (sessionVal.studentName && sessionVal.examId) {
+        try {
+          const matchQ = query(
+            collection(db, 'student_sessions'),
+            where('studentName', '==', sessionVal.studentName),
+            where('examId', '==', sessionVal.examId)
+          );
+          const matchSnap = await getDocs(matchQ);
+          for (const d of matchSnap.docs) {
+            if (d.id !== docId && d.id !== user?.uid) {
+              await setDoc(doc(db, 'student_sessions', d.id), updateData, { merge: true }).catch(() => {});
+            }
+          }
+        } catch (mErr) {
+          console.warn("Sync matching sessions note:", mErr);
+        }
       }
 
       // Clear local backup
@@ -320,8 +316,6 @@ export default function StudentExam() {
       }
     } catch (e) {
       console.error("Gagal submit ujian:", e);
-      setIsSubmittingOrFinished(false);
-      isSubmittingOrFinishedRef.current = false;
       setShowSubmitErrorModal(true);
     }
   }, [user]);
@@ -780,7 +774,7 @@ export default function StudentExam() {
 
   const recordViolation = async (type: string, message: string) => {
     if (isUnloading.current) return;
-    if (isSubmittingOrFinished) return;
+    if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai' || sessionRef.current?.status === 'Didiskualifikasi') return;
 
     // Grace Period Safeguard:
     // If student just loaded exam page (within initial 25 seconds) OR hasn't entered fullscreen mode yet,
@@ -801,7 +795,7 @@ export default function StudentExam() {
       if (!docSnap.exists()) return;
       
       const currentSession = docSnap.data() as StudentSession;
-      if (currentSession.status === 'Selesai' || currentSession.status === 'Didiskualifikasi') {
+      if (currentSession.status === 'Selesai' || currentSession.status === 'Didiskualifikasi' || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') {
         // Exit fullscreen immediately if disqualified
         if (currentSession.status === 'Didiskualifikasi' && document.fullscreenElement) {
           document.exitFullscreen().catch(() => {});
@@ -852,11 +846,12 @@ export default function StudentExam() {
         // and only if it's NOT a focus-loss (so if they are still on another window, they stay 'Tidak Fokus')
         if (!isFocusLoss) {
           setTimeout(async () => {
+            if (isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
             try {
               const freshSnap = await getDoc(docRef);
               if (freshSnap.exists()) {
                 const freshData = freshSnap.data() as StudentSession;
-                if (freshData.status === 'Melanggar') {
+                if (freshData.status === 'Melanggar' && !isSubmittingOrFinishedRef.current) {
                   await updateDoc(docRef, { status: 'Aktif' });
                 }
               }
@@ -872,15 +867,16 @@ export default function StudentExam() {
   };
 
   useEffect(() => {
-    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
+    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished || isSubmittingOrFinishedRef.current) return;
 
     const handleRegainFocus = async () => {
-      if (isSubmittingOrFinishedRef.current) return;
+      if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
       try {
         const docRef = doc(db, 'student_sessions', user!.uid);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const freshData = docSnap.data() as StudentSession;
+          if (freshData.status === 'Selesai' || freshData.status === 'Didiskualifikasi' || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
           if (freshData.status === 'Tidak Fokus' || freshData.status === 'Melanggar') {
             await updateDoc(docRef, {
               status: 'Aktif',
@@ -895,6 +891,7 @@ export default function StudentExam() {
     };
 
     const handleVisibilityChange = () => {
+      if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
       const timeSinceMount = Date.now() - initialPageMountTime.current;
       if (!hasEnteredFullscreenOnceRef.current || timeSinceMount < 20000) {
         if (!document.hidden) handleRegainFocus();
@@ -902,6 +899,7 @@ export default function StudentExam() {
       }
 
       setTimeout(() => {
+        if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
         if (!document.hidden) return;
         recordViolation('Pindah Tab Browser', 'Terdeteksi pindah tab! Tindakan ini dilarang.');
       }, 700);
@@ -912,6 +910,7 @@ export default function StudentExam() {
     };
 
     const handleBlur = () => {
+      if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
       // 1. If not yet in fullscreen mode (still on initial start screen), never flag blur
       if (!isFullscreenRef.current || !hasEnteredFullscreenOnceRef.current) {
         return;
@@ -925,6 +924,7 @@ export default function StudentExam() {
 
       // 3. For any subsequent blur: check if it's a native browser pop-up (e.g. Save Password, permission, dropdown)
       setTimeout(() => {
+        if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
         // If student regained focus, ignore and ensure status is clean
         if (document.hasFocus()) {
           handleRegainFocus();
@@ -940,6 +940,7 @@ export default function StudentExam() {
         // Give an extra 2.5s tolerance to allow student to click "Save/Never/X" without being marked 'Tidak Fokus'
         if (!document.hidden) {
           setTimeout(() => {
+            if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
             if (document.hasFocus()) {
               handleRegainFocus();
               return;
@@ -962,6 +963,7 @@ export default function StudentExam() {
     };
 
     const handleFullscreenChange = () => {
+      if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
       const doc = document as any;
       const fullscreenElement = doc.fullscreenElement || doc.webkitFullscreenElement;
       
@@ -983,6 +985,7 @@ export default function StudentExam() {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
       // Prevent common shortcuts and requested violations
       const key = e.key;
       const ctrl = e.ctrlKey;
@@ -1030,6 +1033,7 @@ export default function StudentExam() {
     };
 
     const handleCopyPaste = (e: Event) => {
+      if (isSubmittingOrFinished || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
       e.preventDefault();
       recordViolation('Menyalin / Menempel', 'Menyalin atau menempel teks sangat dilarang.');
     }
@@ -1059,7 +1063,7 @@ export default function StudentExam() {
   const requestFullscreen = () => {
     hasEnteredFullscreenOnceRef.current = true;
     setIsFullscreen(true);
-    if (user) {
+    if (user && sessionRef.current?.status !== 'Selesai' && !isSubmittingOrFinishedRef.current) {
       updateDoc(doc(db, 'student_sessions', user.uid), {
         status: 'Aktif',
         lastActivity: Date.now()
@@ -1090,7 +1094,7 @@ export default function StudentExam() {
 
   // Timer & Heartbeat
   useEffect(() => {
-    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished) return;
+    if (!session || session.status === 'Selesai' || session.status === 'Didiskualifikasi' || isSubmittingOrFinished || isSubmittingOrFinishedRef.current) return;
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
@@ -1098,7 +1102,9 @@ export default function StudentExam() {
         timeLeftRef.current = Math.max(0, next);
         if (next <= 0) {
           clearInterval(timer);
-          submitExam();
+          if (!isSubmittingOrFinishedRef.current && sessionRef.current?.status !== 'Selesai') {
+            submitExam();
+          }
           return 0;
         }
         return next;
@@ -1106,7 +1112,7 @@ export default function StudentExam() {
     }, 1000);
 
     const heartbeat = setInterval(() => {
-      if (isSubmittingOrFinishedRef.current) return;
+      if (isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
       const curSecs = timeLeftRef.current;
       if (user?.uid) {
         updateDoc(doc(db, 'student_sessions', user.uid), {
