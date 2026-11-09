@@ -376,8 +376,8 @@ export default function StudentExam() {
         }
         setSession(sessData);
 
-        // Resolve student photo for exam page
-        let photo = sessData.studentPhoto || sessionStorage.getItem('cbt_student_photo') || undefined;
+        // Resolve student photo for exam page (prioritize session data, then class lookup)
+        let photo = sessData.studentPhoto || undefined;
         if (!photo && sessData.className && sessData.studentName) {
           try {
             const qClass = query(collection(db, 'classes'), where('name', '==', sessData.className));
@@ -395,7 +395,8 @@ export default function StudentExam() {
         }
         if (photo) {
           setStudentPhoto(photo);
-          sessionStorage.setItem('cbt_student_photo', photo);
+        } else {
+          setStudentPhoto(undefined);
         }
 
         // Merge with local storage backup to handle extreme connection / power failure cases (scoped by student UID)

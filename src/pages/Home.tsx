@@ -8,7 +8,7 @@ import { Setting, Subject, Exam, StudentSession, StudentRecord } from '../types'
 import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2, Key, Info, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import brandLogo from '../assets/images/logo1.png';
-import { getStudentName, getStudentPin } from '../utils/studentUtils';
+import { getStudentName, getStudentPin, getStudentPhoto } from '../utils/studentUtils';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -413,33 +413,36 @@ export default function Home() {
 
     const matchingExam = matchingExamByToken;
 
+    // Resolve student record and photo from rawStudentRecords or classes
+    let targetRecord: string | StudentRecord | undefined;
+    if (rawStudentRecords.length > 0) {
+      targetRecord = rawStudentRecords.find(s => getStudentName(s) === upperName);
+    }
+
+    if (!targetRecord && matchingExam.targetClass) {
+      try {
+        const snap = await getDocs(collection(db, 'classes'));
+        for (const d of snap.docs) {
+          const cData = d.data();
+          if ((cData.name || '').trim().toLowerCase() === (matchingExam.targetClass || '').trim().toLowerCase()) {
+            const students = (cData.students || []) as (string | StudentRecord)[];
+            targetRecord = students.find(s => getStudentName(s) === upperName);
+            if (targetRecord) break;
+          }
+        }
+      } catch (err) {
+        console.error("Gagal mencari data siswa dari database kelas:", err);
+      }
+    }
+
+    const resolvedPhoto = getStudentPhoto(targetRecord);
+
     // Validate Student Password / PIN if required for this exam schedule
     const isPinRequired = matchingExam.requireStudentPassword !== false;
     if (isPinRequired) {
       if (!studentPassword || !studentPassword.trim()) {
         setErrorMessage('Harap masukkan Password / PIN Siswa.');
         return;
-      }
-
-      let targetRecord: string | StudentRecord | undefined;
-      if (rawStudentRecords.length > 0) {
-        targetRecord = rawStudentRecords.find(s => getStudentName(s) === upperName);
-      }
-
-      if (!targetRecord && matchingExam.targetClass) {
-        try {
-          const snap = await getDocs(collection(db, 'classes'));
-          for (const d of snap.docs) {
-            const cData = d.data();
-            if ((cData.name || '').trim().toLowerCase() === (matchingExam.targetClass || '').trim().toLowerCase()) {
-              const students = (cData.students || []) as (string | StudentRecord)[];
-              targetRecord = students.find(s => getStudentName(s) === upperName);
-              if (targetRecord) break;
-            }
-          }
-        } catch (err) {
-          console.error("Gagal verifikasi PIN dari database kelas:", err);
-        }
       }
 
       const expectedPin = getStudentPin(targetRecord);
@@ -654,6 +657,7 @@ export default function Home() {
         deviceId: currentDeviceId, // Always bind new deviceId on resume so student can use ANY device
         examTitle: existingSessionData?.examTitle || matchingExam.title,
         packetName: existingSessionData?.packetName || assignedPacket || matchingExam.packetName,
+        studentPhoto: resolvedPhoto || existingSessionData?.studentPhoto,
       } : {
         studentName: upperName,
         className: matchingExam.targetClass || 'Tidak Diketahui',
@@ -669,7 +673,8 @@ export default function Home() {
         lastActivity: Date.now(),
         startTime: Date.now(),
         adminId: matchingExam.adminId,
-        deviceId: currentDeviceId
+        deviceId: currentDeviceId,
+        studentPhoto: resolvedPhoto
       };
 
       // Clean all undefined values (e.g. studentPhoto: undefined or optional fields) to prevent Firestore setDoc error
