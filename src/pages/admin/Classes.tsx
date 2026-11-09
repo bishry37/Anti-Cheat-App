@@ -44,9 +44,7 @@ export default function Classes() {
     photo?: string;
   } | null>(null);
 
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [photoStatus, setPhotoStatus] = useState<'empty' | 'loading' | 'success' | 'error'>('empty');
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -287,25 +285,6 @@ export default function Classes() {
       photo
     });
     setPhotoStatus(photo ? 'loading' : 'empty');
-  };
-
-  const handlePhotoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      setUploadingPhoto(true);
-      const compressed = await compressStudentPhoto(file);
-      if (editingStudent) {
-        setEditingStudent(prev => prev ? { ...prev, photo: compressed } : null);
-      }
-      showToast('Foto berhasil diunggah & disesuaikan ke format 2x3!');
-    } catch (err: any) {
-      console.error('Gagal mengolah foto:', err);
-      showToast(err?.message || 'Gagal memproses file foto.');
-    } finally {
-      setUploadingPhoto(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
   };
 
   const handleSaveStudentModal = async (e: React.FormEvent) => {
@@ -841,37 +820,16 @@ export default function Classes() {
                   </span>
                 </div>
 
-                {/* Input Link Foto & Upload Button */}
+                {/* Input Link Google Drive Foto */}
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                  <div>
                     <input
                       type="text"
                       value={editingStudent.photo || ''}
                       onChange={(e) => setEditingStudent({ ...editingStudent, photo: e.target.value })}
-                      placeholder="Tempel link Google Drive / URL foto..."
-                      className="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                      placeholder="Tempel link Google Drive foto..."
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                     />
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      onChange={handlePhotoFileChange} 
-                      accept="image/*" 
-                      className="hidden" 
-                    />
-                    <button
-                      type="button"
-                      disabled={uploadingPhoto}
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0 shadow-3xs disabled:opacity-50"
-                      title="Upload foto dari HP atau laptop (otomatis di-crop 2x3)"
-                    >
-                      {uploadingPhoto ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Upload className="w-3.5 h-3.5 text-blue-600" />
-                      )}
-                      <span>{uploadingPhoto ? 'Memproses...' : 'Upload Foto'}</span>
-                    </button>
                   </div>
 
                   {/* Live 2x3 Preview & Status Box */}
@@ -910,7 +868,7 @@ export default function Classes() {
                         </p>
                       ) : photoStatus === 'error' ? (
                         <p className="text-[10px] text-amber-700 font-medium leading-tight">
-                          ⚠️ Link belum dapat terbaca. Pastikan izin Google Drive disetel ke <strong>"Siapa saja yang memiliki link"</strong>, atau gunakan tombol <strong>Upload Foto</strong>.
+                          ⚠️ Link belum dapat terbaca. Pastikan izin Google Drive disetel ke <strong>"Siapa saja yang memiliki link"</strong>.
                         </p>
                       ) : (
                         <p className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
@@ -920,7 +878,7 @@ export default function Classes() {
                       )}
 
                       <p className="text-[9px] text-slate-400 font-medium leading-tight">
-                        Mendukung link Google Drive, direct URL foto, atau file dari perangkat.
+                        Masukkan link Google Drive (pastikan mode akses publik).
                       </p>
                     </div>
                   </div>
