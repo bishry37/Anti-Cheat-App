@@ -393,7 +393,7 @@ export default function QuestionBank() {
   };
 
   const fetchQuestions = async () => {
-    if (!user || !selectedTemplateFilter) {
+    if (!selectedTemplateFilter) {
       setQuestions([]);
       return;
     }
@@ -401,10 +401,9 @@ export default function QuestionBank() {
     try {
       let q;
       if (selectedTemplateFilter === 'all') {
-        q = query(collection(db, 'questions'), where('adminId', '==', user.uid), where('subjectId', '==', selectedSubject));
+        q = query(collection(db, 'questions'), where('subjectId', '==', selectedSubject));
       } else {
         q = query(collection(db, 'questions'), 
-          where('adminId', '==', user.uid),
           where('subjectId', '==', selectedSubject), 
           where('packetName', '==', selectedTemplateFilter)
         );
@@ -1272,17 +1271,11 @@ export default function QuestionBank() {
       'Apakah Anda yakin ingin menghapus soal ini dari bank soal?',
       async () => {
         try {
-          // 1. Explicitly delete the document first
-          const deletePromise = deleteDoc(doc(db, 'questions', id));
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("Timeout")), 6000)
-          );
-          await Promise.race([deletePromise, timeoutPromise]);
+          // 1. Delete document from Firestore
+          await deleteDoc(doc(db, 'questions', id));
 
-          // 2. Immediately filter out the deleted question locally
+          // 2. Rebalance weights among remaining questions
           const remainingQuestions = questions.filter(q => q.id !== id);
-
-          // Rebalance weights among remaining questions so total weight equals 100
           const typeUnits: Record<string, number> = { 
             'pilihan_ganda': 1, 
             'pilihan_ganda_kompleks': 2, 
@@ -1310,13 +1303,6 @@ export default function QuestionBank() {
             return { ...q, weight: qWeight };
           });
 
-          // Update local state instantly
-          setQuestions(rebalanced);
-          setOriginalQuestions(rebalanced);
-          setHasEditedWeights(false);
-          setIsDirty(true);
-
-          // 3. Update remaining weights in background
           if (rebalanced.length > 0) {
             const batch = writeBatch(db);
             rebalanced.forEach(q => {
@@ -1324,18 +1310,21 @@ export default function QuestionBank() {
                 batch.update(doc(db, 'questions', q.id), { weight: q.weight });
               }
             });
-            await batch.commit().catch(console.error);
+            await batch.commit();
           }
+
+          await fetchQuestions();
+          setIsDirty(true);
 
           showCustomAlert(
             'Soal Berhasil Dihapus',
             'Soal berhasil dihapus dan bobot nilai otomatis disesuaikan kembali menjadi 100.',
             true
           );
-        } catch (err) {
+        } catch (err: any) {
           console.error("Error deleting question:", err);
-          fetchQuestions();
-          showCustomAlert('Gagal Hapus', 'Terjadi kesalahan saat menghapus soal.', false);
+          await fetchQuestions();
+          showCustomAlert('Gagal Hapus', err?.message || 'Terjadi kesalahan saat menghapus soal.', false);
         }
       },
       true,
