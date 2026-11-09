@@ -642,7 +642,7 @@ export default function Home() {
         }
       }
 
-      const sessionData: StudentSession = isResume ? {
+      const rawSessionData = isResume ? {
         ...existingSessionData!,
         id: uid,
         status: 'Aktif',
@@ -671,6 +671,15 @@ export default function Home() {
         adminId: matchingExam.adminId,
         deviceId: currentDeviceId
       };
+
+      // Clean all undefined values (e.g. studentPhoto: undefined or optional fields) to prevent Firestore setDoc error
+      const sessionData: Record<string, any> = {};
+      Object.keys(rawSessionData).forEach(key => {
+        const val = (rawSessionData as any)[key];
+        if (val !== undefined) {
+          sessionData[key] = val;
+        }
+      });
 
       // If resuming and the old session was under a different ID, hide old doc from monitor
       if (isResume && targetUid && targetUid !== uid) {
