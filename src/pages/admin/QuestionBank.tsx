@@ -307,11 +307,10 @@ export default function QuestionBank() {
   };
 
   const autoAdjustWeights = async (subjectId: string, packetName: string) => {
-    if (!user || !subjectId || !packetName || packetName === 'all') return;
+    if (!subjectId || !packetName || packetName === 'all') return;
     try {
       const q = query(
         collection(db, 'questions'),
-        where('adminId', '==', user.uid),
         where('subjectId', '==', subjectId),
         where('packetName', '==', packetName)
       );
@@ -346,7 +345,7 @@ export default function QuestionBank() {
         let qWeight = (typeUnits[qData.type] || 1) * unitValue;
 
         if (idx === questionsToUpdate.length - 1) {
-          qWeight = 100 - currentWeightSum;
+          qWeight = Number((100 - currentWeightSum).toFixed(2));
         } else {
           qWeight = Number(qWeight.toFixed(2));
           currentWeightSum += qWeight;
@@ -444,6 +443,24 @@ export default function QuestionBank() {
       
       setQuestions(sortedQs);
       setOriginalQuestions(sortedQs);
+
+      // Verify and automatically balance weights to 100 on load if custom weights were not set
+      if (selectedTemplateFilter !== 'all' && sortedQs.length > 0) {
+        const totWeight = sortedQs.reduce((acc, curr) => acc + (Number(curr.weight) || 0), 0);
+        const customWeightKey = `cbt_custom_weights_${selectedSubject}_${selectedTemplateFilter}`;
+        let isCustom = false;
+        try { isCustom = localStorage.getItem(customWeightKey) === 'true'; } catch {}
+        if (!isCustom && Math.abs(totWeight - 100) >= 0.05) {
+          autoAdjustWeights(selectedSubject, selectedTemplateFilter).then(() => {
+            getDocs(q).then(newSnap => {
+              const updatedQs = newSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
+              updatedQs.sort((a, b) => (a.number || 0) - (b.number || 0));
+              setQuestions(updatedQs);
+              setOriginalQuestions(updatedQs);
+            });
+          });
+        }
+      }
     } catch (err) {
       console.error(err);
     }
@@ -1270,23 +1287,28 @@ export default function QuestionBank() {
       'Hapus Soal',
       'Apakah Anda yakin ingin menghapus soal ini dari bank soal?',
       async () => {
+        setProcessing(true);
         try {
           // 1. Delete document from Firestore
           await deleteDoc(doc(db, 'questions', id));
 
-          // 2. Clear custom weight override in localStorage
+          // 2. Optimistically update local state
+          setQuestions(prev => prev.filter(q => q.id !== id));
+          setOriginalQuestions(prev => prev.filter(q => q.id !== id));
+
+          // 3. Clear custom weight override in localStorage
           if (selectedSubject && qToDelete.packetName) {
             const key = `cbt_custom_weights_${selectedSubject}_${qToDelete.packetName}`;
             try { localStorage.removeItem(key); } catch {}
           }
           setHasEditedWeights(false);
 
-          // 3. Rebalance weights in Firestore so total weight stays 100
+          // 4. Rebalance weights in Firestore so total weight stays 100
           if (selectedSubject && qToDelete.packetName) {
             await autoAdjustWeights(selectedSubject, qToDelete.packetName);
           }
 
-          // 4. Fetch updated questions from Firestore to verify state
+          // 5. Fetch updated questions from Firestore to verify state
           await fetchQuestions();
 
           showCustomAlert(
@@ -1298,6 +1320,8 @@ export default function QuestionBank() {
           console.error("Error deleting question:", err);
           await fetchQuestions();
           showCustomAlert('Gagal Hapus', err?.message || 'Terjadi kesalahan saat menghapus soal.', false);
+        } finally {
+          setProcessing(false);
         }
       },
       true,

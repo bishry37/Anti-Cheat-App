@@ -56,11 +56,9 @@ export default function Exams() {
   }, [exams]);
 
   useEffect(() => {
-    fetchData();
-
     // Subscribe to exams in real-time
-    const q = query(collection(db, 'exams'));
-    const unsub = onSnapshot(q, (snapshot) => {
+    const qExams = query(collection(db, 'exams'));
+    const unsubExams = onSnapshot(qExams, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Exam));
       list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setExams(list);
@@ -70,6 +68,27 @@ export default function Exams() {
       setLoading(false);
     });
 
+    // Subscribe to subjects in real-time
+    const qSubjects = query(collection(db, 'subjects'));
+    const unsubSubjects = onSnapshot(qSubjects, (snapshot) => {
+      const subList = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Subject));
+      subList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      setSubjects(subList);
+    }, (error) => {
+      console.warn("Subjects snapshot warning:", error);
+    });
+
+    // Subscribe to classes in real-time
+    const qClasses = query(collection(db, 'classes'));
+    const unsubClasses = onSnapshot(qClasses, (snapshot) => {
+      const classList = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Class));
+      classList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      setClassesData(classList);
+    }, (error) => {
+      console.warn("Classes snapshot warning:", error);
+    });
+
+    // Subscribe to audio banks in real-time
     const qAudio = query(collection(db, 'audio_banks'));
     const unsubAudio = onSnapshot(qAudio, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as AudioItem));
@@ -79,7 +98,9 @@ export default function Exams() {
     });
 
     return () => {
-      unsub();
+      unsubExams();
+      unsubSubjects();
+      unsubClasses();
       unsubAudio();
     };
   }, []);
@@ -158,25 +179,6 @@ export default function Exams() {
     } catch (e) { console.error(e); }
   };
 
-  const fetchData = async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const subSnap = await getDocs(collection(db, 'subjects'));
-      const subList = subSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Subject));
-      subList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-      setSubjects(subList);
-
-      const classSnap = await getDocs(collection(db, 'classes'));
-      const classList = classSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Class));
-      classList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-      setClassesData(classList);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
-
   const generateToken = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let token = '';
@@ -203,9 +205,8 @@ export default function Exams() {
         activeToken: generateToken(),
         tokenUpdatedAt: Date.now()
       });
-      fetchData(true);
     } catch (e) { console.error(e); }
-  }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -818,6 +819,14 @@ export default function Exams() {
       </AnimatePresence>
 
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col flex-1 min-h-0">
+        {errorMsg && !isAdding && (
+          <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-xs font-semibold flex items-center justify-between">
+            <span>{errorMsg}</span>
+            <button type="button" onClick={() => setErrorMsg(null)} className="text-red-500 hover:text-red-700">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Manajemen Ujian</h3>
           {!isAdding && (
