@@ -1,86 +1,58 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 1. Global Default Deny
+    // Global Default Deny
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // 2. Global Helpers
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      return isSignedIn();
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
-    // 3. Collection Rules
-    
     // Admins Collection
     match /admins/{adminId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // Classes Collection
     match /classes/{classId} {
-      allow read: if true;
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // Settings Collection
     match /settings/{settingId} {
-      allow read: if true;
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // Subjects Collection
     match /subjects/{subjectId} {
-      allow read: if true;
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // Audio Banks Collection
     match /audio_banks/{audioId} {
-      allow read: if true;
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
 
       match /chunks/{chunkId} {
-        allow read: if true;
-        allow create, update, delete: if isSignedIn();
+        allow read, write: if true;
       }
     }
 
     // Questions Collection
     match /questions/{questionId} {
-      allow read: if true;
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // Exams Collection
     match /exams/{examId} {
-      allow read: if true;
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // Student Sessions Collection
     match /student_sessions/{sessionId} {
-      allow get, list, create, update, delete: if true;
+      allow read, write: if true;
     }
 
     // Violations Collection
     match /violations/{violationId} {
-      allow get, list, create, update, delete: if true;
+      allow read, write: if true;
     }
   }
 }

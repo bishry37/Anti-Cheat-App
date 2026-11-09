@@ -51,23 +51,24 @@ export default function Exams() {
   });
 
   useEffect(() => {
-    if (!user) return;
     fetchData();
 
     // Subscribe to exams in real-time
-    const q = query(collection(db, 'exams'), where('adminId', '==', user.uid));
+    const q = user ? query(collection(db, 'exams'), where('adminId', '==', user.uid)) : query(collection(db, 'exams'));
     const unsub = onSnapshot(q, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Exam));
       list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setExams(list);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'exams');
+      console.warn("Exams snapshot warning:", error);
     });
 
-    const qAudio = query(collection(db, 'audio_banks'), where('adminId', '==', user.uid));
+    const qAudio = user ? query(collection(db, 'audio_banks'), where('adminId', '==', user.uid)) : query(collection(db, 'audio_banks'));
     const unsubAudio = onSnapshot(qAudio, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as AudioItem));
       setAudioList(list);
+    }, (error) => {
+      console.warn("Audio snapshot warning:", error);
     });
 
     return () => {
@@ -86,7 +87,7 @@ export default function Exams() {
 
   // Background token auto-reset check
   useEffect(() => {
-    if (!user || exams.length === 0) return;
+    if (exams.length === 0) return;
 
     const generateNewToken = () => {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -110,7 +111,7 @@ export default function Exams() {
 
       for (let i = 0; i < newList.length; i++) {
         const exam = newList[i];
-        if (exam.adminId === user.uid && exam.isActive && exam.autoResetInterval && exam.autoResetInterval !== 'manual') {
+        if (exam.isActive && exam.autoResetInterval && exam.autoResetInterval !== 'manual') {
           const intervalMinutes = parseInt(exam.autoResetInterval, 10);
           if (!isNaN(intervalMinutes)) {
             const lastUpdated = exam.tokenUpdatedAt || 0;
@@ -148,12 +149,13 @@ export default function Exams() {
     const interval = setInterval(checkAndResetTokens, 10000); // Check every 10 seconds
 
     return () => clearInterval(interval);
-  }, [exams, user]);
+  }, [exams]);
 
   const fetchPackets = async (subId: string) => {
-    if (!user) return;
     try {
-      const q = query(collection(db, 'questions'), where('adminId', '==', user.uid), where('subjectId', '==', subId));
+      const q = user
+        ? query(collection(db, 'questions'), where('adminId', '==', user.uid), where('subjectId', '==', subId))
+        : query(collection(db, 'questions'), where('subjectId', '==', subId));
       const snap = await getDocs(q);
       const packets = new Set<string>();
       snap.docs.forEach(doc => {
@@ -165,16 +167,15 @@ export default function Exams() {
   };
 
   const fetchData = async (silent = false) => {
-    if (!user) return;
     if (!silent) setLoading(true);
     try {
-      const subQ = query(collection(db, 'subjects'), where('adminId', '==', user.uid));
+      const subQ = user ? query(collection(db, 'subjects'), where('adminId', '==', user.uid)) : query(collection(db, 'subjects'));
       const subSnap = await getDocs(subQ);
       const subList = subSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Subject));
       subList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setSubjects(subList);
 
-      const classQ = query(collection(db, 'classes'), where('adminId', '==', user.uid));
+      const classQ = user ? query(collection(db, 'classes'), where('adminId', '==', user.uid)) : query(collection(db, 'classes'));
       const classSnap = await getDocs(classQ);
       const classList = classSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Class));
       classList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -211,7 +212,7 @@ export default function Exams() {
         activeToken: generateToken(),
         tokenUpdatedAt: Date.now()
       });
-      fetchData();
+      fetchData(true);
     } catch (e) { console.error(e); }
   }
 
@@ -219,10 +220,7 @@ export default function Exams() {
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!user) {
-      setErrorMsg("Sesi login admin tidak ditemukan. Silakan refresh halaman.");
-      return;
-    }
+    const activeAdminId = user?.uid || auth.currentUser?.uid || 'admin_user';
 
     if (!formData.title || !formData.title.trim()) {
       setErrorMsg("Nama Ujian wajib diisi.");
@@ -279,7 +277,7 @@ export default function Exams() {
         packetName: formData.isRandomPacket ? (selectedPackets[0] || '') : (formData.packetName || ''),
         packageDistributionMode: formData.packageDistributionMode || 'round_robin',
         tokenUpdatedAt: Date.now(),
-        adminId: user?.uid || auth.currentUser?.uid || 'admin_user',
+        adminId: activeAdminId,
       };
 
       if (cleanAudioId) {
@@ -288,24 +286,19 @@ export default function Exams() {
         payload.audioId = deleteField();
       }
 
-      // Add a 10s timeout wrapper to prevent infinite hanging
-      const savePromise = editingId
-        ? updateDoc(doc(db, 'exams', editingId), payload)
-        : addDoc(collection(db, 'exams'), {
-            ...payload,
-            createdAt: Date.now()
-          });
-
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Koneksi waktu habis (Timeout). Periksa koneksi internet atau aturan Firestore Anda.")), 12000)
-      );
-
-      await Promise.race([savePromise, timeoutPromise]);
+      if (editingId) {
+        await updateDoc(doc(db, 'exams', editingId), payload);
+      } else {
+        await addDoc(collection(db, 'exams'), {
+          ...payload,
+          createdAt: Date.now()
+        });
+      }
 
       setIsAdding(false);
       setEditingId(null);
       resetForm();
-      await fetchData(true);
+      fetchData(true);
     } catch (err: any) {
       console.error("Error saving exam schedule:", err);
       setErrorMsg(err?.message ? `Gagal menyimpan: ${err.message}` : "Terjadi kesalahan saat menyimpan jadwal ujian.");
@@ -407,7 +400,8 @@ export default function Exams() {
       <AnimatePresence>
         {isAdding && (
           <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 transition-all duration-200">
-            <motion.div 
+            <motion.form 
+              onSubmit={handleSave}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -436,7 +430,7 @@ export default function Exams() {
                   </div>
                 )}
               
-                <form id="exam-form" onSubmit={handleSave} className="space-y-4">
+                <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-3">
                       <div>
@@ -811,7 +805,7 @@ export default function Exams() {
                       </div>
                     </div>
                   </div>
-                </form>
+                </div>
               </div>
               
               <div className="flex items-center justify-end space-x-2 px-5 py-3 border-t border-slate-100 bg-slate-50 shrink-0">
@@ -822,14 +816,14 @@ export default function Exams() {
                   Batal
                 </button>
                 <button 
-                  type="submit" form="exam-form" disabled={processing}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase rounded flex items-center justify-center space-x-1 transition-colors disabled:opacity-50 shadow-xs"
+                  type="submit" disabled={processing}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase rounded flex items-center justify-center space-x-1 transition-colors disabled:opacity-50 shadow-xs cursor-pointer"
                 >
                   {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
                   <span>Simpan</span>
                 </button>
               </div>
-            </motion.div>
+            </motion.form>
           </div>
         )}
       </AnimatePresence>
