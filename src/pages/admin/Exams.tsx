@@ -291,13 +291,6 @@ export default function Exams() {
       delete statePayload.audioId;
     }
 
-    // Optimistically update local UI state with clean JSON (no FieldTransform sentinels) & close modal immediately!
-    if (currentEditId) {
-      setExams(prev => prev.map(item => item.id === currentEditId ? { ...item, ...statePayload, id: currentEditId } : item));
-    } else {
-      setExams(prev => [...prev, { ...statePayload, id: targetExamId, createdAt: Date.now() }]);
-    }
-
     setIsAdding(false);
     setEditingId(null);
     resetForm();
@@ -332,9 +325,8 @@ export default function Exams() {
     if (!modalConfig || !modalConfig.idToDelete) return;
     const targetId = modalConfig.idToDelete;
     
-    // Optimistically close modal & update UI immediately
+    // Optimistically close modal
     setModalConfig(null);
-    setExams(prev => prev.filter(e => e.id !== targetId));
 
     setProcessing(true);
     try {

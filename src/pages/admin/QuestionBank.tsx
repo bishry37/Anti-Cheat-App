@@ -1283,20 +1283,21 @@ export default function QuestionBank() {
 
   const handleDeleteQuestion = (id: string) => {
     const qToDelete = questions.find(q => q.id === id);
-    if (!qToDelete) return;
+    if (!qToDelete) {
+      console.warn("Question not found in local state:", id);
+      return;
+    }
 
     showCustomConfirm(
       'Hapus Soal',
       'Apakah Anda yakin ingin menghapus soal ini dari bank soal?',
       async () => {
         setProcessing(true);
+        console.log("Deleting question:", id);
         try {
           // 1. Delete document from Firestore
           await deleteDoc(doc(db, 'questions', id));
-
-          // 2. Optimistically update local state
-          setQuestions(prev => prev.filter(q => q.id !== id));
-          setOriginalQuestions(prev => prev.filter(q => q.id !== id));
+          console.log("Doc deleted from Firestore");
 
           // 3. Clear custom weight override in localStorage
           if (selectedSubject && qToDelete.packetName) {
@@ -1308,10 +1309,12 @@ export default function QuestionBank() {
           // 4. Rebalance weights in Firestore so total weight stays 100
           if (selectedSubject && qToDelete.packetName) {
             await autoAdjustWeights(selectedSubject, qToDelete.packetName, id);
+            console.log("Weights rebalanced");
           }
 
           // 5. Fetch updated questions from Firestore to verify state
           await fetchQuestions();
+          console.log("Questions fetched");
 
           showCustomAlert(
             'Soal Berhasil Dihapus',
@@ -1320,7 +1323,6 @@ export default function QuestionBank() {
           );
         } catch (err: any) {
           console.error("Error deleting question:", err);
-          await fetchQuestions();
           showCustomAlert('Gagal Hapus', err?.message || 'Terjadi kesalahan saat menghapus soal.', false);
         } finally {
           setProcessing(false);
