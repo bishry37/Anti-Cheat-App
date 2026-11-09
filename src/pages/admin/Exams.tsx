@@ -282,23 +282,18 @@ export default function Exams() {
         payload.audioId = deleteField();
       }
 
-      const savePromise = editingId
-        ? updateDoc(doc(db, 'exams', editingId), payload)
-        : addDoc(collection(db, 'exams'), {
-            ...payload,
-            createdAt: Date.now()
-          });
-
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Koneksi waktu habis (Timeout). Periksa koneksi internet Anda.")), 10000)
-      );
-
-      await Promise.race([savePromise, timeoutPromise]);
+      if (editingId) {
+        await updateDoc(doc(db, 'exams', editingId), payload);
+      } else {
+        await addDoc(collection(db, 'exams'), {
+          ...payload,
+          createdAt: Date.now()
+        });
+      }
 
       setIsAdding(false);
       setEditingId(null);
       resetForm();
-      fetchData(true).catch(console.error);
     } catch (err: any) {
       console.error("Error saving exam schedule:", err);
       setErrorMsg(err?.message ? `Gagal menyimpan: ${err.message}` : "Terjadi kesalahan saat menyimpan jadwal ujian.");
@@ -319,13 +314,8 @@ export default function Exams() {
     if (!modalConfig || !modalConfig.idToDelete) return;
     setProcessing(true);
     try {
-      const deletePromise = deleteDoc(doc(db, 'exams', modalConfig.idToDelete));
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Koneksi waktu habis (Timeout).")), 10000)
-      );
-      await Promise.race([deletePromise, timeoutPromise]);
+      await deleteDoc(doc(db, 'exams', modalConfig.idToDelete));
       setModalConfig(null);
-      fetchData(true).catch(console.error);
     } catch (err: any) {
       console.error("Error deleting exam:", err);
       setErrorMsg(err?.message ? `Gagal menghapus: ${err.message}` : "Terjadi kesalahan saat menghapus jadwal ujian.");
