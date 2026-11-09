@@ -54,7 +54,7 @@ export default function Exams() {
     fetchData();
 
     // Subscribe to exams in real-time
-    const q = user ? query(collection(db, 'exams'), where('adminId', '==', user.uid)) : query(collection(db, 'exams'));
+    const q = query(collection(db, 'exams'));
     const unsub = onSnapshot(q, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Exam));
       list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -63,7 +63,7 @@ export default function Exams() {
       console.warn("Exams snapshot warning:", error);
     });
 
-    const qAudio = user ? query(collection(db, 'audio_banks'), where('adminId', '==', user.uid)) : query(collection(db, 'audio_banks'));
+    const qAudio = query(collection(db, 'audio_banks'));
     const unsubAudio = onSnapshot(qAudio, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as AudioItem));
       setAudioList(list);
@@ -75,7 +75,7 @@ export default function Exams() {
       unsub();
       unsubAudio();
     };
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     if (formData.subjectId) {
@@ -153,9 +153,7 @@ export default function Exams() {
 
   const fetchPackets = async (subId: string) => {
     try {
-      const q = user
-        ? query(collection(db, 'questions'), where('adminId', '==', user.uid), where('subjectId', '==', subId))
-        : query(collection(db, 'questions'), where('subjectId', '==', subId));
+      const q = query(collection(db, 'questions'), where('subjectId', '==', subId));
       const snap = await getDocs(q);
       const packets = new Set<string>();
       snap.docs.forEach(doc => {
@@ -169,14 +167,12 @@ export default function Exams() {
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const subQ = user ? query(collection(db, 'subjects'), where('adminId', '==', user.uid)) : query(collection(db, 'subjects'));
-      const subSnap = await getDocs(subQ);
+      const subSnap = await getDocs(collection(db, 'subjects'));
       const subList = subSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Subject));
       subList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setSubjects(subList);
 
-      const classQ = user ? query(collection(db, 'classes'), where('adminId', '==', user.uid)) : query(collection(db, 'classes'));
-      const classSnap = await getDocs(classQ);
+      const classSnap = await getDocs(collection(db, 'classes'));
       const classList = classSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Class));
       classList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setClassesData(classList);
