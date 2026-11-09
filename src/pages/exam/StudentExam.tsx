@@ -168,6 +168,7 @@ export default function StudentExam() {
   }, []);
   
   const containerRef = useRef<HTMLDivElement>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
 
   // References to completely mitigate React stale closures on asynchronous timers/listeners
   const lastProcessedAdjustedAt = useRef<number | null>(null);
@@ -1173,9 +1174,21 @@ export default function StudentExam() {
     };
   }, [user, session?.status, isSubmittingOrFinished]);
 
+  // Reset main content scroll position to top whenever question index changes
+  useEffect(() => {
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
+  }, [currentQuestionIndex]);
+
   // Handle question change and persistence
   const changeQuestion = async (newIndex: number) => {
     setCurrentQuestionIndex(newIndex);
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
     if (user) {
       try {
         await updateDoc(doc(db, 'student_sessions', user.uid), {
@@ -1530,7 +1543,7 @@ export default function StudentExam() {
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 bg-slate-50">
+        <div ref={mainContentRef} className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 bg-slate-50">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 w-full max-w-4xl mx-auto p-3 sm:p-5 md:p-6 flex flex-col h-auto md:min-h-full">
             {currentQ ? (
                <div className="flex-1 flex flex-col">
@@ -1721,7 +1734,7 @@ export default function StudentExam() {
         </div>
 
         {/* Sidebar Nav */}
-        <div className="w-64 bg-white border-l border-slate-200 overflow-y-auto shrink-0 flex flex-col hidden lg:flex [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full">
+        <div className={`w-64 bg-white border-l border-slate-200 shrink-0 flex flex-col hidden lg:flex ${questions.length > 25 ? 'overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full' : 'overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'}`}>
            <div className="p-3 border-b border-slate-100 bg-slate-50/50 flex flex-col space-y-1">
              <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Navigasi Soal</h3>
              <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1 relative">
