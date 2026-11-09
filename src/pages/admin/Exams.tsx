@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot, deleteField } from 'firebase/firestore';
 import { Exam, Subject, Class, AudioItem } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Clock, Copy, CheckCircle2, Search, Filter, Music, Shuffle, Layers, AlertCircle, Check } from 'lucide-react';
@@ -263,9 +263,9 @@ export default function Exams() {
         : (formData.packetName ? [formData.packetName.trim()] : []);
 
       const payload: any = {
-        title: formData.title.trim(),
-        subjectId: formData.subjectId,
-        targetClass: formData.targetClass.trim(),
+        title: (formData.title || '').trim(),
+        subjectId: formData.subjectId || '',
+        targetClass: (formData.targetClass || '').trim(),
         duration: Number(formData.duration) || 90,
         isActive: !!formData.isActive,
         activeToken: activeToken,
@@ -279,7 +279,7 @@ export default function Exams() {
         packetName: formData.isRandomPacket ? (selectedPackets[0] || '') : (formData.packetName || ''),
         packageDistributionMode: formData.packageDistributionMode || 'round_robin',
         tokenUpdatedAt: Date.now(),
-        adminId: user.uid,
+        adminId: user?.uid || auth.currentUser?.uid || 'admin_user',
       };
 
       if (cleanAudioId) {
@@ -288,14 +288,19 @@ export default function Exams() {
         payload.audioId = deleteField();
       }
 
-      if (editingId) {
-        await updateDoc(doc(db, 'exams', editingId), payload);
-      } else {
-        await addDoc(collection(db, 'exams'), {
-          ...payload,
-          createdAt: Date.now()
-        });
-      }
+      // Add a 10s timeout wrapper to prevent infinite hanging
+      const savePromise = editingId
+        ? updateDoc(doc(db, 'exams', editingId), payload)
+        : addDoc(collection(db, 'exams'), {
+            ...payload,
+            createdAt: Date.now()
+          });
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Koneksi waktu habis (Timeout). Periksa koneksi internet atau aturan Firestore Anda.")), 12000)
+      );
+
+      await Promise.race([savePromise, timeoutPromise]);
 
       setIsAdding(false);
       setEditingId(null);
