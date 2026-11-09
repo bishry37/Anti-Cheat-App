@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { collection, query, where, getDocs, doc, setDoc, updateDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { Setting, Subject, Exam, StudentSession, StudentRecord } from '../types';
 import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2, Key, Info, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -339,7 +339,7 @@ export default function Home() {
     setLoading(true);
     setErrorMessage('');
     try {
-      sessionStorage.setItem('just_logged_in_admin', 'true');
+      await setPersistence(auth, browserSessionPersistence);
       await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
       setLoading(false);
       navigate('/admin');

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signOut, signInAnonymously, sendPasswordResetEmail, updatePassword, fetchSignInMethodsForEmail, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { User, onAuthStateChanged, signOut, signInAnonymously, sendPasswordResetEmail, updatePassword, fetchSignInMethodsForEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -33,8 +33,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         setLoading(false);
       } else {
-        // Fallback check: if there is a local student custom session, recover it
-        const localStudent = localStorage.getItem('cbt_student_user');
+        // Fallback check: if there is a local student custom session in this tab, recover it
+        const localStudent = sessionStorage.getItem('cbt_student_user');
         if (localStudent) {
           try {
             const parsed = JSON.parse(localStudent);
@@ -56,13 +56,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginAsStudent = async (): Promise<string> => {
     try {
+      await setPersistence(auth, browserSessionPersistence);
       const credential = await signInAnonymously(auth);
       return credential.user.uid;
     } catch (err: any) {
       console.warn("Firebase Anonymous Sign-In failed or was restricted. Falling back to custom client-side student session:", err);
       
-      // Let's check if there's already a persistent user
-      const existingLocal = localStorage.getItem('cbt_student_user');
+      // Let's check if there's already a persistent user in this tab
+      const existingLocal = sessionStorage.getItem('cbt_student_user');
       if (existingLocal) {
         try {
           const parsed = JSON.parse(existingLocal);
@@ -74,14 +75,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Generate a persistent, random, collision-resistant UID for the student session
+      // Generate a persistent, random, collision-resistant UID for the student session in this tab
       const uid = 'stud_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
       const mockUser = {
         uid,
         isAnonymous: true,
         displayName: 'Siswa'
       };
-      localStorage.setItem('cbt_student_user', JSON.stringify(mockUser));
+      sessionStorage.setItem('cbt_student_user', JSON.stringify(mockUser));
       setUser(mockUser);
       setIsAdmin(false);
       return uid;
@@ -127,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    localStorage.removeItem('cbt_student_user');
+    sessionStorage.removeItem('cbt_student_user');
     sessionStorage.removeItem('just_logged_in_student');
     sessionStorage.removeItem('just_logged_in_admin');
     await signOut(auth);

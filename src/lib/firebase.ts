@@ -15,6 +15,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+
+// Enforce tab-level session persistence so logging in on one tab does NOT log in remaining tabs
+setPersistence(auth, browserSessionPersistence).catch((err) => {
+  console.warn("Unable to set browserSessionPersistence:", err);
+});
+
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const storage = getStorage(app);
 
