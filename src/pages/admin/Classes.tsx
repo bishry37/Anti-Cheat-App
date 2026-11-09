@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, where, writeBatch, onSnapshot } from 'firebase/firestore';
 import { Class, StudentRecord, Setting } from '../../types';
-import { Plus, Edit2, Trash2, Loader2, Save, X, Users, Search, ArrowRight, GraduationCap, Check, Key, Copy, Printer, RefreshCw, FileText, LayoutGrid, List, Scissors, Building2, UserCircle, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, Save, X, Users, Search, ArrowRight, GraduationCap, Check, Key, Copy, Printer, RefreshCw, FileText, LayoutGrid, List, Scissors, Building2, UserCircle, Download, Camera, Upload, CheckCircle2, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getStudentName, getStudentPin, getStudentPhoto, generateDefaultPin, generateRandomPin, normalizeStudentRecord, parseStudentInput } from '../../utils/studentUtils';
+import { getStudentName, getStudentPin, getStudentPhoto, generateDefaultPin, generateRandomPin, normalizeStudentRecord, parseStudentInput, compressStudentPhoto } from '../../utils/studentUtils';
+import { StudentCardPhoto } from '../../components/StudentCardPhoto';
 import brandLogo from '../../assets/images/logo1.png';
 
 export default function Classes() {
@@ -42,6 +43,10 @@ export default function Classes() {
     pin: string;
     photo?: string;
   } | null>(null);
+
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [photoStatus, setPhotoStatus] = useState<'empty' | 'loading' | 'success' | 'error'>('empty');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -274,13 +279,33 @@ export default function Classes() {
   const openEditStudentModal = (item: string | StudentRecord) => {
     const name = getStudentName(item);
     const pin = getStudentPin(item);
-    const photo = getStudentPhoto(item) || '';
+    const photo = (typeof item === 'object' && item.photo) ? item.photo : (getStudentPhoto(item) || '');
     setEditingStudent({
       originalName: name,
       name,
       pin,
       photo
     });
+    setPhotoStatus(photo ? 'loading' : 'empty');
+  };
+
+  const handlePhotoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingPhoto(true);
+      const compressed = await compressStudentPhoto(file);
+      if (editingStudent) {
+        setEditingStudent(prev => prev ? { ...prev, photo: compressed } : null);
+      }
+      showToast('Foto berhasil diunggah & disesuaikan ke format 2x3!');
+    } catch (err: any) {
+      console.error('Gagal mengolah foto:', err);
+      showToast(err?.message || 'Gagal memproses file foto.');
+    } finally {
+      setUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleSaveStudentModal = async (e: React.FormEvent) => {
@@ -308,7 +333,10 @@ export default function Classes() {
     const updated = draftStudents.map(s => {
       if (getStudentName(s) === editingStudent.originalName) {
         const rec: StudentRecord = { name: trimmedName, pin: trimmedPin };
-        if (trimmedPhoto) rec.photo = trimmedPhoto;
+        // Foto bersifat opsional: hanya sertakan jika diisi
+        if (trimmedPhoto) {
+          rec.photo = trimmedPhoto;
+        }
         return rec;
       }
       return s;
@@ -317,7 +345,7 @@ export default function Classes() {
     const success = await saveStudentList(updated);
     if (success) {
       setEditingStudent(null);
-      showToast(`Password siswa ${trimmedName} berhasil diubah menjadi: ${trimmedPin}`);
+      showToast(`Data siswa ${trimmedName} berhasil disimpan!`);
     }
   };
 
@@ -602,16 +630,43 @@ export default function Classes() {
                                 <span className="text-[10px] text-slate-500 group-hover/item:text-blue-600 font-bold bg-slate-100 w-5 h-5 rounded-full flex items-center justify-center border border-slate-200/70 shrink-0">
                                   {originalIndex !== -1 ? originalIndex + 1 : idx + 1}
                                 </span>
+
+                                {/* Student Photo Thumbnail / Avatar */}
+                                <button
+                                  type="button"
+                                  onClick={() => openEditStudentModal(item)}
+                                  className="shrink-0 cursor-pointer group/thumb focus:outline-hidden"
+                                  title={getStudentPhoto(item) ? "Foto Siswa Terpasang (Klik untuk ganti)" : "Foto Belum Ada (Opsional - Klik untuk tambah)"}
+                                >
+                                  <StudentCardPhoto
+                                    photo={getStudentPhoto(item)}
+                                    studentName={name}
+                                    className="w-7 h-9 rounded border border-slate-200 group-hover/thumb:border-blue-400 group-hover/thumb:scale-105 transition-all shadow-3xs"
+                                    showPlaceholderLabel={false}
+                                  />
+                                </button>
+
                                 <div className="flex flex-col min-w-0">
-                                  <span className="text-xs text-slate-800 font-bold uppercase tracking-tight truncate">
-                                    {name}
-                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-slate-800 font-bold uppercase tracking-tight truncate">
+                                      {name}
+                                    </span>
+                                    {getStudentPhoto(item) ? (
+                                      <span className="text-[8px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.2 rounded shrink-0 flex items-center gap-0.5" title="Foto Siswa Siap Tampil">
+                                        <Camera className="w-2.5 h-2.5" /> FOTO
+                                      </span>
+                                    ) : (
+                                      <span className="text-[8px] font-medium text-slate-400 bg-slate-100 px-1 py-0.2 rounded shrink-0" title="Foto Siswa Kosong (Opsional)">
+                                        Tanpa Foto
+                                      </span>
+                                    )}
+                                  </div>
                                   {/* Clickable PIN Badge */}
                                   <button
                                     type="button"
                                     onClick={() => openEditStudentModal(item)}
                                     className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-300 hover:border-amber-400 px-2 py-0.5 rounded-md w-fit mt-0.5 cursor-pointer transition shadow-3xs group/pin"
-                                    title="Klik untuk mengubah Password / PIN siswa ini"
+                                    title="Klik untuk mengubah Password / PIN atau Foto siswa ini"
                                   >
                                     <Key className="w-3 h-3 text-amber-600 group-hover/pin:rotate-12 transition-transform" />
                                     <span>PIN: {pin}</span>
@@ -737,7 +792,7 @@ export default function Classes() {
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
-                    Edit Password & Siswa
+                    Edit Data & Foto Siswa
                   </h3>
                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                     Kelas: <span className="text-blue-600 font-extrabold">{selectedClass?.name}</span>
@@ -797,21 +852,106 @@ export default function Classes() {
                   </button>
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed font-medium">
-                  💡 Ketik password bebas (angka/huruf) atau klik <strong>Acak PIN</strong> untuk menghasilkan 5 digit acak.
+                  💡 Password untuk login siswa di portal ujian.
                 </p>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-extrabold text-slate-600 uppercase mb-1">
-                  Link Foto Siswa (Opsional)
-                </label>
-                <input
-                  type="url"
-                  value={editingStudent.photo || ''}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, photo: e.target.value })}
-                  placeholder="https://drive.google.com/file/d/..."
-                  className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                />
+              {/* Foto Siswa - Bersifat Opsional */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-slate-700 uppercase flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Foto Siswa (Opsional)</span>
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-bold bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-full">
+                    Boleh Dikosongkan
+                  </span>
+                </div>
+
+                {/* Input Link Foto & Upload Button */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editingStudent.photo || ''}
+                      onChange={(e) => setEditingStudent({ ...editingStudent, photo: e.target.value })}
+                      placeholder="Tempel link Google Drive / URL foto..."
+                      className="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                    />
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      onChange={handlePhotoFileChange} 
+                      accept="image/*" 
+                      className="hidden" 
+                    />
+                    <button
+                      type="button"
+                      disabled={uploadingPhoto}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0 shadow-3xs disabled:opacity-50"
+                      title="Upload foto dari HP atau laptop (otomatis di-crop 2x3)"
+                    >
+                      {uploadingPhoto ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="w-3.5 h-3.5 text-blue-600" />
+                      )}
+                      <span>{uploadingPhoto ? 'Memproses...' : 'Upload Foto'}</span>
+                    </button>
+                  </div>
+
+                  {/* Live 2x3 Preview & Status Box */}
+                  <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/80 flex gap-3 items-center">
+                    <StudentCardPhoto
+                      photo={editingStudent.photo}
+                      studentName={editingStudent.name}
+                      className="w-13 h-18 shadow-3xs border-2 border-slate-300 rounded-md shrink-0"
+                      onStatusChange={(status) => setPhotoStatus(status)}
+                    />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-700">
+                          Pratinjau Kartu (2x3)
+                        </span>
+                        {editingStudent.photo && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingStudent({ ...editingStudent, photo: '' })}
+                            className="text-[10px] font-bold text-red-600 hover:text-red-700 hover:underline flex items-center gap-1 cursor-pointer"
+                            title="Hapus foto ini dan biarkan kosong"
+                          >
+                            <Trash2 className="w-3 h-3" /> Hapus Foto
+                          </button>
+                        )}
+                      </div>
+
+                      {!editingStudent.photo ? (
+                        <p className="text-[10px] text-slate-500 leading-tight">
+                          Foto kosong (opsional). Kartu ujian akan menampilkan bingkai foto standar 2x3.
+                        </p>
+                      ) : photoStatus === 'loading' ? (
+                        <p className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                          <span>Membaca & memverifikasi link foto...</span>
+                        </p>
+                      ) : photoStatus === 'error' ? (
+                        <p className="text-[10px] text-amber-700 font-medium leading-tight">
+                          ⚠️ Link belum dapat terbaca. Pastikan izin Google Drive disetel ke <strong>"Siapa saja yang memiliki link"</strong>, atau gunakan tombol <strong>Upload Foto</strong>.
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>Foto berhasil terbaca & siap tampil di kartu ujian!</span>
+                        </p>
+                      )}
+
+                      <p className="text-[9px] text-slate-400 font-medium leading-tight">
+                        Mendukung link Google Drive, direct URL foto, atau file dari perangkat.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
@@ -829,7 +969,7 @@ export default function Classes() {
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold uppercase rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                 >
                   {processing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  <span>{processing ? 'Menyimpan...' : 'Simpan Password'}</span>
+                  <span>{processing ? 'Menyimpan...' : 'Simpan Siswa'}</span>
                 </button>
               </div>
             </form>
@@ -846,7 +986,7 @@ export default function Classes() {
                   Impor Banyak Siswa Sekaligus
                 </h3>
                 <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mt-0.5">
-                  Format per Baris: "NAMA SISWA" atau "NAMA SISWA, PIN"
+                  Format per Baris: "NAMA" atau "NAMA, PIN" atau "NAMA, PIN, LINK_FOTO"
                 </p>
               </div>
               <button 
@@ -860,8 +1000,9 @@ export default function Classes() {
             <div className="p-5 flex-1 flex flex-col min-h-0 bg-slate-50/30">
               <p className="text-[11px] text-slate-600 uppercase font-semibold tracking-wide mb-2.5">
                 Contoh Input: <br />
-                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800 font-mono">IMAM BISHRY NURYAYI</code> (Password dibuat acak otomatis)<br />
-                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800 font-mono">AI NUR ROIAH, 98765</code> (Password kustom)
+                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800 font-mono">IMAM BISHRY NURYAYI</code> (PIN acak otomatis, tanpa foto)<br />
+                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800 font-mono">AI NUR ROIAH, 98765</code> (PIN kustom, tanpa foto)<br />
+                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-800 font-mono">BUDI SANTOSO, 12345, https://drive.google.com/file/d/...</code> (Foto opsional)
               </p>
               <textarea
                 value={bulkInput}
@@ -1025,21 +1166,11 @@ export default function Classes() {
                             {/* Details Grid with Photo */}
                             <div className="flex gap-3 items-center flex-1">
                               {/* Student Photo Frame (2x3 ratio size e.g. w-12 h-16) */}
-                              <div className="w-12 h-16 bg-slate-100 border-2 border-slate-300 rounded-md overflow-hidden shrink-0 flex items-center justify-center relative shadow-3xs">
-                                {getStudentPhoto(s) ? (
-                                  <img 
-                                    src={getStudentPhoto(s)!} 
-                                    alt={name} 
-                                    className="w-full h-full object-cover" 
-                                    referrerPolicy="no-referrer"
-                                  />
-                                ) : (
-                                  <div className="flex flex-col items-center justify-center text-slate-400 p-1 text-center">
-                                    <UserCircle className="w-6 h-6 text-slate-300" />
-                                    <span className="text-[6px] font-bold uppercase tracking-tighter leading-none mt-0.5">2x3</span>
-                                  </div>
-                                )}
-                              </div>
+                              <StudentCardPhoto
+                                photo={getStudentPhoto(s)}
+                                studentName={name}
+                                className="w-12 h-16 border-2 border-slate-300 rounded-md shadow-3xs"
+                              />
 
                               <div className="space-y-1.5 flex-1 min-w-0">
                                 <div>
@@ -1297,21 +1428,11 @@ export default function Classes() {
 
                           {/* Details with Photo 2x3 */}
                           <div className="flex gap-2.5 items-center flex-1">
-                            <div className="w-12 h-16 bg-slate-100 border border-slate-400 rounded overflow-hidden shrink-0 flex items-center justify-center relative">
-                              {getStudentPhoto(s) ? (
-                                <img 
-                                  src={getStudentPhoto(s)!} 
-                                  alt={name} 
-                                  className="w-full h-full object-cover" 
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                <div className="flex flex-col items-center justify-center text-slate-400 p-1 text-center">
-                                  <UserCircle className="w-6 h-6 text-slate-300" />
-                                  <span className="text-[6px] font-bold uppercase tracking-tighter leading-none mt-0.5">2x3</span>
-                                </div>
-                              )}
-                            </div>
+                            <StudentCardPhoto
+                              photo={getStudentPhoto(s)}
+                              studentName={name}
+                              className="w-12 h-16 border border-slate-400 rounded"
+                            />
 
                             <div className="space-y-1 flex-1 min-w-0">
                               <div>
