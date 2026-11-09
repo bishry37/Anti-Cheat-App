@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, doc, updateDoc, setDoc, onSnapshot, getDocs, addDoc, deleteDoc, getDoc, where } from 'firebase/firestore';
-import { StudentSession, Violation, Exam, Subject, Class, Question } from '../../types';
+import { collection, query, doc, updateDoc, onSnapshot, getDocs, addDoc, deleteDoc, getDoc, where } from 'firebase/firestore';
+import { StudentSession, Violation, Exam, Subject, Class } from '../../types';
 import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight, Play, CheckCircle2, Clock3, Ban, Unlock, Radio, Music } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { calculateSessionScore } from '../../utils/sessionUtils';
 
 export default function ExamMonitor() {
   const { user } = useAuth();
@@ -17,9 +16,9 @@ export default function ExamMonitor() {
   const [loading, setLoading] = useState(true);
   const [maxViolations, setMaxViolations] = useState<number>(3);
 
-  // Filters (Default filterStatus is '' so ALL students are immediately visible)
+  // Filters
   const [filterClass, setFilterClass] = useState<string>('');
-  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<string>('online');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterExam, setFilterExam] = useState<string>('');
 
@@ -39,7 +38,7 @@ export default function ExamMonitor() {
   // Custom Confirmation Dialog Modal state
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
-    type: 'warning' | 'end_exam' | 'delete' | 'restore' | 'clear_history' | 'finalize_exam' | 'finalize_all_expired';
+    type: 'warning' | 'end_exam' | 'delete' | 'restore' | 'clear_history';
     candidateId?: string;
     candidateName: string;
     session?: StudentSession;
@@ -239,9 +238,8 @@ export default function ExamMonitor() {
     })
     .reduce((acc: StudentSession[], current) => {
       // Deduplicate by Name + ExamID to handle students logging in again after clearing cache/restoration
-      const cleanName = (current.studentName || '').trim().toUpperCase();
-      const key = `${cleanName}_${current.examId}`;
-      const existingIdx = acc.findIndex(s => `${(s.studentName || '').trim().toUpperCase()}_${s.examId}` === key);
+      const key = `${current.studentName}_${current.examId}`;
+      const existingIdx = acc.findIndex(s => `${s.studentName}_${s.examId}` === key);
       
       if (existingIdx === -1) {
         acc.push(current);
@@ -249,22 +247,17 @@ export default function ExamMonitor() {
         const existing = acc[existingIdx];
         // Give priority to status and then activity time
         const getPriority = (s: StudentSession) => {
-          if (s.status === 'Selesai') return 5;
-          if (s.status === 'Aktif' && s.lastActivity > 0) return 4;
-          if (s.status === 'Tidak Fokus') return 3;
-          if (s.status === 'Melanggar') return 2;
-          if (s.status === 'Didiskualifikasi') return 1;
+          if (s.status === 'Selesai') return 4;
+          if (s.status === 'Aktif' && s.lastActivity > 0) return 3;
+          if (s.status === 'Didiskualifikasi') return 2;
+          if (s.status === 'Aktif' && s.lastActivity === 0) return 1; // Placeholder/Waiting Login
           return 0;
         };
         
         if (getPriority(current) > getPriority(existing)) {
           acc[existingIdx] = current;
-        } else if (getPriority(current) === getPriority(existing)) {
-          const timeCurrent = current.endTime || current.lastActivity || current.startTime || 0;
-          const timeExisting = existing.endTime || existing.lastActivity || existing.startTime || 0;
-          if (timeCurrent > timeExisting) {
-            acc[existingIdx] = current;
-          }
+        } else if (getPriority(current) === getPriority(existing) && (current.lastActivity || 0) > (existing.lastActivity || 0)) {
+          acc[existingIdx] = current;
         }
       }
       return acc;
@@ -359,103 +352,6 @@ export default function ExamMonitor() {
     });
   };
 
-  const triggerFinalizeExam = (session: StudentSession) => {
-    setConfirmDialog({
-      isOpen: true,
-      type: 'finalize_exam',
-      candidateName: session.studentName,
-      session
-    });
-  };
-
-  const triggerFinalizeAllExpired = () => {
-    setConfirmDialog({
-      isOpen: true,
-      type: 'finalize_all_expired',
-      candidateName: 'Semua Peserta Waktu Habis'
-    });
-  };
-
-  const finalizeStudentSession = async (s: StudentSession) => {
-    if (!s) return 0;
-    try {
-      // Fetch exam questions to grade accurately
-      const examObj = exams[s.examId];
-      const targetSubId = s.subjectId || examObj?.subjectId || '';
-      const targetPacket = s.packetName || examObj?.packetName || '';
-
-      let qs: Question[] = [];
-      if (targetSubId && targetPacket) {
-        try {
-          const qSnap = await getDocs(query(
-            collection(db, 'questions'),
-            where('subjectId', '==', targetSubId),
-            where('packetName', '==', targetPacket)
-          ));
-          qs = qSnap.docs.map(d => ({ id: d.id, ...d.data() } as Question));
-        } catch (e) {}
-      }
-      if (qs.length === 0 && targetSubId) {
-        try {
-          const qSnap = await getDocs(query(collection(db, 'questions'), where('subjectId', '==', targetSubId)));
-          qs = qSnap.docs.map(d => ({ id: d.id, ...d.data() } as Question));
-        } catch (e) {}
-      }
-      if (qs.length === 0 && user) {
-        try {
-          const qSnap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
-          qs = qSnap.docs.map(d => ({ id: d.id, ...d.data() } as Question));
-        } catch (e) {}
-      }
-
-      // Calculate score
-      const cleanAnswers: Record<string, string> = {};
-      if (s.answers && typeof s.answers === 'object') {
-        Object.keys(s.answers).forEach(k => {
-          if (s.answers[k] !== undefined && s.answers[k] !== null) {
-            cleanAnswers[k] = String(s.answers[k]);
-          }
-        });
-      }
-
-      const { score, correctCount, wrongCount } = calculateSessionScore(cleanAnswers, qs);
-
-      const updateData = {
-        status: 'Selesai',
-        endTime: s.endTime || Date.now(),
-        score,
-        correctCount,
-        wrongCount,
-        answers: cleanAnswers,
-        hiddenFromMonitor: false
-      };
-
-      await setDoc(doc(db, 'student_sessions', s.id!), updateData, { merge: true });
-
-      // Synchronize any matching docs
-      if (s.studentName && s.examId) {
-        try {
-          const dupQuery = query(
-            collection(db, 'student_sessions'),
-            where('studentName', '==', s.studentName),
-            where('examId', '==', s.examId)
-          );
-          const dupSnap = await getDocs(dupQuery);
-          for (const d of dupSnap.docs) {
-            if (d.id !== s.id) {
-              await setDoc(doc(db, 'student_sessions', d.id), updateData, { merge: true }).catch(() => {});
-            }
-          }
-        } catch (e) {}
-      }
-
-      return score;
-    } catch (err: any) {
-      console.error("Gagal menyelesaikan ujian:", err);
-      throw err;
-    }
-  };
-
   const executeConfirmedAction = async () => {
     const { type, session, candidateId } = confirmDialog;
     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -521,47 +417,6 @@ export default function ExamMonitor() {
         showToast('Murid diizinkan melanjutkan ujian');
       } catch (err) {
         handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
-      }
-    } else if (type === 'finalize_exam' && session) {
-      try {
-        const score = await finalizeStudentSession(session);
-        showToast(`Ujian ${session.studentName} berhasil diselesaikan (Nilai: ${score})`);
-      } catch (err: any) {
-        showToast(`Gagal: ${err?.message || 'Terjadi kesalahan'}`);
-      }
-    } else if (type === 'finalize_all_expired') {
-      try {
-        const expiredSessions = sessions.filter(s => {
-          if (s.status === 'Selesai' || s.status === 'Didiskualifikasi') return false;
-          if (filterClass && s.className !== filterClass) return false;
-          if (filterExam && s.examId !== filterExam) return false;
-          const ex = exams[s.examId];
-          const dur = typeof s.duration === 'number' ? s.duration : (ex?.duration || 90);
-          const elapsedMin = (Date.now() - s.startTime) / 60000;
-          const remainingSecs = Math.max(0, Math.round(dur * 60 - elapsedMin * 60));
-          return remainingSecs <= 0 || (s.remainingSeconds !== undefined && s.remainingSeconds <= 0);
-        });
-
-        if (expiredSessions.length === 0) {
-          showToast('Tidak ada peserta yang waktu pengerjaannya telah habis');
-          return;
-        }
-
-        setLoading(true);
-        let count = 0;
-        for (const s of expiredSessions) {
-          try {
-            await finalizeStudentSession(s);
-            count++;
-          } catch (e) {
-            console.error(`Gagal finalisasi ${s.studentName}`, e);
-          }
-        }
-        setLoading(false);
-        showToast(`Berhasil menyelesaikan ${count} peserta`);
-      } catch (err: any) {
-        setLoading(false);
-        showToast(`Gagal: ${err?.message || 'Terjadi kesalahan'}`);
       }
     } else if (type === 'delete' && candidateId) {
       try {
@@ -724,8 +579,8 @@ export default function ExamMonitor() {
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-750 text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer transition-all"
              >
+                <option value="online">Online</option>
                 <option value="">Semua Status</option>
-                <option value="online">Online (Aktif)</option>
                 <option value="tidak_fokus">Tidak Fokus</option>
                 <option value="melanggar">Melanggar</option>
                 <option value="selesai">Selesai</option>
@@ -744,17 +599,6 @@ export default function ExamMonitor() {
                 ))}
              </select>
 
-             {/* Selesaikan Semua yang Waktu Habis Button */}
-             <button 
-                onClick={triggerFinalizeAllExpired}
-                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center space-x-1.5 text-xs font-bold uppercase transition-all cursor-pointer shadow-xs"
-                title="Selesaikan dan hitung nilai seluruh peserta yang sisa waktu ujiannya telah habis"
-             >
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="hidden sm:inline">Selesaikan Waktu Habis</span>
-                <span className="sm:hidden">Waktu Habis</span>
-             </button>
-
              {/* Clear Finished History Button */}
              <button 
                 onClick={triggerClearHistory}
@@ -767,12 +611,12 @@ export default function ExamMonitor() {
              </button>
 
              {/* Reset Filter Button */}
-             {(searchQuery || filterClass || filterStatus || filterExam) && (
+             {(searchQuery || filterClass || filterStatus !== 'online' || filterExam) && (
                 <button 
                   onClick={() => {
                      setFilterClass('');
                      setFilterExam('');
-                     setFilterStatus('');
+                     setFilterStatus('online');
                      setSearchQuery('');
                   }}
                   className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3 py-1.5 rounded-lg flex items-center space-x-1 text-xs font-bold uppercase transition-all cursor-pointer shadow-xs"
@@ -871,13 +715,8 @@ export default function ExamMonitor() {
                   ) : (
                     filteredSessions.map((s, idx) => {
                       const isWarning = s.violationsCount > 0 && s.status === 'Aktif';
-                      const isOffline = (Date.now() - s.lastActivity) > 180000 && s.status === 'Aktif' && s.lastActivity > 0;
+                      const isOffline = (Date.now() - s.lastActivity) > 60000 && s.status === 'Aktif' && s.lastActivity > 0;
                       const isWaitingLogin = s.status === 'Aktif' && s.lastActivity === 0;
-
-                      const durationMin = typeof s.duration === 'number' ? s.duration : (exams[s.examId]?.duration || 0);
-                      const limitMs = durationMin * 60 * 1000;
-                      const elapsedMs = now - s.startTime;
-                      const isTimeExpired = limitMs > 0 && (limitMs - elapsedMs) <= 0;
                       
                       return (
                         <tr key={s.id} className={`group border-b border-slate-50 hover:bg-slate-50 transition-colors ${isWarning ? 'bg-orange-50/50' : ''} ${s.status === 'Melanggar' ? 'bg-red-50/30' : ''}`}>
@@ -1014,21 +853,6 @@ export default function ExamMonitor() {
                                     <span className={`text-[9px] font-black uppercase tracking-tighter ${isAll ? 'text-emerald-600' : 'text-blue-600'}`}>
                                       Selesai
                                     </span>
-                                    {typeof s.score === 'number' && (
-                                      <span className="text-[8px] font-bold text-slate-500 font-mono mt-0.5">Nilai: {s.score}</span>
-                                    )}
-                                  </div>
-                                );
-                              }
-
-                              if (isTimeExpired) {
-                                return (
-                                  <div className="flex flex-col items-center">
-                                    <Clock3 className="w-4 h-4 mb-0.5 text-amber-500 animate-pulse" />
-                                    <span className="text-[9px] font-black uppercase tracking-tighter text-amber-600">
-                                      Waktu Habis
-                                    </span>
-                                    <span className="text-[7.5px] text-slate-400 font-medium">Belum Submit</span>
                                   </div>
                                 );
                               }
@@ -1049,7 +873,7 @@ export default function ExamMonitor() {
                             })()}
                           </td>
                           <td className="px-6 py-4 text-center">
-                             <div className="flex items-center justify-center gap-1.5">
+                             <div className="flex items-center justify-center gap-2">
                                 {s.status === 'Didiskualifikasi' && (
                                   <button 
                                     onClick={(e) => {
@@ -1062,13 +886,13 @@ export default function ExamMonitor() {
                                     <Unlock className="w-4 h-4 text-white" />
                                   </button>
                                 )}
-                                <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm items-center">
+                                <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
                                   <button 
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       openMonitor(s);
                                     }} 
-                                    className="h-7 w-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all cursor-pointer" 
+                                    className="h-7 w-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all" 
                                     title="Detail Monitor"
                                   >
                                     <Eye className="w-4 h-4" />
@@ -1078,20 +902,9 @@ export default function ExamMonitor() {
                                       <button 
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          triggerFinalizeExam(s);
-                                        }} 
-                                        className="h-7 px-2 flex items-center gap-1 rounded-md text-[9px] font-black uppercase tracking-tight bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer shadow-xs ml-0.5"
-                                        title="Selesaikan Ujian & Hitung Nilai Sekarang"
-                                      >
-                                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                                        <span className="hidden xl:inline">Selesai</span>
-                                      </button>
-                                      <button 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
                                           triggerWarning(s);
                                         }} 
-                                        className={`h-7 px-2 rounded-md text-[9px] font-black uppercase tracking-tight transition-all cursor-pointer ml-0.5 ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
+                                        className={`h-7 px-2.5 rounded-md text-[9px] font-black uppercase tracking-tight transition-all ${s.status === 'Melanggar' || s.violationsCount > 0 ? 'bg-red-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
                                       >
                                         Tegur
                                       </button>
@@ -1100,7 +913,7 @@ export default function ExamMonitor() {
                                           e.stopPropagation();
                                           triggerEndExam(s);
                                         }} 
-                                        className="h-7 w-7 flex items-center justify-center text-red-300 hover:text-red-600 hover:bg-red-50 rounded-md transition-all cursor-pointer" 
+                                        className="h-7 w-7 flex items-center justify-center text-red-300 hover:text-red-600 hover:bg-red-50 rounded-md transition-all" 
                                         title="Diskualifikasi Paksa"
                                       >
                                         <Ban className="w-3.5 h-3.5" />
@@ -1112,7 +925,7 @@ export default function ExamMonitor() {
                                         e.stopPropagation();
                                         triggerDelete(s.id!, s.studentName);
                                       }} 
-                                      className="h-7 w-7 flex items-center justify-center text-red-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all cursor-pointer" 
+                                      className="h-7 w-7 flex items-center justify-center text-red-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all" 
                                       title="Hapus Sesi"
                                     >
                                       <Trash2 className="w-4 h-4" />
@@ -1234,14 +1047,12 @@ export default function ExamMonitor() {
             <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
               confirmDialog.type === 'delete' || confirmDialog.type === 'clear_history' ? 'bg-red-50 text-red-600' :
               confirmDialog.type === 'end_exam' ? 'bg-red-50 text-red-600' : 
-              confirmDialog.type === 'restore' || confirmDialog.type === 'finalize_exam' || confirmDialog.type === 'finalize_all_expired' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+              confirmDialog.type === 'restore' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
             } ${confirmDialog.type === 'warning' ? 'self-start' : 'mx-auto'}`}>
               {confirmDialog.type === 'delete' || confirmDialog.type === 'end_exam' || confirmDialog.type === 'clear_history' ? (
                 <ShieldAlert className="w-6 h-6" />
               ) : confirmDialog.type === 'restore' ? (
                 <Play className="w-6 h-6" />
-              ) : confirmDialog.type === 'finalize_exam' || confirmDialog.type === 'finalize_all_expired' ? (
-                <CheckCircle2 className="w-6 h-6 text-emerald-600" />
               ) : (
                 <AlertTriangle className="w-6 h-6" />
               )}
@@ -1250,9 +1061,7 @@ export default function ExamMonitor() {
               {confirmDialog.type === 'delete' ? 'Hapus Sesi Ujian' :
                confirmDialog.type === 'clear_history' ? 'Hapus Riwayat Monitoring' :
                confirmDialog.type === 'end_exam' ? 'Akhiri Paksa Ujian' : 
-               confirmDialog.type === 'restore' ? 'Pulihkan Sesi Ujian' : 
-               confirmDialog.type === 'finalize_exam' ? 'Selesaikan Ujian & Hitung Nilai' :
-               confirmDialog.type === 'finalize_all_expired' ? 'Selesaikan Semua Peserta Waktu Habis' : 'Kirim Teguran'}
+               confirmDialog.type === 'restore' ? 'Pulihkan Sesi Ujian' : 'Kirim Teguran'}
             </h4>
             
             {confirmDialog.type !== 'warning' ? (
@@ -1261,8 +1070,6 @@ export default function ExamMonitor() {
                 {confirmDialog.type === 'clear_history' && `Apakah Anda yakin ingin menghapus semua riwayat peserta yang sudah Selesai atau Didiskualifikasi dari daftar monitoring? Data hasil ujian tetap tersimpan aman di menu Laporan.`}
                 {confirmDialog.type === 'end_exam' && `Apakah Anda yakin ingin mengakhiri paksa ujian untuk ${confirmDialog.candidateName}? Mereka akan didiskualifikasi.`}
                 {confirmDialog.type === 'restore' && `Izinkan ${confirmDialog.candidateName} untuk melanjutkan kembali ujian yang sebelumnya didiskualifikasi?`}
-                {confirmDialog.type === 'finalize_exam' && `Selesaikan ujian untuk ${confirmDialog.candidateName} dan hitung nilainya sekarang? Status peserta akan diubah menjadi "Selesai" dan nilainya akan langsung tercatat di menu Hasil Ujian.`}
-                {confirmDialog.type === 'finalize_all_expired' && `Selesaikan seluruh peserta yang waktu pengerjaannya telah habis? Sistem akan otomatis menghitung nilai setiap peserta berdasarkan jawaban yang tersimpan dan mengubah statusnya menjadi "Selesai" sehingga langsung muncul di menu Hasil Ujian.`}
               </p>
             ) : (
               <div className="w-full flex flex-col space-y-3.5 mb-5 text-left">
@@ -1304,16 +1111,14 @@ export default function ExamMonitor() {
                 className={`flex-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-colors cursor-pointer text-center ${
                   confirmDialog.type === 'delete' || confirmDialog.type === 'end_exam' || confirmDialog.type === 'clear_history'
                     ? 'bg-red-600 hover:bg-red-700' 
-                    : confirmDialog.type === 'restore' || confirmDialog.type === 'finalize_exam' || confirmDialog.type === 'finalize_all_expired'
+                    : confirmDialog.type === 'restore'
                       ? 'bg-emerald-600 hover:bg-emerald-700'
                       : 'bg-amber-500 hover:bg-amber-600'
                 }`}
               >
                 {confirmDialog.type === 'delete' || confirmDialog.type === 'clear_history' ? 'Hapus' :
                  confirmDialog.type === 'end_exam' ? 'Akhiri' : 
-                 confirmDialog.type === 'restore' ? 'Izinkan' : 
-                 confirmDialog.type === 'finalize_exam' ? 'Selesaikan Ujian' :
-                 confirmDialog.type === 'finalize_all_expired' ? 'Selesaikan Semua' : 'Kirim'}
+                 confirmDialog.type === 'restore' ? 'Izinkan' : 'Kirim'}
               </button>
             </div>
           </div>

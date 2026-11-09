@@ -1272,63 +1272,17 @@ export default function QuestionBank() {
       'Apakah Anda yakin ingin menghapus soal ini dari bank soal?',
       async () => {
         try {
-          // Immediately filter out the deleted question locally for instant UI update
-          const remainingQuestions = questions.filter(q => q.id !== id);
-
-          // Rebalance weights among remaining questions so total weight equals 100
-          const typeUnits: Record<string, number> = { 
-            'pilihan_ganda': 1, 
-            'pilihan_ganda_kompleks': 2, 
-            'listening': 5, 
-            'essay': 10,
-            'isian_singkat': 1 
-          };
-
-          let totalUnits = 0;
-          remainingQuestions.forEach(q => {
-            totalUnits += typeUnits[q.type || 'pilihan_ganda'] || 1;
-          });
-
-          const unitValue = totalUnits > 0 ? 100 / totalUnits : 0;
-          let currentWeightSum = 0;
-
-          const rebalanced = remainingQuestions.map((q, idx) => {
-            let qWeight = (typeUnits[q.type || 'pilihan_ganda'] || 1) * unitValue;
-            if (idx === remainingQuestions.length - 1) {
-              qWeight = Number((100 - currentWeightSum).toFixed(2));
-            } else {
-              qWeight = Number(qWeight.toFixed(2));
-              currentWeightSum += qWeight;
-            }
-            return { ...q, weight: qWeight };
-          });
-
-          // Update local state instantly
-          setQuestions(rebalanced);
-          setOriginalQuestions(rebalanced);
-          setHasEditedWeights(false);
+          await deleteDoc(doc(db, 'questions', id));
+          
+          // Auto adjust weights to sum to 100 if user has not set custom weights
+          if (!hasEditedWeights && qToDelete.packetName) {
+            await autoAdjustWeights(selectedSubject, qToDelete.packetName);
+          }
+          
+          fetchQuestions();
           setIsDirty(true);
-
-          // Perform Firestore updates in background
-          const batch = writeBatch(db);
-          batch.delete(doc(db, 'questions', id));
-
-          rebalanced.forEach(q => {
-            if (q.id) {
-              batch.update(doc(db, 'questions', q.id), { weight: q.weight });
-            }
-          });
-
-          await batch.commit();
-
-          showCustomAlert(
-            'Soal Berhasil Dihapus',
-            'Soal berhasil dihapus dan bobot nilai otomatis disesuaikan kembali menjadi 100.',
-            true
-          );
         } catch (err) {
           handleFirestoreError(err, OperationType.DELETE, 'questions');
-          fetchQuestions(); // rollback on error
         }
       },
       true,
