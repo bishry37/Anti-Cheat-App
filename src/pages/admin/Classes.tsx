@@ -820,68 +820,17 @@ export default function Classes() {
                   </span>
                 </div>
 
-                {/* Input Link Google Drive Foto */}
-                <div className="space-y-2">
-                  <div>
-                    <input
-                      type="text"
-                      value={editingStudent.photo || ''}
-                      onChange={(e) => setEditingStudent({ ...editingStudent, photo: e.target.value })}
-                      placeholder="Tempel link Google Drive foto..."
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                    />
-                  </div>
-
-                  {/* Live 2x3 Preview & Status Box */}
-                  <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/80 flex gap-3 items-center">
-                    <StudentCardPhoto
-                      photo={editingStudent.photo}
-                      studentName={editingStudent.name}
-                      className="w-13 h-18 shadow-3xs border-2 border-slate-300 rounded-md shrink-0"
-                      onStatusChange={(status) => setPhotoStatus(status)}
-                    />
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-700">
-                          Pratinjau Kartu (2x3)
-                        </span>
-                        {editingStudent.photo && (
-                          <button
-                            type="button"
-                            onClick={() => setEditingStudent({ ...editingStudent, photo: '' })}
-                            className="text-[10px] font-bold text-red-600 hover:text-red-700 hover:underline flex items-center gap-1 cursor-pointer"
-                            title="Hapus foto ini dan biarkan kosong"
-                          >
-                            <Trash2 className="w-3 h-3" /> Hapus Foto
-                          </button>
-                        )}
-                      </div>
-
-                      {!editingStudent.photo ? (
-                        <p className="text-[10px] text-slate-500 leading-tight">
-                          Foto kosong (opsional). Kartu ujian akan menampilkan bingkai foto standar 2x3.
-                        </p>
-                      ) : photoStatus === 'loading' ? (
-                        <p className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                          <Loader2 className="w-3 h-3 animate-spin shrink-0" />
-                          <span>Membaca & memverifikasi link foto...</span>
-                        </p>
-                      ) : photoStatus === 'error' ? (
-                        <p className="text-[10px] text-amber-700 font-medium leading-tight">
-                          ⚠️ Link belum dapat terbaca. Pastikan izin Google Drive disetel ke <strong>"Siapa saja yang memiliki link"</strong>.
-                        </p>
-                      ) : (
-                        <p className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>Foto berhasil terbaca & siap tampil di kartu ujian!</span>
-                        </p>
-                      )}
-
-                      <p className="text-[9px] text-slate-400 font-medium leading-tight">
-                        Masukkan link Google Drive (pastikan mode akses publik).
-                      </p>
-                    </div>
-                  </div>
+                <div>
+                  <input
+                    type="text"
+                    value={editingStudent.photo || ''}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, photo: e.target.value })}
+                    placeholder="Tempel link Google Drive foto..."
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                    💡 Masukkan link Google Drive (pastikan izin akses disetel ke "Siapa saja yang memiliki link").
+                  </p>
                 </div>
               </div>
 
