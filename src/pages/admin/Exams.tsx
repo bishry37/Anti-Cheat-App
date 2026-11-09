@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot, deleteField } from 'firebase/firestore';
 import { Exam, Subject, Class, AudioItem } from '../../types';
@@ -50,6 +50,11 @@ export default function Exams() {
     maxViolations: 3
   });
 
+  const examsRef = useRef<Exam[]>([]);
+  useEffect(() => {
+    examsRef.current = exams;
+  }, [exams]);
+
   useEffect(() => {
     fetchData();
 
@@ -59,8 +64,10 @@ export default function Exams() {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Exam));
       list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setExams(list);
+      setLoading(false);
     }, (error) => {
       console.warn("Exams snapshot warning:", error);
+      setLoading(false);
     });
 
     const qAudio = query(collection(db, 'audio_banks'));
@@ -87,27 +94,12 @@ export default function Exams() {
 
   // Background token auto-reset check
   useEffect(() => {
-    if (exams.length === 0) return;
-
-    const generateNewToken = () => {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      let t = '';
-      let isUnique = false;
-      let attempts = 0;
-      while (!isUnique && attempts < 100) {
-        t = '';
-        for (let i = 0; i < 6; i++) {
-          t += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        isUnique = !exams.some(e => e.isActive && e.activeToken === t);
-        attempts++;
-      }
-      return t;
-    };
-
     const checkAndResetTokens = async () => {
+      const currentExams = examsRef.current;
+      if (!currentExams || currentExams.length === 0) return;
+
       let changed = false;
-      const newList = [...exams];
+      const newList = [...currentExams];
 
       for (let i = 0; i < newList.length; i++) {
         const exam = newList[i];
@@ -119,7 +111,11 @@ export default function Exams() {
             const limitMs = intervalMinutes * 60 * 1000;
 
             if (elapsedMs >= limitMs) {
-              const newToken = generateNewToken();
+              const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+              let newToken = '';
+              for (let k = 0; k < 6; k++) {
+                newToken += chars.charAt(Math.floor(Math.random() * chars.length));
+              }
               const now = Date.now();
               try {
                 await updateDoc(doc(db, 'exams', exam.id!), {
@@ -145,11 +141,9 @@ export default function Exams() {
       }
     };
 
-    checkAndResetTokens();
-    const interval = setInterval(checkAndResetTokens, 10000); // Check every 10 seconds
-
+    const interval = setInterval(checkAndResetTokens, 15000);
     return () => clearInterval(interval);
-  }, [exams]);
+  }, []);
 
   const fetchPackets = async (subId: string) => {
     try {
@@ -178,8 +172,9 @@ export default function Exams() {
       setClassesData(classList);
     } catch (err) {
       console.error(err);
+    } finally {
+      if (!silent) setLoading(false);
     }
-    if (!silent) setLoading(false);
   };
 
   const generateToken = () => {
