@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -9,19 +9,13 @@ const firebaseConfig = {
   projectId: "anti-cheating-app",
   storageBucket: "anti-cheating-app.firebasestorage.app",
   messagingSenderId: "660441863207",
-  appId: "1:660441863207:web:ce966164227a74eeabea02"
+  appId: "1:660441863207:web:ce966164227a74eeabea02",
+  firestoreDatabaseId: "(default)"
 };
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-
-// Keep admin sessions only for the current browser session
-setPersistence(auth, browserSessionPersistence).catch(console.error);
-
-// Initialize Firestore with force long polling to prevent WebSocket stalling in preview iframe environments
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true
-});
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const storage = getStorage(app);
 
 // Error handling helper

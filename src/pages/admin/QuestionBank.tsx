@@ -1288,24 +1288,24 @@ export default function QuestionBank() {
       return;
     }
 
+    const questionNumber = questions.findIndex(item => item.id === id) + 1;
+
     showCustomConfirm(
-      'Hapus Soal',
-      'Apakah Anda yakin ingin menghapus soal ini dari bank soal?',
+      `Hapus Soal No. ${questionNumber}`,
+      `Apakah Anda yakin ingin menghapus Soal No. ${questionNumber} ini dari paket soal? Total bobot nilai akan otomatis disesuaikan kembali menjadi 100.`,
       async () => {
         setProcessing(true);
         console.log("Attempting to delete question with ID:", id);
-        try {
-          const qRef = doc(db, 'questions', id);
-          
-          // Verify existence
-          const qSnap = await getDoc(qRef);
-          if (!qSnap.exists()) {
-             throw new Error("Soal tidak ditemukan di database.");
-          }
 
-          // 1. Delete document from Firestore
-          await deleteDoc(qRef);
-          console.log("Doc deleted from Firestore");
+        // 1. Immediately remove from local state for instant UI update
+        const remaining = questions.filter(q => q.id !== id);
+        setQuestions(remaining);
+        setOriginalQuestions(remaining);
+
+        try {
+          // 2. Delete document from Firestore
+          await deleteDoc(doc(db, 'questions', id));
+          console.log("Question document deleted from Firestore");
 
           // 3. Clear custom weight override in localStorage
           if (selectedSubject && qToDelete.packetName) {
@@ -1317,20 +1317,20 @@ export default function QuestionBank() {
           // 4. Rebalance weights in Firestore so total weight stays 100
           if (selectedSubject && qToDelete.packetName) {
             await autoAdjustWeights(selectedSubject, qToDelete.packetName, id);
-            console.log("Weights rebalanced");
+            console.log("Weights rebalanced in Firestore");
           }
 
-          // 5. Fetch updated questions from Firestore to verify state
+          // 5. Fetch updated questions from Firestore to synchronize
           await fetchQuestions();
-          console.log("Questions fetched");
 
           showCustomAlert(
             'Soal Berhasil Dihapus',
-            'Soal berhasil dihapus dan bobot nilai otomatis disesuaikan kembali menjadi 100.',
+            `Soal No. ${questionNumber} berhasil dihapus dan bobot nilai otomatis disesuaikan kembali menjadi 100.`,
             true
           );
         } catch (err: any) {
           console.error("Error deleting question:", err);
+          await fetchQuestions();
           showCustomAlert('Gagal Hapus', err?.message || 'Terjadi kesalahan saat menghapus soal.', false);
         } finally {
           setProcessing(false);
@@ -2432,21 +2432,25 @@ export default function QuestionBank() {
                         </div>
                       )}
 
-                      {/* Floating actions */}
-                      <div className="absolute top-4 right-4 flex items-center space-x-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity bg-gradient-to-l from-white pl-4 group-hover:from-slate-50 p-0.5 rounded">
+                      {/* Actions */}
+                      <div className="absolute top-3.5 right-3.5 flex items-center space-x-1.5 bg-white/95 px-2 py-1 rounded-md border border-slate-200 shadow-2xs">
                         <button 
+                          type="button"
                           onClick={() => startEditing(q)}
-                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded bg-white border border-slate-200 transition-colors shadow-sm cursor-pointer" 
-                          title="Edit Soal Langsung"
+                          className="px-2 py-1 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded bg-white border border-slate-200 transition-colors flex items-center gap-1 text-[11px] font-semibold cursor-pointer" 
+                          title="Edit Soal Ini"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Edit</span>
                         </button>
                         <button 
+                          type="button"
                           onClick={() => handleDeleteQuestion(q.id!)}
-                          className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded bg-white border border-slate-200 transition-colors shadow-sm cursor-pointer" 
-                          title="Hapus Soal"
+                          className="px-2 py-1 text-red-600 hover:text-white hover:bg-red-600 rounded bg-red-50 hover:border-red-600 border border-red-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer" 
+                          title={`Hapus Soal Nomor ${questions.findIndex(item => item.id === q.id) + 1}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Hapus</span>
                         </button>
                       </div>
                     </div>

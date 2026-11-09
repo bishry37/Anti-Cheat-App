@@ -292,10 +292,6 @@ export default function Exams() {
       delete statePayload.audioId;
     }
 
-    setIsAdding(false);
-    setEditingId(null);
-    resetForm();
-
     setProcessing(true);
     try {
       console.log("Saving exam to Firestore:", { id: currentEditId || targetExamId, firestorePayload });
@@ -308,6 +304,9 @@ export default function Exams() {
         });
       }
       console.log("Save successful");
+      setIsAdding(false);
+      setEditingId(null);
+      resetForm();
     } catch (err: any) {
       console.error("Error saving exam schedule:", err);
       setErrorMsg(err?.message ? `Gagal menyimpan: ${err.message}` : "Terjadi kesalahan saat menyimpan jadwal ujian.");
@@ -327,13 +326,11 @@ export default function Exams() {
   const executeDelete = async () => {
     if (!modalConfig || !modalConfig.idToDelete) return;
     const targetId = modalConfig.idToDelete;
-    
-    // Optimistically close modal
-    setModalConfig(null);
 
     setProcessing(true);
     try {
       await deleteDoc(doc(db, 'exams', targetId));
+      setModalConfig(null);
     } catch (err: any) {
       console.error("Error deleting exam:", err);
       setErrorMsg(err?.message ? `Gagal menghapus: ${err.message}` : "Terjadi kesalahan saat menghapus jadwal ujian.");
