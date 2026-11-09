@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot, deleteField } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, setDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot, deleteField } from 'firebase/firestore';
 import { Exam, Subject, Class, AudioItem } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Clock, Copy, CheckCircle2, Search, Filter, Music, Shuffle, Layers, AlertCircle, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -251,52 +251,62 @@ export default function Exams() {
 
     const activeToken = (formData.activeToken || generateToken()).trim().toUpperCase();
 
+    const cleanAudioId = formData.audioId && formData.audioId.trim() !== '' ? formData.audioId : null;
+
+    const selectedPackets = formData.isRandomPacket
+      ? (formData.packetNames || []).map(p => p.trim()).filter(Boolean)
+      : (formData.packetName ? [formData.packetName.trim()] : []);
+
+    const payload: any = {
+      title: (formData.title || '').trim(),
+      subjectId: formData.subjectId || '',
+      targetClass: (formData.targetClass || '').trim(),
+      duration: Number(formData.duration) || 90,
+      isActive: !!formData.isActive,
+      activeToken: activeToken,
+      autoResetInterval: formData.autoResetInterval || 'manual',
+      randomizeQuestions: !!formData.randomizeQuestions,
+      showScoreToStudent: !!formData.showScoreToStudent,
+      requireStudentPassword: formData.requireStudentPassword !== false,
+      maxViolations: formData.maxViolations !== undefined ? Number(formData.maxViolations) : 3,
+      isRandomPacket: !!formData.isRandomPacket,
+      packetNames: selectedPackets,
+      packetName: formData.isRandomPacket ? (selectedPackets[0] || '') : (formData.packetName || ''),
+      packageDistributionMode: formData.packageDistributionMode || 'round_robin',
+      tokenUpdatedAt: Date.now(),
+      adminId: activeAdminId,
+    };
+
+    if (cleanAudioId) {
+      payload.audioId = cleanAudioId;
+    } else if (editingId) {
+      payload.audioId = deleteField();
+    }
+
+    const currentEditId = editingId;
+    const targetExamId = currentEditId || doc(collection(db, 'exams')).id;
+
+    // Optimistically update local UI state & close modal immediately!
+    if (currentEditId) {
+      setExams(prev => prev.map(item => item.id === currentEditId ? { ...item, ...payload, id: currentEditId } : item));
+    } else {
+      setExams(prev => [...prev, { ...payload, id: targetExamId, createdAt: Date.now() }]);
+    }
+
+    setIsAdding(false);
+    setEditingId(null);
+    resetForm();
+
     setProcessing(true);
     try {
-      const cleanAudioId = formData.audioId && formData.audioId.trim() !== '' ? formData.audioId : null;
-
-      const selectedPackets = formData.isRandomPacket
-        ? (formData.packetNames || []).map(p => p.trim()).filter(Boolean)
-        : (formData.packetName ? [formData.packetName.trim()] : []);
-
-      const payload: any = {
-        title: (formData.title || '').trim(),
-        subjectId: formData.subjectId || '',
-        targetClass: (formData.targetClass || '').trim(),
-        duration: Number(formData.duration) || 90,
-        isActive: !!formData.isActive,
-        activeToken: activeToken,
-        autoResetInterval: formData.autoResetInterval || 'manual',
-        randomizeQuestions: !!formData.randomizeQuestions,
-        showScoreToStudent: !!formData.showScoreToStudent,
-        requireStudentPassword: formData.requireStudentPassword !== false,
-        maxViolations: formData.maxViolations !== undefined ? Number(formData.maxViolations) : 3,
-        isRandomPacket: !!formData.isRandomPacket,
-        packetNames: selectedPackets,
-        packetName: formData.isRandomPacket ? (selectedPackets[0] || '') : (formData.packetName || ''),
-        packageDistributionMode: formData.packageDistributionMode || 'round_robin',
-        tokenUpdatedAt: Date.now(),
-        adminId: activeAdminId,
-      };
-
-      if (cleanAudioId) {
-        payload.audioId = cleanAudioId;
-      } else if (editingId) {
-        payload.audioId = deleteField();
-      }
-
-      if (editingId) {
-        await updateDoc(doc(db, 'exams', editingId), payload);
+      if (currentEditId) {
+        await updateDoc(doc(db, 'exams', currentEditId), payload);
       } else {
-        await addDoc(collection(db, 'exams'), {
+        await setDoc(doc(db, 'exams', targetExamId), {
           ...payload,
           createdAt: Date.now()
         });
       }
-
-      setIsAdding(false);
-      setEditingId(null);
-      resetForm();
     } catch (err: any) {
       console.error("Error saving exam schedule:", err);
       setErrorMsg(err?.message ? `Gagal menyimpan: ${err.message}` : "Terjadi kesalahan saat menyimpan jadwal ujian.");
@@ -315,10 +325,15 @@ export default function Exams() {
 
   const executeDelete = async () => {
     if (!modalConfig || !modalConfig.idToDelete) return;
+    const targetId = modalConfig.idToDelete;
+    
+    // Optimistically close modal & update UI immediately
+    setModalConfig(null);
+    setExams(prev => prev.filter(e => e.id !== targetId));
+
     setProcessing(true);
     try {
-      await deleteDoc(doc(db, 'exams', modalConfig.idToDelete));
-      setModalConfig(null);
+      await deleteDoc(doc(db, 'exams', targetId));
     } catch (err: any) {
       console.error("Error deleting exam:", err);
       setErrorMsg(err?.message ? `Gagal menghapus: ${err.message}` : "Terjadi kesalahan saat menghapus jadwal ujian.");
