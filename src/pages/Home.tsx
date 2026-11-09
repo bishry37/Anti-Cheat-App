@@ -8,7 +8,7 @@ import { Setting, Subject, Exam, StudentSession, StudentRecord } from '../types'
 import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2, Key, Info, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import brandLogo from '../assets/images/logo1.png';
-import { getStudentName, getStudentPin } from '../utils/studentUtils';
+import { getStudentName, getStudentPin, getStudentPhoto } from '../utils/studentUtils';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -413,6 +413,28 @@ export default function Home() {
 
     const matchingExam = matchingExamByToken;
 
+    // Look up student record to retrieve PIN & photo
+    let targetRecord: string | StudentRecord | undefined;
+    if (rawStudentRecords.length > 0) {
+      targetRecord = rawStudentRecords.find(s => getStudentName(s) === upperName);
+    }
+
+    if (!targetRecord && matchingExam.targetClass) {
+      try {
+        const snap = await getDocs(collection(db, 'classes'));
+        for (const d of snap.docs) {
+          const cData = d.data();
+          if ((cData.name || '').trim().toLowerCase() === (matchingExam.targetClass || '').trim().toLowerCase()) {
+            const students = (cData.students || []) as (string | StudentRecord)[];
+            targetRecord = students.find(s => getStudentName(s) === upperName);
+            if (targetRecord) break;
+          }
+        }
+      } catch (err) {
+        console.error("Gagal verifikasi data siswa dari database kelas:", err);
+      }
+    }
+
     // Validate Student Password / PIN if required for this exam schedule
     const isPinRequired = matchingExam.requireStudentPassword !== false;
     if (isPinRequired) {
@@ -421,33 +443,14 @@ export default function Home() {
         return;
       }
 
-      let targetRecord: string | StudentRecord | undefined;
-      if (rawStudentRecords.length > 0) {
-        targetRecord = rawStudentRecords.find(s => getStudentName(s) === upperName);
-      }
-
-      if (!targetRecord && matchingExam.targetClass) {
-        try {
-          const snap = await getDocs(collection(db, 'classes'));
-          for (const d of snap.docs) {
-            const cData = d.data();
-            if ((cData.name || '').trim().toLowerCase() === (matchingExam.targetClass || '').trim().toLowerCase()) {
-              const students = (cData.students || []) as (string | StudentRecord)[];
-              targetRecord = students.find(s => getStudentName(s) === upperName);
-              if (targetRecord) break;
-            }
-          }
-        } catch (err) {
-          console.error("Gagal verifikasi PIN dari database kelas:", err);
-        }
-      }
-
       const expectedPin = getStudentPin(targetRecord);
       if (studentPassword.trim() !== expectedPin.trim() && studentPassword.trim().toLowerCase() !== expectedPin.trim().toLowerCase()) {
         setErrorMessage('Password / PIN Siswa salah. Silakan periksa kembali PIN Anda.');
         return;
       }
     }
+
+    const resolvedStudentPhoto = getStudentPhoto(targetRecord) || '';
 
     try {
       setLoading(true);
@@ -645,6 +648,7 @@ export default function Home() {
       const sessionData: StudentSession = isResume ? {
         ...existingSessionData!,
         id: uid,
+        studentPhoto: resolvedStudentPhoto || existingSessionData?.studentPhoto,
         status: 'Aktif',
         lastActivity: Date.now(),
         startTime: Date.now(), // Reset startTime to NOW so countdown starts smoothly with remaining duration
@@ -656,6 +660,7 @@ export default function Home() {
         packetName: existingSessionData?.packetName || assignedPacket || matchingExam.packetName,
       } : {
         studentName: upperName,
+        studentPhoto: resolvedStudentPhoto || undefined,
         className: matchingExam.targetClass || 'Tidak Diketahui',
         examId: matchingExam.id!,
         subjectId: matchingExam.subjectId,
@@ -686,6 +691,13 @@ export default function Home() {
       }
 
       await setDoc(doc(db, 'student_sessions', uid), sessionData);
+
+      const finalPhoto = resolvedStudentPhoto || sessionData.studentPhoto;
+      if (finalPhoto) {
+        sessionStorage.setItem('cbt_student_photo', finalPhoto);
+      } else {
+        sessionStorage.removeItem('cbt_student_photo');
+      }
 
       sessionStorage.setItem('just_logged_in_student', 'true');
       setIsLoggingInStudent(false);
