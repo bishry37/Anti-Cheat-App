@@ -175,6 +175,13 @@ export default function Exams() {
         const data = doc.data();
         if (data.packetName) packets.add(data.packetName);
       });
+      if (packets.size === 0) {
+        const allSnap = await getDocs(collection(db, 'questions'));
+        allSnap.docs.forEach(doc => {
+          const data = doc.data();
+          if (data.packetName) packets.add(data.packetName);
+        });
+      }
       setAvailablePackets(Array.from(packets).sort());
     } catch (e) { console.error(e); }
   };
@@ -502,21 +509,33 @@ export default function Exams() {
                                 ...availablePackets
                               ])).filter(Boolean).sort();
                               return (
-                                <>
-                                  <select
-                                    required={!formData.isRandomPacket}
-                                    value={formData.packetName || ''}
-                                    onChange={e => setFormData({...formData, packetName: e.target.value})}
-                                    disabled={!formData.subjectId}
-                                    className="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none disabled:opacity-50"
-                                  >
-                                    <option value="">-- {formData.subjectId ? (packetOptions.length > 0 ? 'Pilih Paket File Soal' : 'Belum ada file soal') : 'Pilih Mapel Terlebih Dahulu'} --</option>
-                                    {packetOptions.map(p => <option key={p} value={p}>{p}</option>)}
-                                  </select>
-                                  {formData.subjectId && packetOptions.length === 0 && (
-                                     <p className="text-[10px] text-red-500 font-bold mt-1 uppercase">* Upload soal di Bank Soal terlebih dahulu</p>
+                                <div className="space-y-1.5">
+                                  {packetOptions.length > 0 ? (
+                                    <select
+                                      required={!formData.isRandomPacket}
+                                      value={formData.packetName || ''}
+                                      onChange={e => setFormData({...formData, packetName: e.target.value})}
+                                      className="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none font-medium"
+                                    >
+                                      <option value="">-- Pilih Paket File Soal --</option>
+                                      {packetOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                  ) : (
+                                    <input
+                                      type="text"
+                                      required={!formData.isRandomPacket}
+                                      value={formData.packetName || ''}
+                                      onChange={e => setFormData({...formData, packetName: e.target.value})}
+                                      placeholder="Ketik Nama Paket Soal (misal: Paket A)..."
+                                      className="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 font-medium"
+                                    />
                                   )}
-                                </>
+                                  {formData.subjectId && packetOptions.length === 0 && (
+                                    <p className="text-[10px] text-amber-600 font-semibold italic">
+                                      * Ketik nama paket soal yang ingin digunakan jika belum mengunggah soal di Bank Soal.
+                                    </p>
+                                  )}
+                                </div>
                               );
                             })()}
                           </div>

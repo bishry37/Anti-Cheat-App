@@ -2508,9 +2508,13 @@ export default function QuestionBank() {
                   (modalConfig.type === 'delete-all' && modalConfig.inputValue !== modalConfig.validationWord) ||
                   (modalConfig.type === 'prompt' && !modalConfig.inputValue?.trim())
                 }
-                onClick={() => {
-                  if (modalConfig.onConfirm) modalConfig.onConfirm(modalConfig.inputValue || '');
+                onClick={async () => {
+                  const onConf = modalConfig.onConfirm;
+                  const inputVal = modalConfig.inputValue || '';
                   setModalConfig(null);
+                  if (onConf) {
+                    await onConf(inputVal);
+                  }
                 }}
                 className={`px-3.5 py-1.5 rounded text-xs font-bold uppercase transition shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                   modalConfig.isDanger 
