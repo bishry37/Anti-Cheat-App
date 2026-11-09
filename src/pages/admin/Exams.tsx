@@ -60,6 +60,7 @@ export default function Exams() {
     const qExams = query(collection(db, 'exams'));
     const unsubExams = onSnapshot(qExams, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Exam));
+      console.log("Exams snapshot updated:", list.length, list);
       list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setExams(list);
       setLoading(false);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { RichTextEditor } from '../../components/RichTextEditor';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { collection, query, getDocs, deleteDoc, doc, orderBy, where, writeBatch, updateDoc, addDoc } from 'firebase/firestore';
+import { collection, query, getDocs, deleteDoc, doc, orderBy, where, writeBatch, updateDoc, addDoc, getDoc } from 'firebase/firestore';
 import { Question, Subject } from '../../types';
 import { Edit2, Trash2, Loader2, X, Upload, Download, FileSpreadsheet, Search, Check, Plus, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -1293,12 +1293,18 @@ export default function QuestionBank() {
       'Apakah Anda yakin ingin menghapus soal ini dari bank soal?',
       async () => {
         setProcessing(true);
-        console.log("Deleting question:", id);
+        console.log("Attempting to delete question with ID:", id);
         try {
+          const qRef = doc(db, 'questions', id);
+          
+          // Verify existence
+          const qSnap = await getDoc(qRef);
+          if (!qSnap.exists()) {
+             throw new Error("Soal tidak ditemukan di database.");
+          }
+
           // 1. Delete document from Firestore
-          const batch = writeBatch(db);
-          batch.delete(doc(db, 'questions', id));
-          await batch.commit();
+          await deleteDoc(qRef);
           console.log("Doc deleted from Firestore");
 
           // 3. Clear custom weight override in localStorage
