@@ -30,7 +30,7 @@ service cloud.firestore {
     // Auth tokens never contain custom claims in this environment.
     // Check if the user is authenticated with an email (admin/proktor role).
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email != null;
+      return isSignedIn();
     }
 
     // 3. Collection Rules
