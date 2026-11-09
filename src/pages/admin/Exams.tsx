@@ -257,7 +257,10 @@ export default function Exams() {
       ? (formData.packetNames || []).map(p => p.trim()).filter(Boolean)
       : (formData.packetName ? [formData.packetName.trim()] : []);
 
-    const payload: any = {
+    const currentEditId = editingId;
+    const targetExamId = currentEditId || doc(collection(db, 'exams')).id;
+
+    const basePayload: any = {
       title: (formData.title || '').trim(),
       subjectId: formData.subjectId || '',
       targetClass: (formData.targetClass || '').trim(),
@@ -277,20 +280,22 @@ export default function Exams() {
       adminId: activeAdminId,
     };
 
+    const firestorePayload: any = { ...basePayload };
+    const statePayload: any = { ...basePayload };
+
     if (cleanAudioId) {
-      payload.audioId = cleanAudioId;
-    } else if (editingId) {
-      payload.audioId = deleteField();
+      firestorePayload.audioId = cleanAudioId;
+      statePayload.audioId = cleanAudioId;
+    } else if (currentEditId) {
+      firestorePayload.audioId = deleteField();
+      delete statePayload.audioId;
     }
 
-    const currentEditId = editingId;
-    const targetExamId = currentEditId || doc(collection(db, 'exams')).id;
-
-    // Optimistically update local UI state & close modal immediately!
+    // Optimistically update local UI state with clean JSON (no FieldTransform sentinels) & close modal immediately!
     if (currentEditId) {
-      setExams(prev => prev.map(item => item.id === currentEditId ? { ...item, ...payload, id: currentEditId } : item));
+      setExams(prev => prev.map(item => item.id === currentEditId ? { ...item, ...statePayload, id: currentEditId } : item));
     } else {
-      setExams(prev => [...prev, { ...payload, id: targetExamId, createdAt: Date.now() }]);
+      setExams(prev => [...prev, { ...statePayload, id: targetExamId, createdAt: Date.now() }]);
     }
 
     setIsAdding(false);
@@ -300,10 +305,10 @@ export default function Exams() {
     setProcessing(true);
     try {
       if (currentEditId) {
-        await updateDoc(doc(db, 'exams', currentEditId), payload);
+        await updateDoc(doc(db, 'exams', currentEditId), firestorePayload);
       } else {
         await setDoc(doc(db, 'exams', targetExamId), {
-          ...payload,
+          ...firestorePayload,
           createdAt: Date.now()
         });
       }
