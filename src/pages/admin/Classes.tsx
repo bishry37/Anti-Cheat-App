@@ -1114,10 +1114,7 @@ export default function Classes() {
                             {setting?.schoolAddress || setting?.schoolSlogan || 'Sistem Penilaian Digital Berbasis Komputer & Mobile'}
                           </p>
                         </div>
-                        <div className="w-16 shrink-0 text-right text-[10px] font-bold text-slate-400 uppercase">
-                          KELAS<br />
-                          <span className="text-sm font-black text-slate-900">{selectedClass.name}</span>
-                        </div>
+                        <div className="w-16 shrink-0" />
                       </div>
                     )}
 
@@ -1371,10 +1368,7 @@ export default function Classes() {
                             {setting?.schoolAddress || setting?.schoolSlogan || 'Sistem Penilaian Digital Berbasis Komputer & Mobile'}
                           </p>
                         </div>
-                        <div className="w-14 shrink-0 text-right text-[9.5px] font-bold text-slate-500 uppercase">
-                          KELAS<br />
-                          <span className="text-xs font-black text-slate-900">{selectedClass.name}</span>
-                        </div>
+                        <div className="w-14 shrink-0" />
                       </div>
                     )}
 
