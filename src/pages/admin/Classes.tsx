@@ -1083,7 +1083,7 @@ export default function Classes() {
 
                             {/* Card Footer */}
                             <div className="mt-2.5 pt-1.5 border-t border-slate-200 flex items-center justify-between text-[8px] text-slate-400 font-bold uppercase">
-                              <span>Portal Ujian: /</span>
+                              <span>Portal Ujian: www.examproplus.vercel.app</span>
                               <span className="flex items-center gap-0.5 text-slate-400">
                                 <Scissors className="w-2.5 h-2.5" /> Gunting di sini
                               </span>
@@ -1133,9 +1133,8 @@ export default function Classes() {
                         <tr className="bg-slate-100 text-slate-900 text-[11px] font-black uppercase tracking-wider">
                           <th className="border border-slate-400 px-3 py-2 text-center w-10">No</th>
                           <th className="border border-slate-400 px-3 py-2">Nama Lengkap Siswa</th>
-                          <th className="border border-slate-400 px-3 py-2 text-center w-28">Kelas</th>
-                          <th className="border border-slate-400 px-3 py-2 text-center w-36">Password / PIN</th>
-                          <th className="border border-slate-400 px-3 py-2 text-center w-32">Tanda Tangan</th>
+                          <th className="border border-slate-400 px-3 py-2 text-center w-32">Kelas</th>
+                          <th className="border border-slate-400 px-3 py-2 text-center w-40">Password / PIN</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1145,9 +1144,6 @@ export default function Classes() {
                             <td className="border border-slate-300 px-3 py-2 text-xs font-bold text-slate-900 uppercase">{getStudentName(s)}</td>
                             <td className="border border-slate-300 px-3 py-2 text-center text-xs font-semibold text-slate-700 uppercase">{selectedClass.name}</td>
                             <td className="border border-slate-300 px-3 py-2 text-center text-xs font-mono font-black text-amber-900 bg-amber-50/50">{getStudentPin(s)}</td>
-                            <td className="border border-slate-300 px-3 py-2 text-center text-[10px] text-slate-400">
-                              {i + 1}. ....................
-                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1345,7 +1341,7 @@ export default function Classes() {
 
                           {/* Card Footer */}
                           <div className="mt-1.5 pt-1 border-t border-slate-300 flex items-center justify-between text-[7.5px] text-slate-500 font-bold uppercase">
-                            <span>Portal Ujian: /</span>
+                            <span>Portal Ujian: www.examproplus.vercel.app</span>
                             <span className="flex items-center gap-0.5 text-slate-500">
                               <Scissors className="w-2.5 h-2.5" /> Gunting di sini
                             </span>
@@ -1394,9 +1390,8 @@ export default function Classes() {
                         <tr className="bg-slate-100 text-slate-900 text-[10px] font-black uppercase tracking-wider">
                           <th className="border border-slate-400 px-2 py-1.5 text-center w-8">No</th>
                           <th className="border border-slate-400 px-2 py-1.5">Nama Lengkap Siswa</th>
-                          <th className="border border-slate-400 px-2 py-1.5 text-center w-24">Kelas</th>
-                          <th className="border border-slate-400 px-2 py-1.5 text-center w-28">Password / PIN</th>
-                          <th className="border border-slate-400 px-2 py-1.5 text-center w-28">Tanda Tangan</th>
+                          <th className="border border-slate-400 px-2 py-1.5 text-center w-28">Kelas</th>
+                          <th className="border border-slate-400 px-2 py-1.5 text-center w-36">Password / PIN</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1406,9 +1401,6 @@ export default function Classes() {
                             <td className="border border-slate-300 px-2 py-1.5 text-[10px] font-bold text-slate-900 uppercase">{getStudentName(s)}</td>
                             <td className="border border-slate-300 px-2 py-1.5 text-center text-[10px] font-semibold text-slate-700 uppercase">{selectedClass.name}</td>
                             <td className="border border-slate-300 px-2 py-1.5 text-center text-[10px] font-mono font-black text-amber-950 bg-amber-50/50">{getStudentPin(s)}</td>
-                            <td className="border border-slate-300 px-2 py-1.5 text-center text-[9px] text-slate-400">
-                              {i + 1}. ....................
-                            </td>
                           </tr>
                         ))}
                       </tbody>
