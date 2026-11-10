@@ -744,16 +744,6 @@ export default function ExamMonitor() {
                 ))}
              </select>
 
-             {/* Selesaikan Semua yang Waktu Habis Button */}
-             <button 
-                onClick={triggerFinalizeAllExpired}
-                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center space-x-1.5 text-xs font-bold uppercase transition-all cursor-pointer shadow-xs"
-                title="Selesaikan dan hitung nilai seluruh peserta yang sisa waktu ujiannya telah habis"
-             >
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="hidden sm:inline">Selesaikan Waktu Habis</span>
-                <span className="sm:hidden">Waktu Habis</span>
-             </button>
 
              {/* Clear Finished History Button */}
              <button 
@@ -1075,17 +1065,7 @@ export default function ExamMonitor() {
                                   </button>
                                   {s.status !== 'Selesai' && s.status !== 'Didiskualifikasi' ? (
                                     <>
-                                      <button 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          triggerFinalizeExam(s);
-                                        }} 
-                                        className="h-7 px-2 flex items-center gap-1 rounded-md text-[9px] font-black uppercase tracking-tight bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer shadow-xs ml-0.5"
-                                        title="Selesaikan Ujian & Hitung Nilai Sekarang"
-                                      >
-                                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                                        <span className="hidden xl:inline">Selesai</span>
-                                      </button>
+
                                       <button 
                                         onClick={(e) => {
                                           e.stopPropagation();
