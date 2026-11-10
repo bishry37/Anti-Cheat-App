@@ -61,7 +61,8 @@ export default function Classes() {
   }, [selectedClass?.id]);
 
   useEffect(() => {
-    const qClasses = query(collection(db, 'classes'));
+    if (!user?.uid) return;
+    const qClasses = query(collection(db, 'classes'), where('adminId', '==', user.uid));
     const unsubClasses = onSnapshot(qClasses, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Class));
       list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -98,8 +99,9 @@ export default function Classes() {
   }, [classesList]);
 
   const fetchClasses = async () => {
+    if (!user?.uid) return;
     try {
-      const snap = await getDocs(collection(db, 'classes'));
+      const snap = await getDocs(query(collection(db, 'classes'), where('adminId', '==', user.uid)));
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Class));
       list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setClassesList(list);
@@ -117,7 +119,7 @@ export default function Classes() {
         const oldClass = Array.isArray(classesList) ? classesList.find(c => c.id === editingId) : undefined;
         await updateDoc(doc(db, 'classes', editingId), { name: newName, adminId: user.uid });
         if (oldClass && oldClass.name !== newName) {
-           const examsQ = query(collection(db, 'exams'), where('targetClass', '==', oldClass.name));
+           const examsQ = query(collection(db, 'exams'), where('targetClass', '==', oldClass.name), where('adminId', '==', user.uid));
            const snap = await getDocs(examsQ);
            if (!snap.empty) {
              const batch = writeBatch(db);
@@ -156,13 +158,13 @@ export default function Classes() {
   };
 
   const executeDelete = async () => {
-    if (!modalConfig || !modalConfig.idToDelete) return;
+    if (!modalConfig || !modalConfig.idToDelete || !user) return;
     setProcessing(true);
     try {
       const oldClass = Array.isArray(classesList) ? classesList.find(c => c.id === modalConfig.idToDelete) : undefined;
       await deleteDoc(doc(db, 'classes', modalConfig.idToDelete));
       if (oldClass) {
-         const examsQ = query(collection(db, 'exams'), where('targetClass', '==', oldClass.name));
+         const examsQ = query(collection(db, 'exams'), where('targetClass', '==', oldClass.name), where('adminId', '==', user.uid));
          const snap = await getDocs(examsQ);
          if (!snap.empty) {
            const batch = writeBatch(db);

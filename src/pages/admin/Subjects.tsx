@@ -23,7 +23,7 @@ export default function Subjects() {
   useEffect(() => {
     if (!user) return;
     setLoading(true);
-    const q = query(collection(db, 'subjects'));
+    const q = query(collection(db, 'subjects'), where('adminId', '==', user.uid));
     const unsub = onSnapshot(q, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
       list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));

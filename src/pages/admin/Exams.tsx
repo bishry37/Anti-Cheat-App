@@ -56,8 +56,9 @@ export default function Exams() {
   }, [exams]);
 
   useEffect(() => {
+    if (!user) return;
     // Subscribe to exams in real-time
-    const qExams = query(collection(db, 'exams'));
+    const qExams = query(collection(db, 'exams'), where('adminId', '==', user.uid));
     const unsubExams = onSnapshot(qExams, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Exam));
       console.log("Exams snapshot updated:", list.length, list);
@@ -70,7 +71,7 @@ export default function Exams() {
     });
 
     // Subscribe to subjects in real-time
-    const qSubjects = query(collection(db, 'subjects'));
+    const qSubjects = query(collection(db, 'subjects'), where('adminId', '==', user.uid));
     const unsubSubjects = onSnapshot(qSubjects, (snapshot) => {
       const subList = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Subject));
       subList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -80,7 +81,7 @@ export default function Exams() {
     });
 
     // Subscribe to classes in real-time
-    const qClasses = query(collection(db, 'classes'));
+    const qClasses = query(collection(db, 'classes'), where('adminId', '==', user.uid));
     const unsubClasses = onSnapshot(qClasses, (snapshot) => {
       const classList = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Class));
       classList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -90,7 +91,7 @@ export default function Exams() {
     });
 
     // Subscribe to audio banks in real-time
-    const qAudio = query(collection(db, 'audio_banks'));
+    const qAudio = query(collection(db, 'audio_banks'), where('adminId', '==', user.uid));
     const unsubAudio = onSnapshot(qAudio, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as AudioItem));
       setAudioList(list);
@@ -104,7 +105,7 @@ export default function Exams() {
       unsubClasses();
       unsubAudio();
     };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (formData.subjectId) {
@@ -168,8 +169,9 @@ export default function Exams() {
   }, []);
 
   const fetchPackets = async (subId: string) => {
+    if (!user) return;
     try {
-      const q = query(collection(db, 'questions'), where('subjectId', '==', subId));
+      const q = query(collection(db, 'questions'), where('subjectId', '==', subId), where('adminId', '==', user.uid));
       const snap = await getDocs(q);
       const packets = new Set<string>();
       snap.docs.forEach(doc => {
@@ -177,7 +179,7 @@ export default function Exams() {
         if (data.packetName) packets.add(data.packetName);
       });
       if (packets.size === 0) {
-        const allSnap = await getDocs(collection(db, 'questions'));
+        const allSnap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
         allSnap.docs.forEach(doc => {
           const data = doc.data();
           if (data.packetName) packets.add(data.packetName);

@@ -45,7 +45,8 @@ export default function AudioBank() {
   const [audioCache, setAudioCache] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    const q = query(collection(db, 'audio_banks'));
+    if (!user) return;
+    const q = query(collection(db, 'audio_banks'), where('adminId', '==', user.uid));
     const unsub = onSnapshot(q, (snapshot) => {
       const items: AudioItem[] = [];
       snapshot.forEach((docSnap) => {

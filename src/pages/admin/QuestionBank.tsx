@@ -255,8 +255,9 @@ export default function QuestionBank() {
   }, [blocker]);
 
   const fetchSubjects = async () => {
+    if (!user) return;
     try {
-      const snap = await getDocs(collection(db, 'subjects'));
+      const snap = await getDocs(query(collection(db, 'subjects'), where('adminId', '==', user.uid)));
       const subs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
       subs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setSubjects(subs);
@@ -289,9 +290,13 @@ export default function QuestionBank() {
   }, [questions, editingData, addingData, selectedTemplateFilter]);
 
   const fetchExistingTemplates = async () => {
-    if (!selectedSubject) return;
+    if (!selectedSubject || !user) return;
     try {
-      const q = query(collection(db, 'questions'), where('subjectId', '==', selectedSubject));
+      const q = query(
+        collection(db, 'questions'), 
+        where('subjectId', '==', selectedSubject),
+        where('adminId', '==', user.uid)
+      );
       const snap = await getDocs(q);
       const templates = new Set<string>();
       snap.docs.forEach(doc => {
@@ -305,12 +310,13 @@ export default function QuestionBank() {
   };
 
   const autoAdjustWeights = async (subjectId: string, packetName: string, excludeId?: string) => {
-    if (!subjectId || !packetName || packetName === 'all') return;
+    if (!subjectId || !packetName || packetName === 'all' || !user) return;
     try {
       const q = query(
         collection(db, 'questions'),
         where('subjectId', '==', subjectId),
-        where('packetName', '==', packetName)
+        where('packetName', '==', packetName),
+        where('adminId', '==', user.uid)
       );
       const snap = await getDocs(q);
       let docs = snap.docs;
@@ -402,11 +408,12 @@ export default function QuestionBank() {
     try {
       let q;
       if (selectedTemplateFilter === 'all') {
-        q = query(collection(db, 'questions'), where('subjectId', '==', selectedSubject));
+        q = query(collection(db, 'questions'), where('subjectId', '==', selectedSubject), where('adminId', '==', user.uid));
       } else {
         q = query(collection(db, 'questions'), 
           where('subjectId', '==', selectedSubject), 
-          where('packetName', '==', selectedTemplateFilter)
+          where('packetName', '==', selectedTemplateFilter),
+          where('adminId', '==', user.uid)
         );
       }
       const snap = await getDocs(q);
@@ -1352,7 +1359,8 @@ export default function QuestionBank() {
           const q = query(
             collection(db, 'questions'), 
             where('subjectId', '==', selectedSubject),
-            where('packetName', '==', templateName)
+            where('packetName', '==', templateName),
+            where('adminId', '==', user.uid)
           );
           const snap = await getDocs(q);
           const docs = snap.docs;
@@ -1397,7 +1405,8 @@ export default function QuestionBank() {
           const q = query(
             collection(db, 'questions'), 
             where('subjectId', '==', selectedSubject),
-            where('packetName', '==', oldName)
+            where('packetName', '==', oldName),
+            where('adminId', '==', user.uid)
           );
           const snap = await getDocs(q);
           const docs = snap.docs;
