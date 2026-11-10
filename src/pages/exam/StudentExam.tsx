@@ -1563,29 +1563,68 @@ export default function StudentExam() {
                      <span className="text-slate-400 text-[10px] font-bold uppercase">Bobot: {currentQ.weight}</span>
                   </div>
                   
-                                     {currentQ.type === 'listening' && audioItem && (
-                      <div className="mb-6 bg-blue-50/80 border border-blue-200 rounded-xl p-4 flex flex-col gap-3 shadow-xs">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
-                              🎧
-                            </div>
-                            <div>
-                              <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wide">Audio Listening: {audioItem.name}</h4>
-                              <p className="text-[10px] text-blue-600 font-medium">
-                                {audioItem.allowRepeat === 'Ya' ? 'Pengulangan Diizinkan (Bisa diputar kembali)' : 'Sekali Putar (Audio hanya dapat diputar sekali)'}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <CustomAudioPlayer 
-                            audioItem={audioItem} 
-                            hasPlayedAudio={hasPlayedAudio} 
-                            setHasPlayedAudio={setHasPlayedAudio} 
-                          />
-                        </div>
-                      </div>
+                                     {currentQ.type === 'listening' && (
+                     <div className="mb-6 space-y-3">
+                       {/* 1. Global Listening Audio from Manajemen Audio (Audio Bank) */}
+                       {audioItem && (
+                         <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-4 flex flex-col gap-3 shadow-xs">
+                           <div className="flex items-center justify-between">
+                             <div className="flex items-center space-x-2">
+                               <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                                 🎧
+                               </div>
+                               <div>
+                                 <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wide">Audio Listening: {audioItem.name}</h4>
+                                 <p className="text-[10px] text-blue-600 font-medium">
+                                   {audioItem.allowRepeat === 'Ya' ? 'Pengulangan Diizinkan (Bisa diputar kembali)' : 'Sekali Putar (Audio hanya dapat diputar sekali)'}
+                                 </p>
+                               </div>
+                             </div>
+                           </div>
+                           <div>
+                             <CustomAudioPlayer 
+                               audioItem={audioItem} 
+                               hasPlayedAudio={hasPlayedAudio} 
+                               setHasPlayedAudio={setHasPlayedAudio} 
+                             />
+                           </div>
+                         </div>
+                       )}
+
+                       {/* 2. Specific Audio for this Question from Edit Soal (Google Drive / Direct URL) */}
+                       {currentQ.audioUrl && (
+                         <div className="bg-sky-50/90 border border-sky-200 rounded-xl p-4 flex flex-col gap-3 shadow-xs">
+                           <div className="flex items-center justify-between">
+                             <div className="flex items-center space-x-2">
+                               <div className="w-8 h-8 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold text-sm">
+                                 🔊
+                               </div>
+                               <div>
+                                 <h4 className="text-xs font-bold text-sky-900 uppercase tracking-wide">Audio Soal No. {currentQuestionIndex + 1}</h4>
+                                 <p className="text-[10px] text-sky-600 font-medium">
+                                   Audio khusus untuk pertanyaan ini
+                                 </p>
+                               </div>
+                             </div>
+                           </div>
+                           <div>
+                             <CustomAudioPlayer 
+                               audioItem={{
+                                 name: `Audio Soal No. ${currentQuestionIndex + 1}`,
+                                 fileName: 'soal_audio',
+                                 audioData: currentQ.audioUrl,
+                                 driveUrl: currentQ.audioUrl,
+                                 duration: 0,
+                                 allowRepeat: 'Ya',
+                                 createdAt: Date.now()
+                               }} 
+                               hasPlayedAudio={false} 
+                               setHasPlayedAudio={() => {}} 
+                             />
+                           </div>
+                         </div>
+                       )}
+                     </div>
                    )}
                    
                    <div dir="auto" className="prose max-w-none text-slate-800 text-sm font-medium mb-6 leading-relaxed ql-editor px-0 py-0" dangerouslySetInnerHTML={{ __html: formatHTML(currentQ.question) }} />

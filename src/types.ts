@@ -65,6 +65,7 @@ export interface Question {
   packetName?: string;
   type?: 'pilihan_ganda' | 'pilihan_ganda_kompleks' | 'isian_singkat' | 'essay' | 'listening';
   typeCode?: number;
+  audioUrl?: string;
   createdAt: number;
 }
 

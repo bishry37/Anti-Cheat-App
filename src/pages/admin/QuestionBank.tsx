@@ -3,7 +3,7 @@ import { RichTextEditor } from '../../components/RichTextEditor';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { collection, query, getDocs, deleteDoc, doc, orderBy, where, writeBatch, updateDoc, addDoc, getDoc } from 'firebase/firestore';
 import { Question, Subject } from '../../types';
-import { Edit2, Trash2, Loader2, X, Upload, Download, FileSpreadsheet, Search, Check, Plus, FileText } from 'lucide-react';
+import { Edit2, Trash2, Loader2, X, Upload, Download, FileSpreadsheet, Search, Check, Plus, FileText, Headphones, Link as LinkIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBlocker } from 'react-router-dom';
@@ -1527,6 +1527,7 @@ export default function QuestionBank() {
         correctAnswer: isPg ? String(editingData.correctAnswer || (qType === 'pilihan_ganda_kompleks' ? 'A' : 'A')) : (editingData.correctAnswer || ''),
         type: qType,
         typeCode: mapTypeToCode(qType),
+        audioUrl: qType === 'listening' ? (editingData.audioUrl || '').trim() : '',
         weight: parsedWeight,
         lastEditedAt: Date.now()
       } as any);
@@ -1639,6 +1640,7 @@ export default function QuestionBank() {
         correctAnswer: isPg ? String(addingData.correctAnswer || (qType === 'pilihan_ganda_kompleks' ? 'A' : 'A')) : (addingData.correctAnswer || ''),
         type: qType,
         typeCode: mapTypeToCode(qType),
+        audioUrl: qType === 'listening' ? (addingData.audioUrl || '').trim() : '',
         weight: Number(addingData.weight !== undefined && addingData.weight !== null && addingData.weight !== 0 ? addingData.weight : (qType === 'essay' ? 10 : qType === 'listening' ? 5 : qType === 'pilihan_ganda_kompleks' ? 2 : 1))
       };
       
@@ -2046,6 +2048,28 @@ export default function QuestionBank() {
                     </div>
                   </div>
 
+                  {addingData.type === 'listening' && (
+                    <div className="bg-sky-50/70 border border-sky-200 rounded-lg p-2.5 space-y-1.5">
+                      <label className="block text-[10px] font-bold text-sky-800 uppercase flex items-center gap-1.5">
+                        <Headphones className="w-3.5 h-3.5 text-sky-600" />
+                        <span>URL Audio Soal (Google Drive / Direct Link)</span>
+                      </label>
+                      <div className="relative">
+                        <LinkIcon className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        <input 
+                          type="url"
+                          value={addingData.audioUrl || ''}
+                          onChange={e => setAddingData({ ...addingData, audioUrl: e.target.value })}
+                          placeholder="https://drive.google.com/file/d/... (Opsional per soal)"
+                          className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-sky-500 font-medium text-slate-800 placeholder-slate-400"
+                        />
+                      </div>
+                      <p className="text-[9.5px] text-sky-700">
+                        Masukkan link Google Drive jika soal listening ini memiliki rekaman audio khusus tersendiri.
+                      </p>
+                    </div>
+                  )}
+
                   {addingData.type === 'pilihan_ganda' || addingData.type === 'listening' || addingData.type === 'pilihan_ganda_kompleks' || !addingData.type ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
@@ -2249,6 +2273,28 @@ export default function QuestionBank() {
                           </div>
                         </div>
 
+                        {editingData.type === 'listening' && (
+                          <div className="bg-sky-50/70 border border-sky-200 rounded-lg p-2.5 space-y-1.5">
+                            <label className="block text-[10px] font-bold text-sky-800 uppercase flex items-center gap-1.5">
+                              <Headphones className="w-3.5 h-3.5 text-sky-600" />
+                              <span>URL Audio Soal (Google Drive / Direct Link)</span>
+                            </label>
+                            <div className="relative">
+                              <LinkIcon className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                              <input 
+                                type="url"
+                                value={editingData.audioUrl || ''}
+                                onChange={e => setEditingData({ ...editingData, audioUrl: e.target.value })}
+                                placeholder="https://drive.google.com/file/d/... (Opsional per soal)"
+                                className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded outline-none focus:ring-1 focus:ring-sky-500 font-medium text-slate-800 placeholder-slate-400"
+                              />
+                            </div>
+                            <p className="text-[9.5px] text-sky-700">
+                              Masukkan link Google Drive jika soal listening ini memiliki rekaman audio khusus tersendiri.
+                            </p>
+                          </div>
+                        )}
+
                         {editingData.type === 'pilihan_ganda' || editingData.type === 'listening' || editingData.type === 'pilihan_ganda_kompleks' || !editingData.type ? (
                           <>
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
@@ -2380,8 +2426,9 @@ export default function QuestionBank() {
                                 PG Kompleks
                               </span>
                             ) : q.type === 'listening' ? (
-                              <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-sky-100 text-sky-700 border-sky-200">
-                                Listening
+                              <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-sky-100 text-sky-700 border-sky-200 inline-flex items-center gap-1">
+                                <Headphones className="w-2.5 h-2.5" />
+                                <span>Listening{q.audioUrl ? ' (Audio Khusus)' : ''}</span>
                               </span>
                             ) : q.type === 'isian_singkat' ? (
                               <span className="text-[9px] px-1.5 py-0.5 font-bold uppercase rounded border shadow-3xs bg-amber-100 text-amber-700 border-amber-200">
