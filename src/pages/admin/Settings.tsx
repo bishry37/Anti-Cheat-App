@@ -109,7 +109,11 @@ export default function Settings() {
       setLoading(false);
     });
 
-    return () => unsub();
+    const timer = setTimeout(() => setLoading(false), 5000);
+    return () => {
+      unsub();
+      clearTimeout(timer);
+    };
   }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

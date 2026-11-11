@@ -432,7 +432,12 @@ export default function ResultReport() {
       setLoading(false);
     });
 
-    return () => unsub();
+    const timer = setTimeout(() => setLoading(false), 5000);
+
+    return () => {
+      unsub();
+      clearTimeout(timer);
+    };
   }, [filterExam, filterClass, user, dummyTrigger]);
 
   useEffect(() => {

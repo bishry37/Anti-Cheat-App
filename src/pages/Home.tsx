@@ -454,14 +454,25 @@ export default function Home() {
       setIsLoggingInStudent(true);
       setErrorMessage('');
 
+      // Timeout wrapper to prevent any hanging promise on network/firestore latency
+      const withTimeout = async <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+        let timer: any;
+        const timeoutPromise = new Promise<T>((resolve) => {
+          timer = setTimeout(() => resolve(fallback), ms);
+        });
+        const res = await Promise.race([promise, timeoutPromise]);
+        clearTimeout(timer);
+        return res;
+      };
+
       // Check for an existing session with exact same candidate name and exam (using single-field query to avoid composite index requirement on other devices)
       const sessionQuery = query(
         collection(db, 'student_sessions'),
         where('examId', '==', matchingExam.id)
       );
       
-      const sessionSnap = await getDocs(sessionQuery);
-      const matchingDocs = sessionSnap.docs.filter(d => {
+      const sessionSnap = await withTimeout(getDocs(sessionQuery), 4000, { docs: [] } as any);
+      const matchingDocs = (sessionSnap.docs || []).filter(d => {
         const data = d.data() as StudentSession;
         return data.studentName === upperName && data.adminId === matchingExam.adminId;
       });
@@ -552,7 +563,7 @@ export default function Home() {
         localStorage.setItem('cbt_device_id', currentDeviceId);
       }
 
-      // Login to Firebase (Anonymous)
+      // Login to Firebase (Anonymous) with automatic fast fallback
       const uid = await loginAsStudent();
       
       // Time recovery logic for power outage / unexpected crash / browser exit
@@ -610,13 +621,13 @@ export default function Home() {
                 collection(db, 'student_sessions'),
                 where('examId', '==', matchingExam.id)
               );
-              const snapExisting = await getDocs(qExisting);
+              const snapExisting = await withTimeout(getDocs(qExisting), 3000, { docs: [] } as any);
               
               // Count how many students currently hold each packet
               const counts: Record<string, number> = {};
               validPackets.forEach(p => { counts[p] = 0; });
               
-              snapExisting.docs.forEach(docSnap => {
+              (snapExisting.docs || []).forEach((docSnap: any) => {
                 const sData = docSnap.data();
                 if (sData.packetName && counts[sData.packetName] !== undefined) {
                   counts[sData.packetName]++;
@@ -686,7 +697,6 @@ export default function Home() {
       // If resuming and the old session was under a different ID, hide old doc from monitor
       if (isResume && targetUid && targetUid !== uid) {
           try {
-              // We use updateDoc because students might not have permission to delete
               await updateDoc(doc(db, 'student_sessions', targetUid), {
                   hiddenFromMonitor: true,
                   status: 'Arsip'
@@ -696,14 +706,15 @@ export default function Home() {
           }
       }
 
-      await setDoc(doc(db, 'student_sessions', uid), sessionData);
+      await withTimeout(setDoc(doc(db, 'student_sessions', uid), sessionData), 4000, null);
 
       sessionStorage.setItem('just_logged_in_student', 'true');
       setIsLoggingInStudent(false);
       setLoading(false);
       navigate('/exam');
     } catch (err: any) {
-      setErrorMessage(err.message || 'Gagal memulai ujian.');
+      console.error("Student login error:", err);
+      setErrorMessage(err?.message || 'Gagal memulai ujian. Silakan coba lagi.');
       setIsLoggingInStudent(false);
       setLoading(false);
     }

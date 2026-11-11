@@ -56,11 +56,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginAsStudent = async (): Promise<string> => {
     try {
-      await setPersistence(auth, browserSessionPersistence);
-      const credential = await signInAnonymously(auth);
-      return credential.user.uid;
+      const signInPromise = (async () => {
+        await setPersistence(auth, browserSessionPersistence).catch(() => {});
+        const credential = await signInAnonymously(auth);
+        return credential.user.uid;
+      })();
+
+      const timeoutPromise = new Promise<string>((_, reject) => {
+        setTimeout(() => reject(new Error('Firebase Auth timeout')), 3500);
+      });
+
+      return await Promise.race([signInPromise, timeoutPromise]);
     } catch (err: any) {
-      console.warn("Firebase Anonymous Sign-In failed or was restricted. Falling back to custom client-side student session:", err);
+      console.warn("Firebase Anonymous Sign-In failed or timed out. Falling back to custom client-side student session:", err);
       
       // Let's check if there's already a persistent user in this tab
       const existingLocal = sessionStorage.getItem('cbt_student_user');

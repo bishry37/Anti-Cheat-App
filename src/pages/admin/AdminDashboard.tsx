@@ -284,9 +284,12 @@ export default function AdminDashboard() {
 
     fetchDashboardData();
 
+    const timer = setTimeout(() => setLoading(false), 5000);
+
     return () => {
       if (unsubscribeSessions) unsubscribeSessions();
       if (unsubscribeViolations) unsubscribeViolations();
+      clearTimeout(timer);
     };
   }, [user]);
 

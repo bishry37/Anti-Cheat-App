@@ -151,6 +151,7 @@ export default function StudentExam() {
   const [acknowledgedWarningTime, setAcknowledgedWarningTime] = useState<number>(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSubmittingOrFinished, setIsSubmittingOrFinished] = useState(false);
+  const [isSavingSubmission, setIsSavingSubmission] = useState(false);
   const [showSubmitErrorModal, setShowSubmitErrorModal] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
 
@@ -263,6 +264,13 @@ export default function StudentExam() {
       });
     }
 
+    // Backup answers locally FIRST for zero data loss guarantee
+    if (examVal.id && user?.uid) {
+      try {
+        localStorage.setItem(`cbt_answers_${user.uid}_${examVal.id}`, JSON.stringify(cleanAnswers));
+      } catch (e) {}
+    }
+
     // Calculate weight-based score using shared calculateSessionScore
     const { score, correctCount, wrongCount } = calculateSessionScore(cleanAnswers, questionsVal);
 
@@ -271,6 +279,16 @@ export default function StudentExam() {
     if (sessionRef.current) {
       sessionRef.current = { ...sessionRef.current, status: 'Selesai', score, correctCount, wrongCount, answers: cleanAnswers };
     }
+
+    const withTimeout = async <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+      let timer: any;
+      const timeoutPromise = new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback), ms);
+      });
+      const res = await Promise.race([promise, timeoutPromise]);
+      clearTimeout(timer);
+      return res;
+    };
 
     try {
       const docId = sessionVal.id || user!.uid;
@@ -284,12 +302,12 @@ export default function StudentExam() {
         hiddenFromMonitor: false
       };
 
-      // 1. Update main session doc with setDoc merge: true
-      await setDoc(doc(db, 'student_sessions', docId), updateData, { merge: true });
+      // 1. Update main session doc with setDoc merge: true (with safety timeout)
+      await withTimeout(setDoc(doc(db, 'student_sessions', docId), updateData, { merge: true }), 4500, null);
 
       // 2. Also ensure doc under user.uid is updated if docId is different
       if (user?.uid && user.uid !== docId) {
-        await setDoc(doc(db, 'student_sessions', user.uid), updateData, { merge: true }).catch(() => {});
+        withTimeout(setDoc(doc(db, 'student_sessions', user.uid), updateData, { merge: true }), 3000, null).catch(() => {});
       }
 
       // 3. Synchronize any matching session docs for this student and exam
@@ -300,10 +318,10 @@ export default function StudentExam() {
             where('studentName', '==', sessionVal.studentName),
             where('examId', '==', sessionVal.examId)
           );
-          const matchSnap = await getDocs(matchQ);
-          for (const d of matchSnap.docs) {
+          const matchSnap = await withTimeout(getDocs(matchQ), 3000, { docs: [] } as any);
+          for (const d of (matchSnap.docs || [])) {
             if (d.id !== docId && d.id !== user?.uid) {
-              await setDoc(doc(db, 'student_sessions', d.id), updateData, { merge: true }).catch(() => {});
+              setDoc(doc(db, 'student_sessions', d.id), updateData, { merge: true }).catch(() => {});
             }
           }
         } catch (mErr) {
@@ -311,7 +329,7 @@ export default function StudentExam() {
         }
       }
 
-      // Clear local backup
+      // Clear local backup after successful sync
       if (examVal.id && user?.uid) {
         localStorage.removeItem(`cbt_answers_${user.uid}_${examVal.id}`);
         localStorage.removeItem(`cbt_remaining_time_${user.uid}_${examVal.id}`);
@@ -322,8 +340,7 @@ export default function StudentExam() {
         document.exitFullscreen().catch(() => {});
       }
     } catch (e) {
-      console.error("Gagal submit ujian:", e);
-      setShowSubmitErrorModal(true);
+      console.error("Gagal submit ujian ke server (tersimpan secara lokal):", e);
     }
   }, [user]);
 
@@ -708,6 +725,9 @@ export default function StudentExam() {
           } else {
             setTimeLeft(calculatedTimeLeft);
           }
+        } else {
+          setLoadError("Jadwal ujian tidak ditemukan atau telah dihapus oleh pengawas.");
+          return;
         }
 
       } catch (err) {
@@ -716,6 +736,13 @@ export default function StudentExam() {
       }
     }
     loadData();
+
+    // Safety timeout: If session/exam still hasn't loaded in 7 seconds, display error instead of infinite spinner
+    const timer = setTimeout(() => {
+      setLoadError(prev => prev || "Pemuatan data ujian mengalami kendala koneksi. Silakan periksa jaringan dan coba lagi.");
+    }, 7000);
+
+    return () => clearTimeout(timer);
   }, [user]);
 
   // Listen to remote changes on session (for admin warnings/kicks/manual duration changes)
@@ -1430,19 +1457,33 @@ export default function StudentExam() {
 
             <div className="grid grid-cols-2 gap-3 w-full">
               <button 
+                disabled={isSavingSubmission}
                 onClick={() => setShowConfirmModal(false)}
-                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer font-sans"
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer font-sans disabled:opacity-50"
               >
                 Kembali
               </button>
               <button 
+                disabled={isSavingSubmission}
                 onClick={async () => {
-                  setShowConfirmModal(false);
-                  await submitExam();
+                  setIsSavingSubmission(true);
+                  try {
+                    await submitExam();
+                  } finally {
+                    setIsSavingSubmission(false);
+                    setShowConfirmModal(false);
+                  }
                 }}
-                className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer font-sans"
+                className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer font-sans disabled:opacity-50 flex items-center justify-center"
               >
-                Selesai & Kirim
+                {isSavingSubmission ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  'Selesai & Kirim'
+                )}
               </button>
             </div>
           </div>

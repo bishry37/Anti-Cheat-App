@@ -167,11 +167,15 @@ export default function ExamMonitor() {
         }
       } catch (err) {
         console.error(err);
+        setLoading(false);
       }
     };
     
     fetchRefs().then(() => {
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
       
       // Subscribe to active sessions
       let q = query(collection(db, 'student_sessions'), where('adminId', '==', user.uid));
@@ -195,10 +199,17 @@ export default function ExamMonitor() {
           if (updated) setSelectedSession(updated);
         }
       }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'student_sessions');
+        console.warn("ExamMonitor snapshot warning:", error);
+        setLoading(false);
       });
       return () => { if (unsubscribe) unsubscribe(); };
+    }).catch(err => {
+      console.error("fetchRefs error:", err);
+      setLoading(false);
     });
+
+    const timer = setTimeout(() => setLoading(false), 5000);
+    return () => clearTimeout(timer);
   }, [user]);
 
   const filteredSessions = sessions
@@ -861,7 +872,7 @@ export default function ExamMonitor() {
                   ) : (
                     filteredSessions.map((s, idx) => {
                       const isWarning = s.violationsCount > 0 && s.status === 'Aktif';
-                      const isOffline = (Date.now() - s.lastActivity) > 180000 && s.status === 'Aktif' && s.lastActivity > 0;
+                      const isOffline = (s.isOnline === false || s.connectionStatus === 'offline' || s.connectionStatus === 'disconnected') && s.status === 'Aktif';
                       const isWaitingLogin = s.status === 'Aktif' && s.lastActivity === 0;
 
                       const durationMin = typeof s.duration === 'number' ? s.duration : (exams[s.examId]?.duration || 0);

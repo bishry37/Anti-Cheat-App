@@ -82,9 +82,12 @@ export default function Classes() {
       });
     }
 
+    const timer = setTimeout(() => setLoading(false), 5000);
+
     return () => {
       unsubClasses();
       unsubSetting();
+      clearTimeout(timer);
     };
   }, [user?.uid]);
 
@@ -1083,7 +1086,7 @@ export default function Classes() {
 
                             {/* Card Footer */}
                             <div className="mt-2.5 pt-1.5 border-t border-slate-200 flex items-center justify-between text-[8px] text-slate-400 font-bold uppercase">
-                              <span>Portal Ujian: www.examproplus.vercel.app</span>
+                              <span>Portal Ujian: examproplus.vercel.app</span>
                               <span className="flex items-center gap-0.5 text-slate-400">
                                 <Scissors className="w-2.5 h-2.5" /> Gunting di sini
                               </span>
@@ -1338,7 +1341,7 @@ export default function Classes() {
 
                           {/* Card Footer */}
                           <div className="mt-1.5 pt-1 border-t border-slate-300 flex items-center justify-between text-[7.5px] text-slate-500 font-bold uppercase">
-                            <span>Portal Ujian: www.examproplus.vercel.app</span>
+                            <span>Portal Ujian: examproplus.vercel.app</span>
                             <span className="flex items-center gap-0.5 text-slate-500">
                               <Scissors className="w-2.5 h-2.5" /> Gunting di sini
                             </span>
