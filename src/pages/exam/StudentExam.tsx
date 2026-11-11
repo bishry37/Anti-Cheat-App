@@ -1839,21 +1839,14 @@ export default function StudentExam() {
                >
                  Soal Sebelumnya
                </button>
-               {currentQuestionIndex < questions.length - 1 ? (
-                 <button 
-                  onClick={() => changeQuestion(currentQuestionIndex + 1)}
-                  className="px-4 py-2 rounded border border-blue-600 bg-blue-600 text-white text-[11px] font-bold uppercase tracking-wider hover:bg-blue-700 transition-colors"
-                 >
-                   Soal Selanjutnya
-                 </button>
-               ) : (
+               {currentQuestionIndex < questions.length - 1 && (
                   <button 
-                  onClick={() => { setShowConfirmModal(true) }}
-                  className="px-4 py-2 rounded bg-green-600 text-white text-[11px] font-bold uppercase tracking-wider hover:bg-green-700 transition-colors shadow-sm"
-                 >
-                   Selesai Ujian
-                 </button>
-               )}
+                   onClick={() => changeQuestion(currentQuestionIndex + 1)}
+                   className="px-4 py-2 rounded border border-blue-600 bg-blue-600 text-white text-[11px] font-bold uppercase tracking-wider hover:bg-blue-700 transition-colors"
+                  >
+                    Soal Selanjutnya
+                  </button>
+                )}
             </div>
           </div>
         </div>
