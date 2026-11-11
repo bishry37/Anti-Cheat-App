@@ -305,12 +305,23 @@ export default function StudentExam() {
         hiddenFromMonitor: false
       };
 
-      // 1. Update main session doc with setDoc merge: true (with safety timeout)
-      await withTimeout(setDoc(doc(db, 'student_sessions', docId), updateData, { merge: true }), 4500, null);
+      // 1. Update main session doc with setDoc merge: true (with retry loop)
+      let success = false;
+      let attempts = 0;
+      while (!success && attempts < 3) {
+        try {
+          attempts++;
+          await withTimeout(setDoc(doc(db, 'student_sessions', docId), updateData, { merge: true }), 5000, null);
+          success = true;
+        } catch (err) {
+          if (attempts >= 3) throw err;
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
 
       // 2. Also ensure doc under user.uid is updated if docId is different
       if (user?.uid && user.uid !== docId) {
-        withTimeout(setDoc(doc(db, 'student_sessions', user.uid), updateData, { merge: true }), 3000, null).catch(() => {});
+        setDoc(doc(db, 'student_sessions', user.uid), updateData, { merge: true }).catch(() => {});
       }
 
       // 3. Synchronize any matching session docs for this student and exam
