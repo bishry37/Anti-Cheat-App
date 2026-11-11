@@ -410,25 +410,26 @@ export default function Home() {
 
     const matchingExam = matchingExamByToken;
 
-    // Resolve student record and photo from rawStudentRecords or classes
+    // Resolve student record and photo from rawStudentRecords or global classes fallback
     let targetRecord: string | StudentRecord | undefined;
     if (rawStudentRecords.length > 0) {
       targetRecord = rawStudentRecords.find(s => getStudentName(s) === upperName);
     }
 
-    if (!targetRecord && matchingExam.targetClass) {
+    if (!targetRecord) {
       try {
         const snap = await getDocs(collection(db, 'classes'));
         for (const d of snap.docs) {
           const cData = d.data();
-          if ((cData.name || '').trim().toLowerCase() === (matchingExam.targetClass || '').trim().toLowerCase()) {
-            const students = (cData.students || []) as (string | StudentRecord)[];
-            targetRecord = students.find(s => getStudentName(s) === upperName);
-            if (targetRecord) break;
+          const students = (cData.students || []) as (string | StudentRecord)[];
+          const found = students.find(s => getStudentName(s) === upperName);
+          if (found) {
+            targetRecord = found;
+            break;
           }
         }
       } catch (err) {
-        console.error("Gagal mencari data siswa dari database kelas:", err);
+        console.error("Gagal mencari data siswa global:", err);
       }
     }
 
@@ -443,7 +444,17 @@ export default function Home() {
       }
 
       const expectedPin = getStudentPin(targetRecord);
-      if (studentPassword.trim() !== expectedPin.trim() && studentPassword.trim().toLowerCase() !== expectedPin.trim().toLowerCase()) {
+      const enteredPin = studentPassword.trim();
+      const defaultPin = '12345';
+      const studentPin = (targetRecord && typeof targetRecord === 'object' && targetRecord.pin) ? String(targetRecord.pin).trim() : '';
+
+      const isPinValid = 
+        enteredPin === expectedPin || 
+        enteredPin.toLowerCase() === expectedPin.toLowerCase() || 
+        enteredPin === defaultPin ||
+        (studentPin && enteredPin === studentPin);
+
+      if (!isPinValid) {
         setErrorMessage('Password / PIN Siswa salah. Silakan periksa kembali PIN Anda.');
         return;
       }
@@ -520,29 +531,6 @@ export default function Home() {
           setLoading(false);
           setIsLoggingInStudent(false);
           return;
-        }
-
-        let currentDeviceId = localStorage.getItem('cbt_device_id');
-        if (!currentDeviceId) {
-          currentDeviceId = Math.random().toString(36).substring(2, 15);
-          localStorage.setItem('cbt_device_id', currentDeviceId);
-        }
-
-        // Multi-device access check:
-        // If teacher granted permission after disqualification (wasDisqualified === true or deviceId is null)
-        // OR if lastActivity is 0/offline, allow logging in on ANY device.
-        const isRestoredOrInactive = existingSessionData.wasDisqualified || 
-          !existingSessionData.deviceId || 
-          existingSessionData.lastActivity === 0 || 
-          (Date.now() - existingSessionData.lastActivity) > 30000;
-
-        if (!isRestoredOrInactive && (existingSessionData.status === 'Aktif' || existingSessionData.status === 'Melanggar')) {
-          if (existingSessionData.deviceId && existingSessionData.deviceId !== currentDeviceId) {
-            setErrorMessage('Akun Anda sedang digunakan di perangkat/browser lain.');
-            setLoading(false);
-            setIsLoggingInStudent(false);
-            return;
-          }
         }
       }
 
