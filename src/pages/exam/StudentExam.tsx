@@ -126,7 +126,16 @@ const CustomAudioPlayer = ({ audioItem, hasPlayedAudio, setHasPlayedAudio }: { a
 };
 
 export default function StudentExam() {
-  const { user, logout } = useAuth();
+  const authContext = useAuth();
+  const logout = authContext?.logout;
+  const user = authContext?.user || auth.currentUser || (() => {
+    try {
+      const stored = sessionStorage.getItem('cbt_student_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      return null;
+    }
+  })();
   const navigate = useNavigate();
 
   const [session, setSession] = useState<StudentSession | null>(null);
@@ -390,7 +399,20 @@ export default function StudentExam() {
 
   // Load Initial Data
   useEffect(() => {
-    if (!user) return;
+    let studentUid = user?.uid || auth.currentUser?.uid;
+    if (!studentUid) {
+      try {
+        const local = sessionStorage.getItem('cbt_student_user');
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (parsed?.uid) studentUid = parsed.uid;
+        }
+      } catch (e) {}
+    }
+
+    if (!studentUid) {
+      return;
+    }
 
     // Reset all student states immediately when user changes to prevent cross-account leaks
     setSession(null);
@@ -405,15 +427,15 @@ export default function StudentExam() {
       try {
         let attempts = 0;
         let sessSnap: any = null;
-        while (attempts < 5 && (!sessSnap || !sessSnap.exists())) {
+        while (attempts < 8 && (!sessSnap || !sessSnap.exists())) {
           attempts++;
           try {
-            sessSnap = await getDoc(doc(db, 'student_sessions', user!.uid));
-            if (!sessSnap.exists() && attempts < 5) {
+            sessSnap = await getDoc(doc(db, 'student_sessions', studentUid));
+            if (!sessSnap.exists() && attempts < 8) {
               await new Promise(res => setTimeout(res, 800));
             }
           } catch (e) {
-            if (attempts < 5) {
+            if (attempts < 8) {
               await new Promise(res => setTimeout(res, 800));
             }
           }
@@ -431,7 +453,7 @@ export default function StudentExam() {
         // Immediately refresh lastActivity and set status to Aktif on load
         sessData.lastActivity = Date.now();
         sessData.status = 'Aktif';
-        updateDoc(doc(db, 'student_sessions', user!.uid), {
+        updateDoc(doc(db, 'student_sessions', studentUid), {
           status: 'Aktif',
           lastActivity: Date.now()
         }).catch(() => {});
@@ -772,6 +794,16 @@ export default function StudentExam() {
     }
     loadData();
   }, [user]);
+
+  // Safety timeout: if loading takes more than 12 seconds and neither session nor loadError is set, show error state
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!session && !loadError) {
+        setLoadError("Waktu memuat ujian habis (Timeout). Pastikan koneksi internet stabil dan coba lagi.");
+      }
+    }, 12000);
+    return () => clearTimeout(timeout);
+  }, [session, loadError]);
 
   // Listen to remote changes on session (for admin warnings/kicks/manual duration changes)
   useEffect(() => {
