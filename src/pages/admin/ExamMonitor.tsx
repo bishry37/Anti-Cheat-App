@@ -167,11 +167,15 @@ export default function ExamMonitor() {
         }
       } catch (err) {
         console.error(err);
+        setLoading(false);
       }
     };
     
     fetchRefs().then(() => {
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
       
       // Subscribe to active sessions
       let q = query(collection(db, 'student_sessions'), where('adminId', '==', user.uid));
@@ -195,10 +199,17 @@ export default function ExamMonitor() {
           if (updated) setSelectedSession(updated);
         }
       }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'student_sessions');
+        console.warn("ExamMonitor snapshot warning:", error);
+        setLoading(false);
       });
       return () => { if (unsubscribe) unsubscribe(); };
+    }).catch(err => {
+      console.error("fetchRefs error:", err);
+      setLoading(false);
     });
+
+    const timer = setTimeout(() => setLoading(false), 5000);
+    return () => clearTimeout(timer);
   }, [user]);
 
   const filteredSessions = sessions

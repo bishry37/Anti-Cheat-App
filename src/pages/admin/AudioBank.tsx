@@ -60,7 +60,11 @@ export default function AudioBank() {
       setLoading(false);
     });
 
-    return () => unsub();
+    const timer = setTimeout(() => setLoading(false), 5000);
+    return () => {
+      unsub();
+      clearTimeout(timer);
+    };
   }, [user]);
 
   const resetForm = () => {

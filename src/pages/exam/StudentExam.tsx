@@ -761,7 +761,7 @@ export default function StudentExam() {
                 updatePayload.optionsOrder = generatedOptionsOrder;
               }
               if (Object.keys(updatePayload).length > 0) {
-                await updateDoc(doc(db, 'student_sessions', user.uid), updatePayload);
+                await updateDoc(doc(db, 'student_sessions', studentUid), updatePayload);
               }
             } catch (e) {
               console.error("Gagal menyimpan metadata randomisasi ujian ke DB", e);
@@ -785,6 +785,9 @@ export default function StudentExam() {
           } else {
             setTimeLeft(calculatedTimeLeft);
           }
+        } else {
+          setLoadError("Data ujian tidak ditemukan atau telah dihapus oleh pengawas.");
+          return;
         }
 
       } catch (err) {
@@ -795,15 +798,15 @@ export default function StudentExam() {
     loadData();
   }, [user]);
 
-  // Safety timeout: if loading takes more than 12 seconds and neither session nor loadError is set, show error state
+  // Safety timeout: if loading takes more than 8 seconds and neither session nor loadError is set, show error state
   useEffect(() => {
     const timeout = setTimeout(() => {
-      if (!session && !loadError) {
+      if ((!session || !exam) && !loadError) {
         setLoadError("Waktu memuat ujian habis (Timeout). Pastikan koneksi internet stabil dan coba lagi.");
       }
-    }, 12000);
+    }, 8000);
     return () => clearTimeout(timeout);
-  }, [session, loadError]);
+  }, [session, exam, loadError]);
 
   // Listen to remote changes on session (for admin warnings/kicks/manual duration changes)
   useEffect(() => {

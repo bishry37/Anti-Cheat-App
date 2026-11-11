@@ -82,9 +82,12 @@ export default function Classes() {
       });
     }
 
+    const timer = setTimeout(() => setLoading(false), 5000);
+
     return () => {
       unsubClasses();
       unsubSetting();
+      clearTimeout(timer);
     };
   }, [user?.uid]);
 
