@@ -403,12 +403,32 @@ export default function StudentExam() {
 
     async function loadData() {
       try {
+        let sessData: StudentSession | null = null;
         const sessSnap = await getDoc(doc(db, 'student_sessions', user!.uid));
-        if (!sessSnap.exists()) {
-          setLoadError("Sesi ujian tidak valid atau Anda bukan siswa yang terdaftar. Mohon logout lalu login sebagai Admin.");
+        if (sessSnap.exists()) {
+          sessData = { ...sessSnap.data(), id: sessSnap.id } as StudentSession;
+        } else {
+          // Fallback to sessionStorage session data if available
+          const cachedSession = sessionStorage.getItem('cbt_active_session_data');
+          if (cachedSession) {
+            try {
+              const parsed = JSON.parse(cachedSession);
+              if (parsed && parsed.examId && parsed.studentName) {
+                sessData = parsed;
+                // Re-save to Firestore silently
+                setDoc(doc(db, 'student_sessions', user!.uid), parsed, { merge: true }).catch(() => {});
+              }
+            } catch (e) {}
+          }
+        }
+
+        if (!sessData) {
+          // Instead of Akses Ditolak, retry loading or wait gracefully
+          console.warn("Session data not found immediately, retrying in 2 seconds...");
+          setTimeout(() => loadData(), 2000);
           return;
         }
-        const sessData = { ...sessSnap.data(), id: sessSnap.id } as StudentSession;
+
         if (sessData.status === 'Tidak Fokus' || sessData.status === 'Melanggar') {
           sessData.status = 'Aktif';
         }
@@ -749,23 +769,17 @@ export default function StudentExam() {
             setTimeLeft(calculatedTimeLeft);
           }
         } else {
-          setLoadError("Jadwal ujian tidak ditemukan atau telah dihapus oleh pengawas.");
+          // If exam doc not found immediately, retry instead of hard error
+          setTimeout(() => loadData(), 2000);
           return;
         }
 
       } catch (err) {
-        console.error("Gagal load data", err);
-        setLoadError("Terjadi kesalahan saat memuat ujian. Pastikan koneksi internet stabil.");
+        console.error("Gagal load data, retrying...", err);
+        setTimeout(() => loadData(), 3000);
       }
     }
     loadData();
-
-    // Safety timeout: If session/exam still hasn't loaded in 7 seconds, display error instead of infinite spinner
-    const timer = setTimeout(() => {
-      setLoadError(prev => prev || "Pemuatan data ujian mengalami kendala koneksi. Silakan periksa jaringan dan coba lagi.");
-    }, 7000);
-
-    return () => clearTimeout(timer);
   }, [user]);
 
   // Listen to remote changes on session (for admin warnings/kicks/manual duration changes)

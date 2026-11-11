@@ -709,6 +709,7 @@ export default function Home() {
       await withTimeout(setDoc(doc(db, 'student_sessions', uid), sessionData), 4000, null);
 
       sessionStorage.setItem('just_logged_in_student', 'true');
+      sessionStorage.setItem('cbt_active_session_data', JSON.stringify({ ...sessionData, id: uid }));
       setIsLoggingInStudent(false);
       setLoading(false);
       navigate('/exam');
