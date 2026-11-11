@@ -178,6 +178,7 @@ export default function StudentExam() {
   const examRef = useRef<Exam | null>(null);
   const questionsRef = useRef<Question[]>([]);
   const isSubmittingOrFinishedRef = useRef(false);
+  const answerDebounceTimerRef = useRef<any>(null);
 
   // Security & entry grace period tracking (to prevent browser popups like "Save password" from triggering violations)
   const initialPageMountTime = useRef<number>(Date.now());
@@ -254,6 +255,12 @@ export default function StudentExam() {
     // Set submitting flag immediately
     setIsSubmittingOrFinished(true);
     isSubmittingOrFinishedRef.current = true;
+
+    // Clear any pending answer debounce timers
+    if (answerDebounceTimerRef.current) {
+      clearTimeout(answerDebounceTimerRef.current);
+      answerDebounceTimerRef.current = null;
+    }
     
     const totalQuestions = questionsVal.length;
     if (totalQuestions === 0) {
@@ -283,14 +290,17 @@ export default function StudentExam() {
     // Calculate weight-based score using shared calculateSessionScore
     const { score, correctCount, wrongCount } = calculateSessionScore(cleanAnswers, questionsVal);
 
-    const withTimeout = async <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+    const withStrictTimeout = async <T,>(promise: Promise<T>, ms: number, errorMsg: string): Promise<T> => {
       let timer: any;
-      const timeoutPromise = new Promise<T>((resolve) => {
-        timer = setTimeout(() => resolve(fallback), ms);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(errorMsg)), ms);
       });
-      const res = await Promise.race([promise, timeoutPromise]);
-      clearTimeout(timer);
-      return res;
+      try {
+        const res = await Promise.race([promise, timeoutPromise]);
+        return res;
+      } finally {
+        clearTimeout(timer);
+      }
     };
 
     try {
@@ -305,18 +315,30 @@ export default function StudentExam() {
         hiddenFromMonitor: false
       };
 
-      // 1. Update main session doc with setDoc merge: true (with retry loop)
+      // 1. Update main session doc with setDoc merge: true (with 3-attempt strict timeout retry loop)
       let success = false;
       let attempts = 0;
+      let lastErr: any = null;
       while (!success && attempts < 3) {
         try {
           attempts++;
-          await withTimeout(setDoc(doc(db, 'student_sessions', docId), updateData, { merge: true }), 5000, null);
+          await withStrictTimeout(
+            setDoc(doc(db, 'student_sessions', docId), updateData, { merge: true }),
+            10000,
+            'Timeout koneksi saat menyimpan jawaban ke server.'
+          );
           success = true;
         } catch (err) {
-          if (attempts >= 3) throw err;
-          await new Promise(r => setTimeout(r, 1000));
+          lastErr = err;
+          console.warn(`Percobaan kirim ujian ke-${attempts} gagal, mencoba ulang...`, err);
+          if (attempts < 3) {
+            await new Promise(r => setTimeout(r, 1000));
+          }
         }
+      }
+
+      if (!success) {
+        throw lastErr || new Error('Gagal menyimpan hasil ujian ke server.');
       }
 
       // 2. Also ensure doc under user.uid is updated if docId is different
@@ -324,17 +346,17 @@ export default function StudentExam() {
         setDoc(doc(db, 'student_sessions', user.uid), updateData, { merge: true }).catch(() => {});
       }
 
-      // 3. Synchronize any matching session docs for this student and exam
+      // 3. Synchronize any matching session docs for this student and exam (single where query to avoid composite index requirement)
       if (sessionVal.studentName && sessionVal.examId) {
         try {
           const matchQ = query(
             collection(db, 'student_sessions'),
-            where('studentName', '==', sessionVal.studentName),
             where('examId', '==', sessionVal.examId)
           );
-          const matchSnap = await withTimeout(getDocs(matchQ), 3000, { docs: [] } as any);
-          for (const d of (matchSnap.docs || [])) {
-            if (d.id !== docId && d.id !== user?.uid) {
+          const matchSnap = await getDocs(matchQ);
+          for (const d of matchSnap.docs) {
+            const dat = d.data();
+            if (dat.studentName === sessionVal.studentName && d.id !== docId && d.id !== user?.uid) {
               setDoc(doc(db, 'student_sessions', d.id), updateData, { merge: true }).catch(() => {});
             }
           }
@@ -342,6 +364,15 @@ export default function StudentExam() {
           console.warn("Sync matching sessions note:", mErr);
         }
       }
+
+      // Update sessionStorage backup to Selesai
+      try {
+        const cached = sessionStorage.getItem('cbt_active_session_data');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          sessionStorage.setItem('cbt_active_session_data', JSON.stringify({ ...parsed, status: 'Selesai', score, answers: cleanAnswers }));
+        }
+      } catch (e) {}
 
       // Set local session state status to Complete ONLY after saving completes/safely handled
       setSession(prev => prev ? { ...prev, status: 'Selesai', score, correctCount, wrongCount, answers: cleanAnswers } : null);
@@ -1264,39 +1295,66 @@ export default function StudentExam() {
   const changeQuestion = async (newIndex: number) => {
     setCurrentQuestionIndex(newIndex);
     scrollToTop();
+
+    // Flush any pending text answer debounce immediately on question change
+    if (answerDebounceTimerRef.current) {
+      clearTimeout(answerDebounceTimerRef.current);
+      answerDebounceTimerRef.current = null;
+    }
+
     if (user) {
       try {
         await updateDoc(doc(db, 'student_sessions', user.uid), {
           lastQuestionIndex: newIndex,
           lastActivity: Date.now(),
-          remainingSeconds: timeLeftRef.current
+          remainingSeconds: timeLeftRef.current,
+          answers: answersRef.current
         });
       } catch (e) {
-        console.error("Gagal simpan progress soal", e);
+        console.warn("Gagal simpan progress soal ke server", e);
       }
     }
   };
 
-  const handleAnswer = async (qId: string, ans: string) => {
+  const handleAnswer = (qId: string, ans: string, isText = false) => {
     const newAnswers = { ...answersRef.current, [qId]: ans };
     setAnswers(newAnswers);
     answersRef.current = newAnswers;
 
     // Backup answers locally in case of electricity / connection loss (scoped by student UID)
     if (session?.examId && user?.uid) {
-      localStorage.setItem(`cbt_answers_${user.uid}_${session.examId}`, JSON.stringify(newAnswers));
-      localStorage.setItem(`cbt_remaining_time_${user.uid}_${session.examId}`, String(timeLeftRef.current));
+      try {
+        localStorage.setItem(`cbt_answers_${user.uid}_${session.examId}`, JSON.stringify(newAnswers));
+        localStorage.setItem(`cbt_remaining_time_${user.uid}_${session.examId}`, String(timeLeftRef.current));
+      } catch (e) {}
     }
 
-    // Auto save answers immediately for safety
-    try {
-      await updateDoc(doc(db, 'student_sessions', user!.uid), {
-        answers: newAnswers,
-        remainingSeconds: timeLeftRef.current,
-        lastActivity: Date.now()
-      });
-    } catch(e) { 
-      console.error("Gagal simpan jawaban sementara ke server, tersimpan lokal."); 
+    const saveToServer = async () => {
+      if (!user?.uid || isSubmittingOrFinishedRef.current || sessionRef.current?.status === 'Selesai') return;
+      try {
+        await updateDoc(doc(db, 'student_sessions', user.uid), {
+          answers: answersRef.current,
+          remainingSeconds: timeLeftRef.current,
+          lastActivity: Date.now()
+        });
+      } catch(e) { 
+        console.warn("Gagal simpan jawaban sementara ke server, tersimpan lokal."); 
+      }
+    };
+
+    if (isText) {
+      // Debounce text inputs (essay & isian singkat) by 1200ms to eliminate write-throttling & queue contention
+      if (answerDebounceTimerRef.current) {
+        clearTimeout(answerDebounceTimerRef.current);
+      }
+      answerDebounceTimerRef.current = setTimeout(saveToServer, 1200);
+    } else {
+      // Immediate save for single-click choices
+      if (answerDebounceTimerRef.current) {
+        clearTimeout(answerDebounceTimerRef.current);
+        answerDebounceTimerRef.current = null;
+      }
+      saveToServer();
     }
   };
 
@@ -1718,7 +1776,7 @@ export default function StudentExam() {
                        <textarea
                          rows={8}
                          value={answers[currentQ.id!] || ''}
-                         onChange={(e) => handleAnswer(currentQ.id!, e.target.value)}
+                        onChange={(e) => handleAnswer(currentQ.id!, e.target.value, true)}
                          placeholder="Ketikkan jawaban lengkap Anda secara detail di sini..."
                          className="w-full p-4 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 resize-y font-medium text-slate-800 leading-relaxed shadow-xs transition-all animate-in fade-in"
                        />
@@ -1738,7 +1796,7 @@ export default function StudentExam() {
                        <input
                          type="text"
                          value={answers[currentQ.id!] || ''}
-                         onChange={(e) => handleAnswer(currentQ.id!, e.target.value)}
+                        onChange={(e) => handleAnswer(currentQ.id!, e.target.value, true)}
                          placeholder="Ketikkan jawaban singkat Anda di sini..."
                          className="w-full p-4 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-bold text-slate-800 shadow-xs transition-all animate-in fade-in"
                        />
