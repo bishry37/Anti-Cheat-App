@@ -233,16 +233,25 @@ export default function StudentExam() {
   }, []);
 
   // Submit Exam Function (Declared Early for full accessibility and auto-timeouts)
-  const submitExam = useCallback(async () => {
+  const submitExam = useCallback(async (forceSubmit = false) => {
     const sessionVal = sessionRef.current;
     const examVal = examRef.current;
     const isSubmittingOrFinishedVal = isSubmittingOrFinishedRef.current;
     const questionsVal = questionsRef.current;
     const answersVal = answersRef.current;
 
-    if (!sessionVal || !examVal || isSubmittingOrFinishedVal || sessionVal.status === 'Selesai') return;
+    if (!sessionVal || !examVal) {
+      console.warn("Cannot submit exam: missing session or exam data");
+      return;
+    }
+
+    // If already finished and not retrying, return
+    if (sessionVal.status === 'Selesai' && !forceSubmit) return;
+
+    // Prevent duplicate background submissions if already in progress and not forced by user click
+    if (!forceSubmit && isSubmittingOrFinishedVal) return;
     
-    // Set submitting flag immediately to prevent duplicate runs and ignore external alerts
+    // Set submitting flag immediately
     setIsSubmittingOrFinished(true);
     isSubmittingOrFinishedRef.current = true;
     
@@ -273,12 +282,6 @@ export default function StudentExam() {
 
     // Calculate weight-based score using shared calculateSessionScore
     const { score, correctCount, wrongCount } = calculateSessionScore(cleanAnswers, questionsVal);
-
-    // Set local session state status to Complete instantly for fast UI feedback
-    setSession(prev => prev ? { ...prev, status: 'Selesai', score, correctCount, wrongCount, answers: cleanAnswers } : null);
-    if (sessionRef.current) {
-      sessionRef.current = { ...sessionRef.current, status: 'Selesai', score, correctCount, wrongCount, answers: cleanAnswers };
-    }
 
     const withTimeout = async <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
       let timer: any;
@@ -329,6 +332,12 @@ export default function StudentExam() {
         }
       }
 
+      // Set local session state status to Complete ONLY after saving completes/safely handled
+      setSession(prev => prev ? { ...prev, status: 'Selesai', score, correctCount, wrongCount, answers: cleanAnswers } : null);
+      if (sessionRef.current) {
+        sessionRef.current = { ...sessionRef.current, status: 'Selesai', score, correctCount, wrongCount, answers: cleanAnswers };
+      }
+
       // Clear local backup after successful sync
       if (examVal.id && user?.uid) {
         localStorage.removeItem(`cbt_answers_${user.uid}_${examVal.id}`);
@@ -340,7 +349,10 @@ export default function StudentExam() {
         document.exitFullscreen().catch(() => {});
       }
     } catch (e) {
-      console.error("Gagal submit ujian ke server (tersimpan secara lokal):", e);
+      console.error("Gagal submit ujian ke server:", e);
+      setIsSubmittingOrFinished(false);
+      isSubmittingOrFinishedRef.current = false;
+      setShowSubmitErrorModal(true);
     }
   }, [user]);
 
@@ -1468,7 +1480,7 @@ export default function StudentExam() {
                 onClick={async () => {
                   setIsSavingSubmission(true);
                   try {
-                    await submitExam();
+                    await submitExam(true);
                   } finally {
                     setIsSavingSubmission(false);
                     setShowConfirmModal(false);
@@ -1520,7 +1532,7 @@ export default function StudentExam() {
               <button 
                 onClick={async () => {
                   setShowSubmitErrorModal(false);
-                  await submitExam();
+                  await submitExam(true);
                 }}
                 className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer font-sans"
               >
@@ -1859,7 +1871,7 @@ export default function StudentExam() {
                )
              })}
            </div>
-           <div className="hidden mt-auto p-3 border-t border-slate-100 bg-slate-50 flex flex-col gap-1.5 text-center">
+           <div className="mt-auto p-3 border-t border-slate-100 bg-slate-50 flex flex-col gap-1.5 text-center">
              <button
                onClick={() => setShowConfirmModal(true)}
                className="w-full py-2.5 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold text-xs uppercase tracking-wider rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
