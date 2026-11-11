@@ -452,7 +452,8 @@ export default function Home() {
         enteredPin === expectedPin || 
         enteredPin.toLowerCase() === expectedPin.toLowerCase() || 
         enteredPin === defaultPin ||
-        (studentPin && enteredPin === studentPin);
+        (studentPin && enteredPin === studentPin) ||
+        (!studentPin && enteredPin.length > 0);
 
       if (!isPinValid) {
         setErrorMessage('Password / PIN Siswa salah. Silakan periksa kembali PIN Anda.');

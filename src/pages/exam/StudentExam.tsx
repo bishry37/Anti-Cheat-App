@@ -403,9 +403,24 @@ export default function StudentExam() {
 
     async function loadData() {
       try {
-        const sessSnap = await getDoc(doc(db, 'student_sessions', user!.uid));
-        if (!sessSnap.exists()) {
-          setLoadError("Sesi ujian tidak valid atau Anda bukan siswa yang terdaftar. Mohon logout lalu login sebagai Admin.");
+        let attempts = 0;
+        let sessSnap: any = null;
+        while (attempts < 5 && (!sessSnap || !sessSnap.exists())) {
+          attempts++;
+          try {
+            sessSnap = await getDoc(doc(db, 'student_sessions', user!.uid));
+            if (!sessSnap.exists() && attempts < 5) {
+              await new Promise(res => setTimeout(res, 800));
+            }
+          } catch (e) {
+            if (attempts < 5) {
+              await new Promise(res => setTimeout(res, 800));
+            }
+          }
+        }
+
+        if (!sessSnap || !sessSnap.exists()) {
+          setLoadError("Sesi ujian tidak valid atau data sesi belum siap. Silakan kembali ke Beranda dan coba lagi.");
           return;
         }
         const sessData = { ...sessSnap.data(), id: sessSnap.id } as StudentSession;
