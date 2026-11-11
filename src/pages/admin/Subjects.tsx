@@ -33,11 +33,7 @@ export default function Subjects() {
       console.error(err);
       setLoading(false);
     });
-    const timer = setTimeout(() => setLoading(false), 5000);
-    return () => {
-      unsub();
-      clearTimeout(timer);
-    };
+    return () => unsub();
   }, [user]);
 
   const handleSave = async () => {

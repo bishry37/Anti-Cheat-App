@@ -99,14 +99,11 @@ export default function Exams() {
       console.warn("Audio snapshot warning:", error);
     });
 
-    const timer = setTimeout(() => setLoading(false), 5000);
-
     return () => {
       unsubExams();
       unsubSubjects();
       unsubClasses();
       unsubAudio();
-      clearTimeout(timer);
     };
   }, [user]);
 
