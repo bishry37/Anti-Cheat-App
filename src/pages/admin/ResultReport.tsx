@@ -663,13 +663,12 @@ export default function ResultReport() {
       await deleteDoc(doc(db, 'student_sessions', id));
       if (studentName && user) {
         try {
-          const dupQ = query(
-            collection(db, 'student_sessions'),
-            where('adminId', '==', user.uid),
-            where('studentName', '==', studentName)
-          );
-          const dupSnap = await getDocs(dupQ);
-          for (const d of dupSnap.docs) {
+          const snap = await getDocs(collection(db, 'student_sessions'));
+          const matchingDocs = snap.docs.filter(d => {
+            const data = d.data();
+            return data.studentName === studentName && (!user.uid || data.adminId === user.uid);
+          });
+          for (const d of matchingDocs) {
             await deleteDoc(d.ref).catch(() => {});
           }
         } catch (e) {
@@ -691,13 +690,12 @@ export default function ResultReport() {
     setConfirmDeleteExam(prev => ({ ...prev, isOpen: false }));
     setLoading(true);
     try {
-      const q = query(
-        collection(db, 'student_sessions'), 
-        where('adminId', '==', user.uid),
-        where('examId', '==', examId)
-      );
-      const snap = await getDocs(q);
-      const deletePromises = snap.docs.map(d => deleteDoc(d.ref));
+      const snap = await getDocs(collection(db, 'student_sessions'));
+      const matchingDocs = snap.docs.filter(d => {
+        const data = d.data();
+        return data.examId === examId && (!user?.uid || data.adminId === user.uid);
+      });
+      const deletePromises = matchingDocs.map(d => deleteDoc(d.ref));
       await Promise.all(deletePromises);
       
       try {

@@ -122,11 +122,11 @@ export default function Classes() {
         const oldClass = Array.isArray(classesList) ? classesList.find(c => c.id === editingId) : undefined;
         await updateDoc(doc(db, 'classes', editingId), { name: newName, adminId: user.uid });
         if (oldClass && oldClass.name !== newName) {
-           const examsQ = query(collection(db, 'exams'), where('targetClass', '==', oldClass.name), where('adminId', '==', user.uid));
-           const snap = await getDocs(examsQ);
-           if (!snap.empty) {
+           const snap = await getDocs(collection(db, 'exams'));
+           const matchingDocs = snap.docs.filter(d => d.data().targetClass === oldClass.name && (!user?.uid || d.data().adminId === user.uid));
+           if (matchingDocs.length > 0) {
              const batch = writeBatch(db);
-             snap.forEach(d => batch.update(d.ref, { targetClass: newName }));
+             matchingDocs.forEach(d => batch.update(d.ref, { targetClass: newName }));
              await batch.commit();
            }
         }
@@ -167,11 +167,11 @@ export default function Classes() {
       const oldClass = Array.isArray(classesList) ? classesList.find(c => c.id === modalConfig.idToDelete) : undefined;
       await deleteDoc(doc(db, 'classes', modalConfig.idToDelete));
       if (oldClass) {
-         const examsQ = query(collection(db, 'exams'), where('targetClass', '==', oldClass.name), where('adminId', '==', user.uid));
-         const snap = await getDocs(examsQ);
-         if (!snap.empty) {
+         const snap = await getDocs(collection(db, 'exams'));
+         const matchingDocs = snap.docs.filter(d => d.data().targetClass === oldClass.name && (!user?.uid || d.data().adminId === user.uid));
+         if (matchingDocs.length > 0) {
            const batch = writeBatch(db);
-           snap.forEach(d => batch.update(d.ref, { targetClass: '' }));
+           matchingDocs.forEach(d => batch.update(d.ref, { targetClass: '' }));
            await batch.commit();
          }
       }

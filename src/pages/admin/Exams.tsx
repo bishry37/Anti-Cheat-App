@@ -174,16 +174,16 @@ export default function Exams() {
   const fetchPackets = async (subId: string) => {
     if (!user) return;
     try {
-      const q = query(collection(db, 'questions'), where('subjectId', '==', subId), where('adminId', '==', user.uid));
-      const snap = await getDocs(q);
+      const snap = await getDocs(collection(db, 'questions'));
       const packets = new Set<string>();
       snap.docs.forEach(doc => {
         const data = doc.data();
-        if (data.packetName) packets.add(data.packetName);
+        if ((!data.subjectId || data.subjectId === subId) && (!user.uid || !data.adminId || data.adminId === user.uid)) {
+          if (data.packetName) packets.add(data.packetName);
+        }
       });
       if (packets.size === 0) {
-        const allSnap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
-        allSnap.docs.forEach(doc => {
+        snap.docs.forEach(doc => {
           const data = doc.data();
           if (data.packetName) packets.add(data.packetName);
         });

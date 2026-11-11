@@ -292,16 +292,13 @@ export default function QuestionBank() {
   const fetchExistingTemplates = async () => {
     if (!selectedSubject || !user) return;
     try {
-      const q = query(
-        collection(db, 'questions'), 
-        where('subjectId', '==', selectedSubject),
-        where('adminId', '==', user.uid)
-      );
-      const snap = await getDocs(q);
+      const snap = await getDocs(collection(db, 'questions'));
       const templates = new Set<string>();
       snap.docs.forEach(doc => {
         const data = doc.data();
-        if (data.packetName) templates.add(data.packetName);
+        if (data.subjectId === selectedSubject && (!user?.uid || data.adminId === user.uid)) {
+          if (data.packetName) templates.add(data.packetName);
+        }
       });
       setExistingTemplates(Array.from(templates).sort());
     } catch (e) {
@@ -312,14 +309,11 @@ export default function QuestionBank() {
   const autoAdjustWeights = async (subjectId: string, packetName: string, excludeId?: string) => {
     if (!subjectId || !packetName || packetName === 'all' || !user) return;
     try {
-      const q = query(
-        collection(db, 'questions'),
-        where('subjectId', '==', subjectId),
-        where('packetName', '==', packetName),
-        where('adminId', '==', user.uid)
-      );
-      const snap = await getDocs(q);
-      let docs = snap.docs;
+      const snap = await getDocs(collection(db, 'questions'));
+      let docs = snap.docs.filter(d => {
+        const data = d.data();
+        return data.subjectId === subjectId && data.packetName === packetName && (!user?.uid || data.adminId === user.uid);
+      });
       if (excludeId) {
         docs = docs.filter(d => d.id !== excludeId);
       }
@@ -406,18 +400,15 @@ export default function QuestionBank() {
     }
     setLoading(true);
     try {
-      let q;
-      if (selectedTemplateFilter === 'all') {
-        q = query(collection(db, 'questions'), where('subjectId', '==', selectedSubject), where('adminId', '==', user.uid));
-      } else {
-        q = query(collection(db, 'questions'), 
-          where('subjectId', '==', selectedSubject), 
-          where('packetName', '==', selectedTemplateFilter),
-          where('adminId', '==', user.uid)
-        );
-      }
-      const snap = await getDocs(q);
-      const qs = snap.docs.map(d => {
+      const snap = await getDocs(collection(db, 'questions'));
+      const matchingDocs = snap.docs.filter(d => {
+        const data = d.data();
+        if (data.subjectId !== selectedSubject) return false;
+        if (user?.uid && data.adminId && data.adminId !== user.uid) return false;
+        if (selectedTemplateFilter !== 'all' && data.packetName !== selectedTemplateFilter) return false;
+        return true;
+      });
+      const qs = matchingDocs.map(d => {
         const data = d.data() as any;
         let qType = data.type;
         const tCode = data.typeCode;
@@ -461,8 +452,13 @@ export default function QuestionBank() {
         try { isCustom = localStorage.getItem(customWeightKey) === 'true'; } catch {}
         if (!isCustom && Math.abs(totWeight - 100) >= 0.05) {
           autoAdjustWeights(selectedSubject, selectedTemplateFilter).then(() => {
-            getDocs(q).then(newSnap => {
-              const updatedQs = newSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Question));
+            getDocs(collection(db, 'questions')).then(newSnap => {
+              const updatedQs = newSnap.docs
+                .filter(d => {
+                  const data = d.data();
+                  return data.subjectId === selectedSubject && data.packetName === selectedTemplateFilter && (!user?.uid || data.adminId === user.uid);
+                })
+                .map(d => ({ id: d.id, ...(d.data() as any) } as Question));
               updatedQs.sort((a, b) => (a.number || 0) - (b.number || 0));
               setQuestions(updatedQs);
               setOriginalQuestions(updatedQs);
@@ -1356,14 +1352,11 @@ export default function QuestionBank() {
       async () => {
         setProcessing(true);
         try {
-          const q = query(
-            collection(db, 'questions'), 
-            where('subjectId', '==', selectedSubject),
-            where('packetName', '==', templateName),
-            where('adminId', '==', user.uid)
-          );
-          const snap = await getDocs(q);
-          const docs = snap.docs;
+          const snap = await getDocs(collection(db, 'questions'));
+          const docs = snap.docs.filter(d => {
+            const data = d.data();
+            return data.subjectId === selectedSubject && data.packetName === templateName && (!user?.uid || data.adminId === user.uid);
+          });
           const chunkSize = 500;
           for (let i = 0; i < docs.length; i += chunkSize) {
             const batch = writeBatch(db);
@@ -1402,14 +1395,11 @@ export default function QuestionBank() {
         
         setProcessing(true);
         try {
-          const q = query(
-            collection(db, 'questions'), 
-            where('subjectId', '==', selectedSubject),
-            where('packetName', '==', oldName),
-            where('adminId', '==', user.uid)
-          );
-          const snap = await getDocs(q);
-          const docs = snap.docs;
+          const snap = await getDocs(collection(db, 'questions'));
+          const docs = snap.docs.filter(d => {
+            const data = d.data();
+            return data.subjectId === selectedSubject && data.packetName === oldName && (!user?.uid || data.adminId === user.uid);
+          });
           const chunkSize = 500;
           for (let i = 0; i < docs.length; i += chunkSize) {
             const batch = writeBatch(db);
