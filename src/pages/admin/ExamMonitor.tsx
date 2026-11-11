@@ -861,7 +861,7 @@ export default function ExamMonitor() {
                   ) : (
                     filteredSessions.map((s, idx) => {
                       const isWarning = s.violationsCount > 0 && s.status === 'Aktif';
-                      const isOffline = (Date.now() - s.lastActivity) > 180000 && s.status === 'Aktif' && s.lastActivity > 0;
+                      const isOffline = (s.isOnline === false || s.connectionStatus === 'offline' || s.connectionStatus === 'disconnected') && s.status === 'Aktif';
                       const isWaitingLogin = s.status === 'Aktif' && s.lastActivity === 0;
 
                       const durationMin = typeof s.duration === 'number' ? s.duration : (exams[s.examId]?.duration || 0);

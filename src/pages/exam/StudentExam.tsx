@@ -155,17 +155,43 @@ export default function StudentExam() {
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (user?.uid) {
+        updateDoc(doc(db, 'student_sessions', user.uid), {
+          isOnline: true,
+          connectionStatus: 'online',
+          lastActivity: Date.now()
+        }).catch(() => {});
+      }
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      if (user?.uid) {
+        updateDoc(doc(db, 'student_sessions', user.uid), {
+          isOnline: false,
+          connectionStatus: 'offline',
+          lastActivity: Date.now()
+        }).catch(() => {});
+      }
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    if (user?.uid) {
+      updateDoc(doc(db, 'student_sessions', user.uid), {
+        isOnline: navigator.onLine,
+        connectionStatus: navigator.onLine ? 'online' : 'offline',
+        lastActivity: Date.now()
+      }).catch(() => {});
+    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [user?.uid]);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const mainContentRef = useRef<HTMLDivElement>(null);
@@ -272,58 +298,72 @@ export default function StudentExam() {
       sessionRef.current = { ...sessionRef.current, status: 'Selesai', score, correctCount, wrongCount, answers: cleanAnswers };
     }
 
-    try {
-      const docId = sessionVal.id || user!.uid;
-      const updateData = {
-        status: 'Selesai',
-        endTime: Date.now(),
-        score,
-        correctCount,
-        wrongCount,
-        answers: cleanAnswers,
-        hiddenFromMonitor: false
-      };
+    let success = false;
+    let attempts = 0;
+    while (!success && attempts < 5) {
+      attempts++;
+      try {
+        const docId = sessionVal.id || user!.uid;
+        const updateData = {
+          status: 'Selesai',
+          endTime: Date.now(),
+          score,
+          correctCount,
+          wrongCount,
+          answers: cleanAnswers,
+          hiddenFromMonitor: false
+        };
 
-      // 1. Update main session doc with setDoc merge: true
-      await setDoc(doc(db, 'student_sessions', docId), updateData, { merge: true });
+        // 1. Update main session doc with setDoc merge: true
+        await setDoc(doc(db, 'student_sessions', docId), updateData, { merge: true });
 
-      // 2. Also ensure doc under user.uid is updated if docId is different
-      if (user?.uid && user.uid !== docId) {
-        await setDoc(doc(db, 'student_sessions', user.uid), updateData, { merge: true }).catch(() => {});
-      }
+        // 2. Also ensure doc under user.uid is updated if docId is different
+        if (user?.uid && user.uid !== docId) {
+          await setDoc(doc(db, 'student_sessions', user.uid), updateData, { merge: true }).catch(() => {});
+        }
 
-      // 3. Synchronize any matching session docs for this student and exam
-      if (sessionVal.studentName && sessionVal.examId) {
-        try {
-          const matchQ = query(
-            collection(db, 'student_sessions'),
-            where('studentName', '==', sessionVal.studentName),
-            where('examId', '==', sessionVal.examId)
-          );
-          const matchSnap = await getDocs(matchQ);
-          for (const d of matchSnap.docs) {
-            if (d.id !== docId && d.id !== user?.uid) {
-              await setDoc(doc(db, 'student_sessions', d.id), updateData, { merge: true }).catch(() => {});
+        // 3. Synchronize any matching session docs for this student and exam
+        if (sessionVal.studentName && sessionVal.examId) {
+          try {
+            const matchQ = query(
+              collection(db, 'student_sessions'),
+              where('studentName', '==', sessionVal.studentName),
+              where('examId', '==', sessionVal.examId)
+            );
+            const matchSnap = await getDocs(matchQ);
+            for (const d of matchSnap.docs) {
+              if (d.id !== docId && d.id !== user?.uid) {
+                await setDoc(doc(db, 'student_sessions', d.id), updateData, { merge: true }).catch(() => {});
+              }
             }
+          } catch (mErr) {
+            console.warn("Sync matching sessions note:", mErr);
           }
-        } catch (mErr) {
-          console.warn("Sync matching sessions note:", mErr);
+        }
+
+        // Clear local backup
+        if (examVal.id && user?.uid) {
+          localStorage.removeItem(`cbt_answers_${user.uid}_${examVal.id}`);
+          localStorage.removeItem(`cbt_remaining_time_${user.uid}_${examVal.id}`);
+        }
+
+        // Safety: Exit fullscreen
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+        success = true;
+      } catch (e) {
+        console.error(`Attempt ${attempts} failed to submit exam:`, e);
+        if (attempts < 5) {
+          await new Promise(res => setTimeout(res, 1000 * attempts));
         }
       }
+    }
 
-      // Clear local backup
-      if (examVal.id && user?.uid) {
-        localStorage.removeItem(`cbt_answers_${user.uid}_${examVal.id}`);
-        localStorage.removeItem(`cbt_remaining_time_${user.uid}_${examVal.id}`);
-      }
-
-      // Safety: Exit fullscreen
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      }
-    } catch (e) {
-      console.error("Gagal submit ujian:", e);
+    if (!success) {
       setShowSubmitErrorModal(true);
+      setIsSubmittingOrFinished(false);
+      isSubmittingOrFinishedRef.current = false;
     }
   }, [user]);
 
@@ -804,6 +844,14 @@ export default function StudentExam() {
       if (user?.uid && session?.examId && timeLeftRef.current > 0) {
         try {
           localStorage.setItem(`cbt_remaining_time_${user.uid}_${session.examId}`, String(timeLeftRef.current));
+        } catch (e) {}
+      }
+      if (user?.uid) {
+        try {
+          updateDoc(doc(db, 'student_sessions', user.uid), {
+            isOnline: false,
+            connectionStatus: 'disconnected'
+          }).catch(() => {});
         } catch (e) {}
       }
     };
