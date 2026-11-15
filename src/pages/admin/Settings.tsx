@@ -96,12 +96,32 @@ export default function Settings() {
   }, [toast]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) {
+      setSetting({
+        schoolName: '',
+        schoolLogo: '',
+        teacherName: '',
+        teacherRole: '',
+        teacherPhoto: '',
+        maxViolations: 3
+      });
+      setLoading(false);
+      return;
+    }
     
     // Listen to settings changes in real-time
-    const unsub = onSnapshot(doc(db, 'settings', SETTINGS_DOC_ID), (docSnap) => {
+    const unsub = onSnapshot(doc(db, 'settings', user.uid), (docSnap) => {
       if (docSnap.exists()) {
         setSetting(docSnap.data() as Setting);
+      } else {
+        setSetting({
+          schoolName: '',
+          schoolLogo: '',
+          teacherName: '',
+          teacherRole: '',
+          teacherPhoto: '',
+          maxViolations: 3
+        });
       }
       setLoading(false);
     }, (err) => {

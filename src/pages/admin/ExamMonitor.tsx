@@ -396,26 +396,19 @@ export default function ExamMonitor() {
       const targetPacket = s.packetName || examObj?.packetName || '';
 
       let qs: Question[] = [];
-      if (targetSubId && targetPacket) {
-        try {
-          const qSnap = await getDocs(query(
-            collection(db, 'questions'),
-            where('subjectId', '==', targetSubId),
-            where('packetName', '==', targetPacket)
-          ));
-          qs = qSnap.docs.map(d => ({ id: d.id, ...d.data() } as Question));
-        } catch (e) {}
-      }
-      if (qs.length === 0 && targetSubId) {
-        try {
-          const qSnap = await getDocs(query(collection(db, 'questions'), where('subjectId', '==', targetSubId)));
-          qs = qSnap.docs.map(d => ({ id: d.id, ...d.data() } as Question));
-        } catch (e) {}
-      }
-      if (qs.length === 0 && user) {
+      if (user?.uid) {
         try {
           const qSnap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
-          qs = qSnap.docs.map(d => ({ id: d.id, ...d.data() } as Question));
+          let allUserQs = qSnap.docs.map(d => ({ id: d.id, ...d.data() } as Question));
+          if (targetSubId) {
+            const subQs = allUserQs.filter(q => q.subjectId === targetSubId);
+            if (subQs.length > 0) allUserQs = subQs;
+          }
+          if (targetPacket) {
+            const pktQs = allUserQs.filter(q => q.packetName === targetPacket);
+            if (pktQs.length > 0) allUserQs = pktQs;
+          }
+          qs = allUserQs;
         } catch (e) {}
       }
 
@@ -443,17 +436,17 @@ export default function ExamMonitor() {
 
       await setDoc(doc(db, 'student_sessions', s.id!), updateData, { merge: true });
 
-      // Synchronize any matching docs
-      if (s.studentName && s.examId) {
+      // Synchronize any matching docs belonging to the same admin
+      if (s.studentName && s.examId && user?.uid) {
         try {
           const dupQuery = query(
             collection(db, 'student_sessions'),
-            where('studentName', '==', s.studentName),
-            where('examId', '==', s.examId)
+            where('adminId', '==', user.uid)
           );
           const dupSnap = await getDocs(dupQuery);
           for (const d of dupSnap.docs) {
-            if (d.id !== s.id) {
+            const dat = d.data();
+            if (d.id !== s.id && dat.studentName === s.studentName && dat.examId === s.examId) {
               await setDoc(doc(db, 'student_sessions', d.id), updateData, { merge: true }).catch(() => {});
             }
           }

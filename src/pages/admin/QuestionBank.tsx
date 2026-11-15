@@ -216,8 +216,17 @@ export default function QuestionBank() {
   };
 
   useEffect(() => {
-    if (user) fetchSubjects();
-  }, [user]);
+    if (user?.uid) {
+      fetchSubjects();
+    } else {
+      setSubjects([]);
+      setQuestions([]);
+      setOriginalQuestions([]);
+      setExistingTemplates([]);
+      setSelectedSubject('');
+      setSelectedTemplateFilter('all');
+    }
+  }, [user?.uid]);
 
   // Handle browser refresh/close
   useEffect(() => {
@@ -267,14 +276,15 @@ export default function QuestionBank() {
   };
 
   useEffect(() => {
-    if (selectedSubject) {
+    if (selectedSubject && user?.uid) {
       fetchQuestions();
       fetchExistingTemplates();
     } else {
       setQuestions([]);
+      setOriginalQuestions([]);
       setExistingTemplates([]);
     }
-  }, [selectedSubject, selectedTemplateFilter]);
+  }, [selectedSubject, selectedTemplateFilter, user?.uid]);
 
   useEffect(() => {
     const render = () => {
@@ -290,13 +300,16 @@ export default function QuestionBank() {
   }, [questions, editingData, addingData, selectedTemplateFilter]);
 
   const fetchExistingTemplates = async () => {
-    if (!selectedSubject || !user) return;
+    if (!selectedSubject || !user?.uid) {
+      setExistingTemplates([]);
+      return;
+    }
     try {
-      const snap = await getDocs(collection(db, 'questions'));
+      const snap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
       const templates = new Set<string>();
       snap.docs.forEach(doc => {
         const data = doc.data();
-        if (data.subjectId === selectedSubject && (!user?.uid || data.adminId === user.uid)) {
+        if (data.adminId === user.uid && data.subjectId === selectedSubject) {
           if (data.packetName) templates.add(data.packetName);
         }
       });
@@ -307,12 +320,12 @@ export default function QuestionBank() {
   };
 
   const autoAdjustWeights = async (subjectId: string, packetName: string, excludeId?: string) => {
-    if (!subjectId || !packetName || packetName === 'all' || !user) return;
+    if (!subjectId || !packetName || packetName === 'all' || !user?.uid) return;
     try {
-      const snap = await getDocs(collection(db, 'questions'));
+      const snap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
       let docs = snap.docs.filter(d => {
         const data = d.data();
-        return data.subjectId === subjectId && data.packetName === packetName && (!user?.uid || data.adminId === user.uid);
+        return data.adminId === user.uid && data.subjectId === subjectId && data.packetName === packetName;
       });
       if (excludeId) {
         docs = docs.filter(d => d.id !== excludeId);
@@ -394,17 +407,17 @@ export default function QuestionBank() {
   };
 
   const fetchQuestions = async () => {
-    if (!selectedTemplateFilter) {
+    if (!selectedTemplateFilter || !user?.uid) {
       setQuestions([]);
       return;
     }
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'questions'));
+      const snap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
       const matchingDocs = snap.docs.filter(d => {
         const data = d.data();
+        if (data.adminId !== user.uid) return false;
         if (data.subjectId !== selectedSubject) return false;
-        if (user?.uid && data.adminId && data.adminId !== user.uid) return false;
         if (selectedTemplateFilter !== 'all' && data.packetName !== selectedTemplateFilter) return false;
         return true;
       });
@@ -452,11 +465,12 @@ export default function QuestionBank() {
         try { isCustom = localStorage.getItem(customWeightKey) === 'true'; } catch {}
         if (!isCustom && Math.abs(totWeight - 100) >= 0.05) {
           autoAdjustWeights(selectedSubject, selectedTemplateFilter).then(() => {
-            getDocs(collection(db, 'questions')).then(newSnap => {
+            if (!user?.uid) return;
+            getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid))).then(newSnap => {
               const updatedQs = newSnap.docs
                 .filter(d => {
                   const data = d.data();
-                  return data.subjectId === selectedSubject && data.packetName === selectedTemplateFilter && (!user?.uid || data.adminId === user.uid);
+                  return data.adminId === user.uid && data.subjectId === selectedSubject && data.packetName === selectedTemplateFilter;
                 })
                 .map(d => ({ id: d.id, ...(d.data() as any) } as Question));
               updatedQs.sort((a, b) => (a.number || 0) - (b.number || 0));
@@ -1352,10 +1366,11 @@ export default function QuestionBank() {
       async () => {
         setProcessing(true);
         try {
-          const snap = await getDocs(collection(db, 'questions'));
+          if (!user?.uid) return;
+          const snap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
           const docs = snap.docs.filter(d => {
             const data = d.data();
-            return data.subjectId === selectedSubject && data.packetName === templateName && (!user?.uid || data.adminId === user.uid);
+            return data.adminId === user.uid && data.subjectId === selectedSubject && data.packetName === templateName;
           });
           const chunkSize = 500;
           for (let i = 0; i < docs.length; i += chunkSize) {
@@ -1395,10 +1410,11 @@ export default function QuestionBank() {
         
         setProcessing(true);
         try {
-          const snap = await getDocs(collection(db, 'questions'));
+          if (!user?.uid) return;
+          const snap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
           const docs = snap.docs.filter(d => {
             const data = d.data();
-            return data.subjectId === selectedSubject && data.packetName === oldName && (!user?.uid || data.adminId === user.uid);
+            return data.adminId === user.uid && data.subjectId === selectedSubject && data.packetName === oldName;
           });
           const chunkSize = 500;
           for (let i = 0; i < docs.length; i += chunkSize) {

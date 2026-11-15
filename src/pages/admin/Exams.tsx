@@ -56,7 +56,15 @@ export default function Exams() {
   }, [exams]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) {
+      setExams([]);
+      setSubjects([]);
+      setClassesData([]);
+      setAudioList([]);
+      setAvailablePackets([]);
+      setLoading(false);
+      return;
+    }
     // Subscribe to exams in real-time
     const qExams = query(collection(db, 'exams'), where('adminId', '==', user.uid));
     const unsubExams = onSnapshot(qExams, (snapshot) => {
@@ -111,12 +119,12 @@ export default function Exams() {
   }, [user]);
 
   useEffect(() => {
-    if (formData.subjectId) {
+    if (formData.subjectId && user?.uid) {
       fetchPackets(formData.subjectId);
     } else {
       setAvailablePackets([]);
     }
-  }, [formData.subjectId]);
+  }, [formData.subjectId, user?.uid]);
 
   // Background token auto-reset check
   useEffect(() => {
@@ -172,22 +180,20 @@ export default function Exams() {
   }, []);
 
   const fetchPackets = async (subId: string) => {
-    if (!user) return;
+    if (!user?.uid) {
+      setAvailablePackets([]);
+      return;
+    }
     try {
-      const snap = await getDocs(collection(db, 'questions'));
+      const q = query(collection(db, 'questions'), where('adminId', '==', user.uid));
+      const snap = await getDocs(q);
       const packets = new Set<string>();
       snap.docs.forEach(doc => {
         const data = doc.data();
-        if ((!data.subjectId || data.subjectId === subId) && (!user.uid || !data.adminId || data.adminId === user.uid)) {
-          if (data.packetName) packets.add(data.packetName);
+        if (data.adminId === user.uid && data.subjectId === subId && data.packetName) {
+          packets.add(data.packetName);
         }
       });
-      if (packets.size === 0) {
-        snap.docs.forEach(doc => {
-          const data = doc.data();
-          if (data.packetName) packets.add(data.packetName);
-        });
-      }
       setAvailablePackets(Array.from(packets).sort());
     } catch (e) { console.error(e); }
   };
@@ -475,7 +481,7 @@ export default function Exams() {
                         <select
                           required
                           value={formData.subjectId}
-                          onChange={e => setFormData({...formData, subjectId: e.target.value, packetName: ''})}
+                          onChange={e => setFormData({...formData, subjectId: e.target.value, packetName: '', packetNames: []})}
                           className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 appearance-none"
                         >
                           <option value="">-- Pilih Mata Pelajaran --</option>
@@ -867,7 +873,7 @@ export default function Exams() {
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Manajemen Ujian</h3>
           {!isAdding && (
             <button 
-              onClick={() => { resetForm(); setIsAdding(true); }}
+              onClick={() => { resetForm(); setEditingId(null); setAvailablePackets([]); setIsAdding(true); }}
               className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-[10px] font-bold flex items-center space-x-1.5 uppercase transition-colors shadow-sm"
             >
               <Plus className="w-3 h-3" />

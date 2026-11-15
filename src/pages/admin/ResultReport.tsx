@@ -105,39 +105,11 @@ export default function ResultReport() {
       const targetPacket = session.packetName || examObj?.packetName || '';
 
       let qSnap: any = null;
-      if (targetSubId && targetPacket) {
+      if (user?.uid) {
         try {
-          qSnap = await getDocs(query(collection(db, 'questions'), 
-            where('subjectId', '==', targetSubId),
-            where('packetName', '==', targetPacket)
-          ));
+          qSnap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
         } catch (e) {
-          console.warn("Targeted packet query failed, falling back to subject query", e);
-        }
-      }
-      if (!qSnap || qSnap.empty) {
-        if (targetSubId) {
-          try {
-            qSnap = await getDocs(query(collection(db, 'questions'), where('subjectId', '==', targetSubId)));
-          } catch (e) {
-            console.warn("Subject query failed:", e);
-          }
-        }
-      }
-      if (!qSnap || qSnap.empty) {
-        if (user) {
-          try {
-            qSnap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
-          } catch (e) {
-            console.warn("AdminId query failed:", e);
-          }
-        }
-      }
-      if (!qSnap || qSnap.empty) {
-        try {
-          qSnap = await getDocs(collection(db, 'questions'));
-        } catch (e) {
-          console.warn("Global questions collection getDocs failed:", e);
+          console.warn("AdminId query failed:", e);
         }
       }
       
@@ -353,18 +325,14 @@ export default function ResultReport() {
   };
 
   const fetchSettings = async () => {
-    if (!user) return;
+    if (!user?.uid) return;
     try {
       const docRef = doc(db, 'settings', user.uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setSetting(docSnap.data() as Setting);
       } else {
-        const fallbackRef = doc(db, 'settings', 'school');
-        const fallbackSnap = await getDoc(fallbackRef);
-        if (fallbackSnap.exists()) {
-          setSetting(fallbackSnap.data() as Setting);
-        }
+        setSetting(null);
       }
     } catch (e) {
       console.error('Error fetching settings:', e);
@@ -661,12 +629,12 @@ export default function ResultReport() {
     setConfirmDelete(prev => ({ ...prev, isOpen: false }));
     try {
       await deleteDoc(doc(db, 'student_sessions', id));
-      if (studentName && user) {
+      if (studentName && user?.uid) {
         try {
-          const snap = await getDocs(collection(db, 'student_sessions'));
+          const snap = await getDocs(query(collection(db, 'student_sessions'), where('adminId', '==', user.uid)));
           const matchingDocs = snap.docs.filter(d => {
             const data = d.data();
-            return data.studentName === studentName && (!user.uid || data.adminId === user.uid);
+            return data.studentName === studentName && data.adminId === user.uid;
           });
           for (const d of matchingDocs) {
             await deleteDoc(d.ref).catch(() => {});
@@ -690,10 +658,11 @@ export default function ResultReport() {
     setConfirmDeleteExam(prev => ({ ...prev, isOpen: false }));
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'student_sessions'));
+      if (!user?.uid) return;
+      const snap = await getDocs(query(collection(db, 'student_sessions'), where('adminId', '==', user.uid)));
       const matchingDocs = snap.docs.filter(d => {
         const data = d.data();
-        return data.examId === examId && (!user?.uid || data.adminId === user.uid);
+        return data.examId === examId && data.adminId === user.uid;
       });
       const deletePromises = matchingDocs.map(d => deleteDoc(d.ref));
       await Promise.all(deletePromises);

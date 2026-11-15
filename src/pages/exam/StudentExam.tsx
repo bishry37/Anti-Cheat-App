@@ -1628,19 +1628,17 @@ export default function StudentExam() {
 
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-2 sm:px-4 py-1.5 sm:py-2 shrink-0 flex items-center justify-between sticky top-0 z-40 gap-2">
-        <div className="flex flex-col justify-center min-w-0 flex-1">
-          <h1 className="font-bold text-slate-800 text-xs sm:text-sm leading-tight truncate max-w-[150px] sm:max-w-xs md:max-w-md">{exam.title}</h1>
-          <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 mt-0.5">
-            <div className="flex items-center gap-1.5">
-              <StudentCardPhoto
-                photo={studentPhoto || session.studentPhoto}
-                studentName={session.studentName}
-                className="w-8 h-11 sm:w-10 sm:h-14 rounded-md border border-slate-300 shadow-3xs shrink-0 object-cover"
-                showPlaceholderLabel={false}
-              />
-              <div className="flex items-center bg-blue-600 text-white px-2 sm:px-2.5 py-0.5 rounded text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-3xs truncate max-w-[110px] sm:max-w-none">
-                {session.studentName}
-              </div>
+        <div className="flex items-center min-w-0 flex-1 gap-2 sm:gap-2.5">
+          <StudentCardPhoto
+            photo={studentPhoto || session.studentPhoto}
+            studentName={session.studentName}
+            className="w-8 h-11 sm:w-10 sm:h-14 rounded-md border border-slate-300 shadow-3xs shrink-0 object-cover"
+            showPlaceholderLabel={false}
+          />
+          <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 min-w-0">
+            <h1 className="font-bold text-slate-800 text-xs sm:text-sm leading-tight truncate max-w-[150px] sm:max-w-xs md:max-w-md">{exam.title}</h1>
+            <div className="flex items-center bg-blue-600 text-white px-2 sm:px-2.5 py-0.5 rounded text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-3xs truncate max-w-[110px] sm:max-w-none">
+              {session.studentName}
             </div>
             <div className="flex items-center bg-slate-800 text-white px-2 sm:px-2.5 py-0.5 rounded text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-3xs">
               {session.className}
