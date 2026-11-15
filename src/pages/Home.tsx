@@ -53,6 +53,7 @@ export default function Home() {
   // Admin Form State
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
 
   // Specific Exam info based on URL
@@ -1133,17 +1134,27 @@ export default function Home() {
                       Lupa password?
                     </button>
                   </div>
-                  <input 
-                    id="admin_password_input"
-                    autoComplete="new-password"
-                    data-lpignore="true"
-                    type="password" 
-                    name="admin_login_user_pass"
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all focus:bg-white text-sm"
-                  />
+                  <div className="relative">
+                    <input 
+                      id="admin_password_input"
+                      autoComplete="new-password"
+                      data-lpignore="true"
+                      type={showAdminPassword ? "text" : "password"}
+                      name="admin_login_user_pass"
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-4 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all focus:bg-white text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword(!showAdminPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                      title={showAdminPassword ? "Sembunyikan password" : "Lihat password"}
+                    >
+                      {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
                 
                 <button 

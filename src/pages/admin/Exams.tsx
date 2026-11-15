@@ -620,7 +620,7 @@ export default function Exams() {
                                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                                 <div>
                                   <p className="font-bold">Belum ada paket soal di Bank Soal untuk mata pelajaran ini.</p>
-                                  <p className="text-[10px] text-amber-700 mt-0.5">Silakan buat atau unggah file soal dengan nama paket (misal: "Paket A", "Paket B", "Paket C") di menu Bank Soal terlebih dahulu.</p>
+                                  <p className="text-[10px] text-amber-700 mt-0.5">Silakan buat atau unggah file soal dengan nama paket (misal: "Paket A", "Paket B", "Paket C") di menu Manajemen Soal terlebih dahulu.</p>
                                 </div>
                               </div>
                             )}
