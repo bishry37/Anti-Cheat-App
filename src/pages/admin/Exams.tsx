@@ -555,7 +555,7 @@ export default function Exams() {
                                   )}
                                   {formData.subjectId && packetOptions.length === 0 && (
                                     <p className="text-[10px] text-amber-600 font-semibold italic">
-                                      * Ketik nama paket soal yang ingin digunakan jika belum mengunggah soal di Bank Soal.
+                                      * Ketik nama paket soal yang ingin digunakan jika belum mengunggah soal di menu Manajemen Soal.
                                     </p>
                                   )}
                                 </div>
