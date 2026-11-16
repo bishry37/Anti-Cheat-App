@@ -330,7 +330,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         
         {/* Welcome Greeting Card (Left) */}
-        <div className="lg:col-span-7 bg-gradient-to-br from-white via-slate-50 to-slate-100/80 border border-slate-200 rounded-2xl p-6 shadow-xs relative overflow-hidden flex flex-col justify-between">
+        <div className="lg:col-span-7 bg-gradient-to-br from-white via-slate-50 to-slate-100/80 border border-slate-200 rounded-2xl p-6 shadow-xs relative overflow-hidden flex flex-col justify-center">
           {/* Soft glowing ambient spots in corners */}
           <div className="absolute -top-10 -left-10 w-32 h-32 bg-blue-300/10 rounded-full blur-2xl pointer-events-none" />
           <div className="absolute -bottom-10 -right-10 w-28 h-28 bg-indigo-300/10 rounded-full blur-2xl pointer-events-none" />
@@ -353,28 +353,6 @@ export default function AdminDashboard() {
             <p className="text-slate-500 font-medium text-xs leading-relaxed max-w-lg">
               Selamat bertugas! Panel kontrol pengawasan ujian digital ini terhubung langsung dengan sistem keamanan Exam Pro Plus. Anda mengawasi <span className="font-extrabold text-slate-700">{profile?.schoolName || 'Institusi Anda'}</span>.
             </p>
-          </div>
-          
-          {/* Active Status Banner */}
-          <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between gap-4 z-10">
-            <div className="flex items-center gap-3">
-              <div className="bg-emerald-50 text-emerald-600 p-2 rounded-xl shrink-0">
-                <Users className="w-5 h-5 shrink-0" />
-              </div>
-              <div>
-                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Total Siswa Aktif</span>
-                <span className="text-base font-black text-slate-800 flex items-center gap-1.5 leading-none">
-                  {stats.activeStudents} <span className="text-xs font-semibold text-slate-400">Siswa Berlangsung</span>
-                </span>
-              </div>
-            </div>
-            <Link 
-              to="/admin/monitor" 
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase tracking-wider px-3.5 py-2 rounded-xl transition duration-150 flex items-center gap-1 shrink-0"
-            >
-              <span>Pantau Real-time</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
           </div>
 
           <div className="absolute top-0 right-0 w-32 h-full bg-gradient-to-l from-blue-50/15 to-transparent pointer-events-none" />
