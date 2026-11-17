@@ -23,8 +23,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let resolved = false;
+    const safetyTimer = setTimeout(() => {
+      if (!resolved) {
+        const localStudent = sessionStorage.getItem('cbt_student_user');
+        if (localStudent) {
+          try {
+            const parsed = JSON.parse(localStudent);
+            setUser(parsed);
+            setIsAdmin(false);
+          } catch {
+            setUser(null);
+            setIsAdmin(false);
+          }
+        }
+        setLoading(false);
+      }
+    }, 5000);
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      resolved = true;
+      clearTimeout(safetyTimer);
+
       if (currentUser) {
+        // If this tab already fell back to a local student UID (due to Auth timeout),
+        // do not overwrite it with a late-resolving anonymous Firebase UID.
+        if (currentUser.isAnonymous) {
+          const localStudent = sessionStorage.getItem('cbt_student_user');
+          if (localStudent) {
+            try {
+              const parsed = JSON.parse(localStudent);
+              if (parsed?.uid) {
+                setUser(parsed);
+                setIsAdmin(false);
+                setLoading(false);
+                return;
+              }
+            } catch {
+              // ignore parse error and use currentUser
+            }
+          }
+        }
+
         setUser(currentUser);
         if (!currentUser.isAnonymous) {
           setIsAdmin(true);
@@ -51,7 +91,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     });
-    return unsubscribe;
+    return () => {
+      clearTimeout(safetyTimer);
+      unsubscribe();
+    };
   }, []);
 
   const loginAsStudent = async (): Promise<string> => {

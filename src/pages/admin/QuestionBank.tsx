@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { RichTextEditor } from '../../components/RichTextEditor';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType, withFirestoreTimeout } from '../../lib/firebase';
 import { collection, query, getDocs, deleteDoc, doc, orderBy, where, writeBatch, updateDoc, addDoc, getDoc } from 'firebase/firestore';
 import { Question, Subject } from '../../types';
 import { Edit2, Trash2, Loader2, X, Upload, Download, FileSpreadsheet, Search, Check, Plus, FileText, Headphones, Link as LinkIcon } from 'lucide-react';
@@ -369,7 +369,7 @@ export default function QuestionBank() {
         batch.update(doc(db, 'questions', qData.id), { weight: qWeight });
       }
 
-      await batch.commit();
+      await withFirestoreTimeout(batch.commit(), 15000);
     } catch (err) {
       console.error("Error auto adjusting weights:", err);
     }
@@ -413,7 +413,10 @@ export default function QuestionBank() {
     }
     setLoading(true);
     try {
-      const snap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
+      const snap = await withFirestoreTimeout(
+        getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid))),
+        12000
+      );
       const matchingDocs = snap.docs.filter(d => {
         const data = d.data();
         if (data.adminId !== user.uid) return false;
@@ -476,14 +479,15 @@ export default function QuestionBank() {
               updatedQs.sort((a, b) => (a.number || 0) - (b.number || 0));
               setQuestions(updatedQs);
               setOriginalQuestions(updatedQs);
-            });
+            }).catch(() => {});
           });
         }
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleDownloadTemplate = async () => {
@@ -1273,13 +1277,13 @@ export default function QuestionBank() {
           count++;
 
           if (count % 500 === 0) {
-            await batch.commit();
+            await withFirestoreTimeout(batch.commit(), 20000);
             batch = writeBatch(db);
           }
         }
 
         if (count % 500 !== 0) {
-          await batch.commit();
+          await withFirestoreTimeout(batch.commit(), 20000);
         }
 
         const msg = `Berhasil mengimpor ${count} soal ke dalam template "${templateName}". Bobot setiap soal telah disesuaikan secara otomatis berdasarkan proporsi tipe soal (Essay > Listening > Pilihan Ganda Kompleks > Pilihan Ganda) dengan total skor maksimal setara 100.`;
@@ -1291,9 +1295,14 @@ export default function QuestionBank() {
       } catch (err: any) {
         console.error(err);
         showCustomAlert('Gagal Impor', err.message || 'Gagal membaca file Word. Pastikan format sesuai template.', false);
+      } finally {
+        setProcessing(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
+    };
+    reader.onerror = () => {
       setProcessing(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      showCustomAlert('Gagal Impor', 'Gagal membaca file Word dari perangkat Anda.', false);
     };
     reader.readAsArrayBuffer(file);
   };
@@ -1321,7 +1330,7 @@ export default function QuestionBank() {
 
         try {
           // 2. Delete document from Firestore
-          await deleteDoc(doc(db, 'questions', id));
+          await withFirestoreTimeout(deleteDoc(doc(db, 'questions', id)));
           console.log("Question document deleted from Firestore");
 
           // 3. Clear custom weight override in localStorage
@@ -1367,7 +1376,7 @@ export default function QuestionBank() {
         setProcessing(true);
         try {
           if (!user?.uid) return;
-          const snap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
+          const snap = await withFirestoreTimeout(getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid))));
           const docs = snap.docs.filter(d => {
             const data = d.data();
             return data.adminId === user.uid && data.subjectId === selectedSubject && data.packetName === templateName;
@@ -1377,7 +1386,7 @@ export default function QuestionBank() {
             const batch = writeBatch(db);
             const chunk = docs.slice(i, i + chunkSize);
             chunk.forEach(d => batch.delete(d.ref));
-            await batch.commit();
+            await withFirestoreTimeout(batch.commit(), 15000);
           }
           
           showCustomAlert('Berhasil Hapus', `Berhasil menghapus template "${templateName}"`, true);
@@ -1387,11 +1396,12 @@ export default function QuestionBank() {
           fetchQuestions();
           fetchExistingTemplates();
           setIsDirty(true);
-        } catch (err) {
+        } catch (err: any) {
           console.error(err);
-          showCustomAlert('Gagal Hapus', 'Gagal menghapus template soal.', false);
+          showCustomAlert('Gagal Hapus', err?.message || 'Gagal menghapus template soal.', false);
+        } finally {
+          setProcessing(false);
         }
-        setProcessing(false);
       },
       true,
       'Hapus Template'
@@ -1411,7 +1421,7 @@ export default function QuestionBank() {
         setProcessing(true);
         try {
           if (!user?.uid) return;
-          const snap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
+          const snap = await withFirestoreTimeout(getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid))));
           const docs = snap.docs.filter(d => {
             const data = d.data();
             return data.adminId === user.uid && data.subjectId === selectedSubject && data.packetName === oldName;
@@ -1423,7 +1433,7 @@ export default function QuestionBank() {
             chunk.forEach(d => {
               batch.update(d.ref, { packetName: newName.trim() });
             });
-            await batch.commit();
+            await withFirestoreTimeout(batch.commit(), 15000);
           }
           
           showCustomAlert('Berhasil Rename', `Berhasil mengubah nama template menjadi "${newName.trim()}"`, true);
@@ -1433,11 +1443,12 @@ export default function QuestionBank() {
           fetchQuestions();
           fetchExistingTemplates();
           setIsDirty(true);
-        } catch (err) {
+        } catch (err: any) {
           console.error(err);
-          showCustomAlert('Gagal Rename', 'Gagal mengubah nama template.', false);
+          showCustomAlert('Gagal Rename', err?.message || 'Gagal mengubah nama template.', false);
+        } finally {
+          setProcessing(false);
         }
-        setProcessing(false);
       }
     );
   };
@@ -1522,7 +1533,7 @@ export default function QuestionBank() {
         ? Number(rawWeight)
         : (qType === 'essay' ? 10 : qType === 'listening' ? 5 : qType === 'pilihan_ganda_kompleks' ? 2 : 1);
 
-      await updateDoc(doc(db, 'questions', editingQuestionId), {
+      await withFirestoreTimeout(updateDoc(doc(db, 'questions', editingQuestionId), {
         number: Number(editingData.number),
         question: editingData.question || '',
         optionA: isPg ? stripSimpleHTML(editingData.optionA) : '',
@@ -1536,7 +1547,7 @@ export default function QuestionBank() {
         audioUrl: qType === 'listening' ? (editingData.audioUrl || '').trim() : '',
         weight: parsedWeight,
         lastEditedAt: Date.now()
-      } as any);
+      } as any));
 
       // Track if the user has customized question points
       const origWeight = originalEditingData?.weight !== undefined ? Number(originalEditingData.weight) : 0;
@@ -1553,11 +1564,12 @@ export default function QuestionBank() {
       setEditingData(null);
       fetchQuestions();
       setIsDirty(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showCustomAlert('Gagal Menyimpan', 'Gagal menyimpan perubahan ke server.', false);
+      showCustomAlert('Gagal Menyimpan', err?.message || 'Gagal menyimpan perubahan ke server.', false);
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const handleAddQuestion = async () => {
@@ -1652,7 +1664,7 @@ export default function QuestionBank() {
       
       batch.set(qRef, docData);
       
-      await batch.commit();
+      await withFirestoreTimeout(batch.commit(), 15000);
       
       // Auto adjust weights to sum to 100 if user has not set custom weights
       if (!hasEditedWeights) {
@@ -1675,11 +1687,12 @@ export default function QuestionBank() {
       fetchQuestions();
       setIsDirty(true);
       showCustomAlert('Berhasil', 'Soal berhasil ditambahkan.', true);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showCustomAlert('Gagal', 'Gagal menambahkan soal.', false);
+      showCustomAlert('Gagal', err?.message || 'Gagal menambahkan soal.', false);
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const handleExportQuestions = () => {

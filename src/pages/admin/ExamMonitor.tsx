@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType, withFirestoreTimeout } from '../../lib/firebase';
 import { collection, query, doc, updateDoc, setDoc, onSnapshot, getDocs, addDoc, deleteDoc, getDoc, where } from 'firebase/firestore';
 import { StudentSession, Violation, Exam, Subject, Class, Question } from '../../types';
 import { Loader2, AlertTriangle, Eye, ShieldAlert, MonitorOff, Activity, BadgeAlert, X, Trash2, LayoutGrid, Users, Search, ChevronRight, Play, CheckCircle2, Clock3, Ban, Unlock, Radio, Music } from 'lucide-react';
@@ -80,14 +80,15 @@ export default function ExamMonitor() {
       try {
         const elapsedMin = (Date.now() - studentSession.startTime) / 60000;
         const targetDuration = newDuration + elapsedMin;
-        await updateDoc(doc(db, 'student_sessions', studentSession.id!), {
+        await withFirestoreTimeout(updateDoc(doc(db, 'student_sessions', studentSession.id!), {
           duration: targetDuration,
           adjustedRemainingMinutes: newDuration,
           adjustedAt: Date.now()
-        });
+        }));
         showToast(`Sisa durasi ujian ${studentSession.studentName} diubah menjadi ${newDuration} menit`);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
+      } catch (err: any) {
+        console.error("Gagal ubah durasi:", err);
+        showToast(err?.message || 'Gagal mengubah durasi ujian.');
       }
     } else if (mode === 'mass' && className) {
       try {
@@ -105,11 +106,11 @@ export default function ExamMonitor() {
           try {
             const elapsedMin = (Date.now() - s.startTime) / 60000;
             const targetDuration = newDuration + elapsedMin;
-            await updateDoc(doc(db, 'student_sessions', s.id!), {
+            await withFirestoreTimeout(updateDoc(doc(db, 'student_sessions', s.id!), {
               duration: targetDuration,
               adjustedRemainingMinutes: newDuration,
               adjustedAt: Date.now()
-            });
+            }));
             successCount++;
           } catch(e) {
             console.error(`Gagal update durasi ${s.studentName}`, e);
@@ -469,11 +470,11 @@ export default function ExamMonitor() {
       const msg = customWarningText.trim() !== '' ? customWarningText.trim() : defaultMsg;
       try {
         // Update student_session document with warning message without incrementing violationsCount or changing status
-        await updateDoc(doc(db, 'student_sessions', session.id!), {
+        await withFirestoreTimeout(updateDoc(doc(db, 'student_sessions', session.id!), {
           adminWarningMessage: msg,
           adminWarningTime: Date.now(),
           lastActivity: Date.now()
-        });
+        }));
 
         showToast('Pemberitahuan peringatan berhasil dikirim ke siswa');
         if (selectedSession?.id === session.id) {
@@ -483,21 +484,22 @@ export default function ExamMonitor() {
             adminWarningTime: Date.now()
           });
         }
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
+      } catch (err: any) {
+        console.error("Gagal kirim peringatan:", err);
+        showToast(err?.message || 'Gagal mengirim peringatan.');
       }
     } else if (type === 'end_exam' && session) {
       try {
-        await updateDoc(doc(db, 'student_sessions', session.id!), {
+        await withFirestoreTimeout(updateDoc(doc(db, 'student_sessions', session.id!), {
           status: 'Didiskualifikasi',
           wasDisqualified: true,
           adminWarningMessage: 'Ujian dihentikan paksa oleh pengawas.',
           adminWarningTime: Date.now(),
           endTime: Date.now()
-        });
+        }));
         
         // Also log it as a violation
-        await addDoc(collection(db, 'violations'), {
+        await withFirestoreTimeout(addDoc(collection(db, 'violations'), {
           sessionId: session.id,
           studentName: session.studentName,
           subjectId: session.subjectId,
@@ -505,26 +507,28 @@ export default function ExamMonitor() {
           type: 'Diskualifikasi Paksa',
           status: 'Dihentikan langsung oleh pengawas.',
           timestamp: Date.now()
-        });
+        }));
         
         setSelectedSession(null);
         showToast('Ujian telah dihentikan paksa');
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
+      } catch (err: any) {
+        console.error("Gagal menghentikan ujian:", err);
+        showToast(err?.message || 'Gagal menghentikan ujian.');
       }
     } else if (type === 'restore' && session) {
       try {
-        await updateDoc(doc(db, 'student_sessions', session.id!), {
+        await withFirestoreTimeout(updateDoc(doc(db, 'student_sessions', session.id!), {
           status: 'Aktif',
           violationsCount: 0, // Reset violations on restore
           endTime: null,
           wasDisqualified: true, // Keep true for history
           lastActivity: 0, // Reset activity to force "Waiting for Login" status UI
           deviceId: null // Reset deviceId so student can log in using ANY device or computer
-        });
+        }));
         showToast('Murid diizinkan melanjutkan ujian');
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, 'student_sessions');
+      } catch (err: any) {
+        console.error("Gagal memulihkan akses siswa:", err);
+        showToast(err?.message || 'Gagal memulihkan akses siswa.');
       }
     } else if (type === 'finalize_exam' && session) {
       try {

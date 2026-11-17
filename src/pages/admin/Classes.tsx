@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType, withFirestoreTimeout } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, where, writeBatch, onSnapshot } from 'firebase/firestore';
 import { Class, StudentRecord, Setting } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, Users, Search, ArrowRight, GraduationCap, Check, Key, Copy, Printer, RefreshCw, FileText, LayoutGrid, List, Scissors, Building2, UserCircle, Download, Camera, Upload, CheckCircle2, Image as ImageIcon } from 'lucide-react';
@@ -120,33 +120,34 @@ export default function Classes() {
       const newName = nameInput.trim();
       if (editingId) {
         const oldClass = Array.isArray(classesList) ? classesList.find(c => c.id === editingId) : undefined;
-        await updateDoc(doc(db, 'classes', editingId), { name: newName, adminId: user.uid });
+        await withFirestoreTimeout(updateDoc(doc(db, 'classes', editingId), { name: newName, adminId: user.uid }));
         if (oldClass && oldClass.name !== newName) {
-           const snap = await getDocs(query(collection(db, 'exams'), where('adminId', '==', user.uid)));
+           const snap = await withFirestoreTimeout(getDocs(query(collection(db, 'exams'), where('adminId', '==', user.uid))));
            const matchingDocs = snap.docs.filter(d => d.data().targetClass === oldClass.name && d.data().adminId === user.uid);
            if (matchingDocs.length > 0) {
              const batch = writeBatch(db);
              matchingDocs.forEach(d => batch.update(d.ref, { targetClass: newName }));
-             await batch.commit();
+             await withFirestoreTimeout(batch.commit());
            }
         }
         if (selectedClass && selectedClass.id === editingId) {
           setSelectedClass(prev => prev ? { ...prev, name: newName } : null);
         }
       } else {
-        await addDoc(collection(db, 'classes'), {
+        await withFirestoreTimeout(addDoc(collection(db, 'classes'), {
           name: newName,
           createdAt: Date.now(),
           adminId: user.uid,
           students: []
-        });
+        }));
       }
       setIsAdding(false);
       setEditingId(null);
       setNameInput('');
-      await fetchClasses();
-    } catch (err) {
-      handleFirestoreError(err, editingId ? OperationType.UPDATE : OperationType.CREATE, 'classes');
+      await withFirestoreTimeout(fetchClasses());
+    } catch (err: any) {
+      console.error("Gagal menyimpan kelas:", err);
+      showToast(err?.message || 'Gagal menyimpan kelas ke server.');
     } finally {
       setProcessing(false);
     }
@@ -165,23 +166,25 @@ export default function Classes() {
     setProcessing(true);
     try {
       const oldClass = Array.isArray(classesList) ? classesList.find(c => c.id === modalConfig.idToDelete) : undefined;
-      await deleteDoc(doc(db, 'classes', modalConfig.idToDelete));
+      await withFirestoreTimeout(deleteDoc(doc(db, 'classes', modalConfig.idToDelete)));
       if (oldClass) {
-         const snap = await getDocs(query(collection(db, 'exams'), where('adminId', '==', user.uid)));
+         const snap = await withFirestoreTimeout(getDocs(query(collection(db, 'exams'), where('adminId', '==', user.uid))));
          const matchingDocs = snap.docs.filter(d => d.data().targetClass === oldClass.name && d.data().adminId === user.uid);
          if (matchingDocs.length > 0) {
            const batch = writeBatch(db);
            matchingDocs.forEach(d => batch.update(d.ref, { targetClass: '' }));
-           await batch.commit();
+           await withFirestoreTimeout(batch.commit());
          }
       }
       if (selectedClass && selectedClass.id === modalConfig.idToDelete) {
         setSelectedClass(null);
       }
       setModalConfig(null);
-      await fetchClasses();
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'classes');
+      await withFirestoreTimeout(fetchClasses());
+    } catch (err: any) {
+      console.error("Gagal menghapus kelas:", err);
+      showToast(err?.message || 'Gagal menghapus kelas dari server.');
+      setModalConfig(null);
     } finally {
       setProcessing(false);
     }
@@ -221,9 +224,9 @@ export default function Classes() {
         return rec;
       });
 
-      await updateDoc(doc(db, 'classes', selectedClass.id), {
+      await withFirestoreTimeout(updateDoc(doc(db, 'classes', selectedClass.id), {
         students: cleanedStudents
-      });
+      }));
       
       const updatedClassObj = { ...selectedClass, students: cleanedStudents };
       setSelectedClass(updatedClassObj);

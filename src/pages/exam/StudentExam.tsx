@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { db, handleFirestoreError, OperationType, auth } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType, auth, withFirestoreTimeout } from '../../lib/firebase';
 import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, addDoc, onSnapshot } from 'firebase/firestore';
 import { StudentSession, Exam, Question, Setting, Violation, AudioItem, StudentRecord } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
@@ -432,13 +432,43 @@ export default function StudentExam() {
     setCurrentQuestionIndex(0);
     setLoadError('');
 
+    let isCancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retryCount = 0;
+    const MAX_RETRIES = 4;
+
+    const scheduleRetryOrFail = (delayMs: number, fallbackMessage: string) => {
+      if (isCancelled) return;
+      if (retryCount >= MAX_RETRIES) {
+        setLoadError(fallbackMessage);
+        return;
+      }
+      retryCount++;
+      retryTimer = setTimeout(() => {
+        if (!isCancelled) {
+          loadData();
+        }
+      }, delayMs);
+    };
+
     async function loadData() {
+      if (isCancelled) return;
       try {
         let sessData: StudentSession | null = null;
-        const sessSnap = await getDoc(doc(db, 'student_sessions', user!.uid));
-        if (sessSnap.exists()) {
-          sessData = { ...sessSnap.data(), id: sessSnap.id } as StudentSession;
-        } else {
+        try {
+          const sessSnap = await withFirestoreTimeout(
+            getDoc(doc(db, 'student_sessions', user!.uid)),
+            8000,
+            'Timeout memuat sesi ujian.'
+          );
+          if (sessSnap.exists()) {
+            sessData = { ...sessSnap.data(), id: sessSnap.id } as StudentSession;
+          }
+        } catch (sessErr) {
+          console.warn("Firestore session lookup timed out or failed, checking local fallback:", sessErr);
+        }
+
+        if (!sessData) {
           // Fallback to sessionStorage session data if available
           const cachedSession = sessionStorage.getItem('cbt_active_session_data');
           if (cachedSession) {
@@ -454,11 +484,11 @@ export default function StudentExam() {
         }
 
         if (!sessData) {
-          // Instead of Akses Ditolak, retry loading or wait gracefully
-          console.warn("Session data not found immediately, retrying in 2 seconds...");
-          setTimeout(() => loadData(), 2000);
+          console.warn(`Session data not found (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+          scheduleRetryOrFail(2000, 'Sesi ujian Anda tidak ditemukan atau telah berakhir. Silakan kembali ke beranda dan login ulang.');
           return;
         }
+        if (isCancelled) return;
 
         if (sessData.status === 'Tidak Fokus' || sessData.status === 'Melanggar') {
           sessData.status = 'Aktif';
@@ -522,7 +552,12 @@ export default function StudentExam() {
           setCurrentQuestionIndex(sessData.lastQuestionIndex);
         }
 
-        const exSnap = await getDoc(doc(db, 'exams', sessData.examId));
+        const exSnap = await withFirestoreTimeout(
+          getDoc(doc(db, 'exams', sessData.examId)),
+          10000,
+          'Timeout memuat jadwal ujian.'
+        );
+        if (isCancelled) return;
         if (exSnap.exists()) {
           const exData = exSnap.data() as Exam;
           setExam(exData);
@@ -602,10 +637,20 @@ export default function StudentExam() {
             // First try targeted query by subjectId to avoid downloading the entire collection
             let allSnap;
             if (targetSubId) {
-              allSnap = await getDocs(query(collection(db, 'questions'), where('subjectId', '==', targetSubId)));
+              allSnap = await withFirestoreTimeout(
+                getDocs(query(collection(db, 'questions'), where('subjectId', '==', targetSubId))),
+                12000
+              );
             }
             if (!allSnap || allSnap.empty) {
-              allSnap = await getDocs(collection(db, 'questions'));
+              if (sessData.adminId) {
+                allSnap = await withFirestoreTimeout(
+                  getDocs(query(collection(db, 'questions'), where('adminId', '==', sessData.adminId))),
+                  12000
+                );
+              } else {
+                allSnap = await withFirestoreTimeout(getDocs(collection(db, 'questions')), 12000);
+              }
             }
             const allQuestions = allSnap.docs.map(d => {
               const data = d.data() as any;
@@ -800,17 +845,21 @@ export default function StudentExam() {
             setTimeLeft(calculatedTimeLeft);
           }
         } else {
-          // If exam doc not found immediately, retry instead of hard error
-          setTimeout(() => loadData(), 2000);
+          // If exam doc not found immediately, retry up to MAX_RETRIES then show error
+          scheduleRetryOrFail(2000, 'Jadwal ujian tidak ditemukan atau sudah dihapus oleh pengawas.');
           return;
         }
 
-      } catch (err) {
+      } catch (err: any) {
         console.error("Gagal load data, retrying...", err);
-        setTimeout(() => loadData(), 3000);
+        scheduleRetryOrFail(3000, err?.message || 'Gagal memuat data ujian dari server. Periksa koneksi internet Anda lalu coba kembali.');
       }
     }
     loadData();
+    return () => {
+      isCancelled = true;
+      if (retryTimer !== undefined) clearTimeout(retryTimer);
+    };
   }, [user]);
 
   // Listen to remote changes on session (for admin warnings/kicks/manual duration changes)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType, withFirestoreTimeout } from '../../lib/firebase';
 import { collection, query, getDocs, getDoc, orderBy, where, doc, deleteDoc, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { StudentSession, Exam, Question, Class, Subject, Setting, AudioItem } from '../../types';
 import { Loader2, FileSpreadsheet, Trash2, Award, CheckCircle2, XCircle, X, Check, Clock, Users, Search, LayoutGrid, Music } from 'lucide-react';
@@ -107,7 +107,10 @@ export default function ResultReport() {
       let qSnap: any = null;
       if (user?.uid) {
         try {
-          qSnap = await getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid)));
+          qSnap = await withFirestoreTimeout(
+            getDocs(query(collection(db, 'questions'), where('adminId', '==', user.uid))),
+            12000
+          );
         } catch (e) {
           console.warn("AdminId query failed:", e);
         }
@@ -161,8 +164,9 @@ export default function ResultReport() {
     } catch (e) {
       console.error(e);
       showToast('Gagal memuat detail pertanyaan');
+    } finally {
+      setLoadingQuestions(false);
     }
-    setLoadingQuestions(false);
   };
 
   const handleSaveEssayGrades = async () => {
@@ -194,7 +198,7 @@ export default function ResultReport() {
           essayScores: cleanScores,
           lastGradedAt: Date.now()
         };
-        await setDoc(doc(db, 'student_sessions', docId), updatePayload, { merge: true });
+        await withFirestoreTimeout(setDoc(doc(db, 'student_sessions', docId), updatePayload, { merge: true }));
 
         showToast('Koreksi nilai berhasil disimpan!');
         setSelectedSession(null);
@@ -251,7 +255,7 @@ export default function ResultReport() {
       };
 
       // Use setDoc with merge: true to avoid any NOT_FOUND issues
-      await setDoc(doc(db, 'student_sessions', docId), updatePayload, { merge: true });
+      await withFirestoreTimeout(setDoc(doc(db, 'student_sessions', docId), updatePayload, { merge: true }));
 
       // Synchronize any duplicate/resumed sessions for this student and exam
       if (selectedSession.studentName && selectedSession.examId) {
@@ -261,7 +265,7 @@ export default function ResultReport() {
             where('studentName', '==', selectedSession.studentName),
             where('examId', '==', selectedSession.examId)
           );
-          const dupSnap = await getDocs(dupQuery);
+          const dupSnap = await withFirestoreTimeout(getDocs(dupQuery), 6000);
           for (const d of dupSnap.docs) {
             if (d.id !== docId) {
               await setDoc(doc(db, 'student_sessions', d.id), updatePayload, { merge: true }).catch(() => {});

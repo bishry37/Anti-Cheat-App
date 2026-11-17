@@ -419,13 +419,19 @@ export default function Home() {
 
     if (!targetRecord && matchingExam.targetClass) {
       try {
-        const snap = await getDocs(collection(db, 'classes'));
-        for (const d of snap.docs) {
-          const cData = d.data();
-          if ((cData.name || '').trim().toLowerCase() === (matchingExam.targetClass || '').trim().toLowerCase()) {
-            const students = (cData.students || []) as (string | StudentRecord)[];
-            targetRecord = students.find(s => getStudentName(s) === upperName);
-            if (targetRecord) break;
+        const classSnapPromise = getDocs(collection(db, 'classes'));
+        const snap = await Promise.race([
+          classSnapPromise,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000))
+        ]);
+        if (snap) {
+          for (const d of snap.docs) {
+            const cData = d.data();
+            if ((cData.name || '').trim().toLowerCase() === (matchingExam.targetClass || '').trim().toLowerCase()) {
+              const students = (cData.students || []) as (string | StudentRecord)[];
+              targetRecord = students.find(s => getStudentName(s) === upperName);
+              if (targetRecord) break;
+            }
           }
         }
       } catch (err) {
@@ -698,10 +704,14 @@ export default function Home() {
       // If resuming and the old session was under a different ID, hide old doc from monitor
       if (isResume && targetUid && targetUid !== uid) {
           try {
-              await updateDoc(doc(db, 'student_sessions', targetUid), {
-                  hiddenFromMonitor: true,
-                  status: 'Arsip'
-              });
+              await withTimeout(
+                updateDoc(doc(db, 'student_sessions', targetUid), {
+                    hiddenFromMonitor: true,
+                    status: 'Arsip'
+                }),
+                3500,
+                null
+              );
           } catch (e) {
               console.warn("Cleanup old session doc failed", e);
           }

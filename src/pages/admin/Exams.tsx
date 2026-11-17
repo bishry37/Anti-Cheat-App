@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, auth, handleFirestoreError, OperationType, withFirestoreTimeout } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, setDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot, deleteField } from 'firebase/firestore';
 import { Exam, Subject, Class, AudioItem } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, Key, Clock, Copy, CheckCircle2, Search, Filter, Music, Shuffle, Layers, AlertCircle, Check } from 'lucide-react';
@@ -307,12 +307,12 @@ export default function Exams() {
     try {
       console.log("Saving exam to Firestore:", { id: currentEditId || targetExamId, firestorePayload });
       if (currentEditId) {
-        await setDoc(doc(db, 'exams', currentEditId), firestorePayload, { merge: true });
+        await withFirestoreTimeout(setDoc(doc(db, 'exams', currentEditId), firestorePayload, { merge: true }));
       } else {
-        await setDoc(doc(db, 'exams', targetExamId), {
+        await withFirestoreTimeout(setDoc(doc(db, 'exams', targetExamId), {
           ...firestorePayload,
           createdAt: Date.now()
-        });
+        }));
       }
       console.log("Save successful");
       setIsAdding(false);
@@ -340,7 +340,7 @@ export default function Exams() {
 
     setProcessing(true);
     try {
-      await deleteDoc(doc(db, 'exams', targetId));
+      await withFirestoreTimeout(deleteDoc(doc(db, 'exams', targetId)));
       setModalConfig(null);
     } catch (err: any) {
       console.error("Error deleting exam:", err);

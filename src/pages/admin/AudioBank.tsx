@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../../lib/firebase';
+import { db, withFirestoreTimeout } from '../../lib/firebase';
 import { collection, addDoc, getDocs, deleteDoc, doc, query, where, orderBy, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
 import { AudioItem } from '../../types';
@@ -170,7 +170,7 @@ export default function AudioBank() {
     const { streamUrl, fileId } = parseGoogleDriveUrl(driveUrl);
 
     try {
-      await addDoc(collection(db, 'audio_banks'), {
+      await withFirestoreTimeout(addDoc(collection(db, 'audio_banks'), {
         adminId: user!.uid,
         name: name.trim(),
         description: description.trim(),
@@ -181,7 +181,7 @@ export default function AudioBank() {
         allowRepeat,
         createdAt: Date.now(),
         isChunked: false
-      });
+      }));
 
       setUploading(false);
       setIsModalOpen(false);
@@ -233,14 +233,14 @@ export default function AudioBank() {
         finalDuration = previewDuration;
       }
 
-      await updateDoc(doc(db, 'audio_banks', editingAudio.id), {
+      await withFirestoreTimeout(updateDoc(doc(db, 'audio_banks', editingAudio.id), {
         name: name.trim(),
         description: description.trim(),
         allowRepeat,
         driveUrl: finalDriveUrl,
         audioData: finalAudioData,
         duration: finalDuration
-      });
+      }));
 
       setUploading(false);
       setIsEditModalOpen(false);

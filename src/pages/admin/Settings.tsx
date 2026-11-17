@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, handleFirestoreError, OperationType, storage } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType, storage, withFirestoreTimeout } from '../../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Setting } from '../../types';
@@ -245,11 +245,11 @@ export default function Settings() {
         updatedAt: Date.now(), 
         adminId: user.uid 
       };
-      await setDoc(doc(db, 'settings', SETTINGS_DOC_ID), dataToSave);
+      await withFirestoreTimeout(setDoc(doc(db, 'settings', SETTINGS_DOC_ID), dataToSave));
       triggerToast('Pengaturan berhasil disimpan.', 'success');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'settings');
-      triggerToast('Gagal menyimpan pengaturan.', 'error');
+    } catch (err: any) {
+      console.error("Gagal menyimpan pengaturan:", err);
+      triggerToast(err?.message || 'Gagal menyimpan pengaturan.', 'error');
     } finally {
       setSaving(false);
     }

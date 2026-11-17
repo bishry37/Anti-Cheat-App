@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, Firestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -21,8 +21,35 @@ setPersistence(auth, browserSessionPersistence).catch((err) => {
   console.warn("Unable to set browserSessionPersistence:", err);
 });
 
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+let dbInstance: Firestore;
+try {
+  dbInstance = initializeFirestore(
+    app,
+    { experimentalAutoDetectLongPolling: true },
+    firebaseConfig.firestoreDatabaseId
+  );
+} catch {
+  dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+}
+
+export const db = dbInstance;
 export const storage = getStorage(app);
+
+export async function withFirestoreTimeout<T>(
+  promise: Promise<T>,
+  ms = 12000,
+  errorMessage = 'Koneksi ke server melebihi batas waktu. Periksa koneksi internet atau kuota Firebase Anda.'
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(errorMessage)), ms);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
 
 // Error handling helper
 export enum OperationType {

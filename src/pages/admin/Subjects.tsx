@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType, withFirestoreTimeout } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, where, onSnapshot } from 'firebase/firestore';
 import { Subject } from '../../types';
 import { Plus, Edit2, Trash2, Loader2, Save, X, BookOpen } from 'lucide-react';
@@ -14,6 +14,7 @@ export default function Subjects() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [modalConfig, setModalConfig] = useState<{
     title: string;
     description: string;
@@ -43,27 +44,34 @@ export default function Subjects() {
   const handleSave = async () => {
     if (!nameInput.trim() || !user) return;
     setProcessing(true);
+    setErrorMsg('');
     try {
       if (editingId) {
-        await updateDoc(doc(db, 'subjects', editingId), { name: nameInput.trim(), adminId: user.uid });
+        await withFirestoreTimeout(
+          updateDoc(doc(db, 'subjects', editingId), { name: nameInput.trim(), adminId: user.uid })
+        );
       } else {
-        await addDoc(collection(db, 'subjects'), {
-          name: nameInput.trim(),
-          createdAt: Date.now(),
-          adminId: user.uid
-        });
+        await withFirestoreTimeout(
+          addDoc(collection(db, 'subjects'), {
+            name: nameInput.trim(),
+            createdAt: Date.now(),
+            adminId: user.uid
+          })
+        );
       }
       setIsAdding(false);
       setEditingId(null);
       setNameInput('');
-    } catch (err) {
-      handleFirestoreError(err, editingId ? OperationType.UPDATE : OperationType.CREATE, 'subjects');
+    } catch (err: any) {
+      console.error("Gagal menyimpan mata pelajaran:", err);
+      setErrorMsg(err?.message || 'Gagal menyimpan data ke server.');
     } finally {
       setProcessing(false);
     }
   };
 
   const handleDelete = (id: string) => {
+    setErrorMsg('');
     setModalConfig({
       title: 'Hapus Mata Pelajaran',
       description: 'Apakah Anda yakin ingin menghapus mata pelajaran ini? Tindakan ini akan menghapus data tersebut secara permanen.',
@@ -74,23 +82,28 @@ export default function Subjects() {
   const executeDelete = async () => {
     if (!modalConfig || !modalConfig.idToDelete) return;
     setProcessing(true);
+    setErrorMsg('');
     try {
-      await deleteDoc(doc(db, 'subjects', modalConfig.idToDelete));
+      await withFirestoreTimeout(deleteDoc(doc(db, 'subjects', modalConfig.idToDelete)));
       setModalConfig(null);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'subjects');
+    } catch (err: any) {
+      console.error("Gagal menghapus mata pelajaran:", err);
+      setErrorMsg(err?.message || 'Gagal menghapus data dari server.');
+      setModalConfig(null);
     } finally {
       setProcessing(false);
     }
   };
 
   const startEdit = (subject: Subject) => {
+    setErrorMsg('');
     setEditingId(subject.id!);
     setNameInput(subject.name);
     setIsAdding(true);
   };
 
   const cancelEdit = () => {
+    setErrorMsg('');
     setIsAdding(false);
     setEditingId(null);
     setNameInput('');
@@ -135,9 +148,18 @@ export default function Subjects() {
                 </button>
               </div>
             </div>
+            {errorMsg && (
+              <p className="mt-2 text-xs font-medium text-red-600">{errorMsg}</p>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
+
+      {!isAdding && errorMsg && (
+        <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-600 rounded text-xs font-medium shrink-0">
+          {errorMsg}
+        </div>
+      )}
 
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col flex-1 min-h-0">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
