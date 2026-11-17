@@ -1288,7 +1288,7 @@ export default function StudentExam() {
           } catch (e) {}
         }
       }
-    }, 5000); // every 5s for high precision
+    }, 30000); // every 30s to preserve Firestore write quota while staying well under 180s offline threshold
 
     return () => { clearInterval(timer); clearInterval(heartbeat); };
   }, [session?.status, session?.examId, user?.uid, isFullscreen, isSubmittingOrFinished, submitExam]);
@@ -1300,8 +1300,8 @@ export default function StudentExam() {
 
     const handleUserInteraction = () => {
       const now = Date.now();
-      // Update at most once every 10 seconds on touch/scroll to keep online status fresh
-      if (now - lastActivityUpdateRef.current > 10000) {
+      // Update at most once every 30 seconds on touch/scroll to keep online status fresh without wasting quota
+      if (now - lastActivityUpdateRef.current > 30000) {
         lastActivityUpdateRef.current = now;
         updateDoc(doc(db, 'student_sessions', user.uid), {
           lastActivity: now,

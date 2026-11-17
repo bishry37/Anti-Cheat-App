@@ -663,16 +663,19 @@ export default function ResultReport() {
     setLoading(true);
     try {
       if (!user?.uid) return;
-      const snap = await getDocs(query(collection(db, 'student_sessions'), where('adminId', '==', user.uid)));
+      const snap = await withFirestoreTimeout(
+        getDocs(query(collection(db, 'student_sessions'), where('adminId', '==', user.uid))),
+        12000
+      );
       const matchingDocs = snap.docs.filter(d => {
         const data = d.data();
         return data.examId === examId && data.adminId === user.uid;
       });
-      const deletePromises = matchingDocs.map(d => deleteDoc(d.ref));
+      const deletePromises = matchingDocs.map(d => withFirestoreTimeout(deleteDoc(d.ref), 12000));
       await Promise.all(deletePromises);
       
       try {
-        await deleteDoc(doc(db, 'exams', examId));
+        await withFirestoreTimeout(deleteDoc(doc(db, 'exams', examId)), 12000);
       } catch (examErr) {
         console.warn("Exam doc already deleted or permission skipped:", examErr);
       }

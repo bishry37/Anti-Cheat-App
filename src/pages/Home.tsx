@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { collection, query, where, getDocs, doc, setDoc, updateDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, setDoc, updateDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { Setting, Subject, Exam, StudentSession, StudentRecord } from '../types';
 import { ShieldAlert, UserPlus, Lock, AppWindow, GraduationCap, ArrowRight, Loader2, UserCircle, KeyRound, CheckCircle2, Link2, Key, Info, Eye, EyeOff } from 'lucide-react';
@@ -32,10 +32,7 @@ export default function Home() {
 
   // Data
   const [setting, setSetting] = useState<Setting | null>(null);
-  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [activeExams, setActiveExams] = useState<Exam[]>([]);
-  const [classesList, setClassesList] = useState<{id: string, name: string}[]>([]);
 
   // Form State
   const [studentName, setStudentName] = useState('');
@@ -61,38 +58,15 @@ export default function Home() {
   const [linkedSubjectName, setLinkedSubjectName] = useState<string>('');
 
   useEffect(() => {
-    let unsubSettings: () => void;
-    let unsubExams: () => void;
-    let unsubClasses: () => void;
-    let unsubSubjects: () => void;
-
     // Fetch Active Exams
     const examsQuery = query(collection(db, 'exams'), where('isActive', '==', true));
-    unsubExams = onSnapshot(examsQuery, (examsSnap) => {
+    const unsubExams = onSnapshot(examsQuery, (examsSnap) => {
       const examsData = examsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Exam));
       setActiveExams(examsData);
     }, (err) => console.error(err));
 
-    // Fetch Classes
-    unsubClasses = onSnapshot(collection(db, 'classes'), (classesSnap) => {
-      const uniqueClasses = Array.from(new Map(classesSnap.docs.map(d => [d.data().name, { id: d.id, name: d.data().name }])).values());
-      const sortedClasses = uniqueClasses.sort((a, b) => a.name.localeCompare(b.name));
-      setClassesList(sortedClasses);
-    }, (err) => console.error(err));
-
-    // Fetch Subjects
-    unsubSubjects = onSnapshot(collection(db, 'subjects'), (subjectsSnap) => {
-      const rawSubjects = subjectsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
-      setAllSubjects(rawSubjects);
-      const uniqueSubjects = Array.from(new Map(rawSubjects.map(d => [d.name, d])).values());
-      const sortedSubjects = uniqueSubjects.sort((a: any, b: any) => a.name.localeCompare(b.name));
-      setSubjects(sortedSubjects as Subject[]);
-    }, (err) => console.error(err));
-
     return () => {
-      if (unsubExams) unsubExams();
-      if (unsubClasses) unsubClasses();
-      if (unsubSubjects) unsubSubjects();
+      unsubExams();
     };
   }, []);
 
@@ -126,11 +100,16 @@ export default function Home() {
       ) : undefined;
       if (ex) {
         setLinkedExam(ex);
-        const subj = Array.isArray(allSubjects) ? allSubjects.find(s => s.id === ex.subjectId) : undefined;
-        if (subj) setLinkedSubjectName(subj.name);
+        if (ex.subjectId) {
+          getDoc(doc(db, 'subjects', ex.subjectId)).then((subSnap) => {
+            if (subSnap.exists()) {
+              setLinkedSubjectName((subSnap.data() as Subject).name || '');
+            }
+          }).catch(() => {});
+        }
       }
     }
-  }, [examIdFromUrl, codeFromUrl, activeExams, allSubjects]);
+  }, [examIdFromUrl, codeFromUrl, activeExams]);
 
   // Sync Settings when Admin is identified
   useEffect(() => {
@@ -249,7 +228,10 @@ export default function Home() {
     const currentExam = matchingActiveExam;
 
     if (currentExam.targetClass) {
-      getDocs(collection(db, 'classes')).then((snap) => {
+      const classQuery = currentExam.adminId
+        ? query(collection(db, 'classes'), where('adminId', '==', currentExam.adminId))
+        : collection(db, 'classes');
+      getDocs(classQuery).then((snap) => {
         const targetRaw = (currentExam.targetClass || '').trim();
         const targetClean = targetRaw.toLowerCase();
         const targetNorm = normalizeClassKey(targetRaw);

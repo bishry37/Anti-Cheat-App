@@ -290,7 +290,10 @@ export default function AudioBank() {
       } else {
         setLoadingAudioId(item.id);
         try {
-          const chunksSnap = await getDocs(collection(db, 'audio_banks', item.id, 'chunks'));
+          const chunksSnap = await withFirestoreTimeout(
+            getDocs(collection(db, 'audio_banks', item.id, 'chunks')),
+            12000
+          );
           const sortedChunks = chunksSnap.docs
             .map(d => d.data() as { chunkIndex: number; data: string })
             .sort((a, b) => a.chunkIndex - b.chunkIndex);
