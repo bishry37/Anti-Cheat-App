@@ -53,6 +53,12 @@ export default function ExamMonitor() {
 
   // A global timer ticker to update remaining time on display dynamically every second
   const [now, setNow] = useState(Date.now());
+  // Track per-session live snapshot arrivals using the admin browser clock to avoid student/admin clock skew issues
+  const sessionSyncRef = React.useRef<Record<string, {
+    signature: string;
+    syncedAt: number;
+    liveUpdated: boolean;
+  }>>({});
   useEffect(() => {
     const timer = setInterval(() => {
       setNow(Date.now());
@@ -82,6 +88,7 @@ export default function ExamMonitor() {
         const targetDuration = newDuration + elapsedMin;
         await withFirestoreTimeout(updateDoc(doc(db, 'student_sessions', studentSession.id!), {
           duration: targetDuration,
+          remainingSeconds: Math.max(0, Math.round(newDuration * 60)),
           adjustedRemainingMinutes: newDuration,
           adjustedAt: Date.now()
         }));
@@ -108,6 +115,7 @@ export default function ExamMonitor() {
             const targetDuration = newDuration + elapsedMin;
             await withFirestoreTimeout(updateDoc(doc(db, 'student_sessions', s.id!), {
               duration: targetDuration,
+              remainingSeconds: Math.max(0, Math.round(newDuration * 60)),
               adjustedRemainingMinutes: newDuration,
               adjustedAt: Date.now()
             }));
@@ -182,9 +190,21 @@ export default function ExamMonitor() {
       let q = query(collection(db, 'student_sessions'), where('adminId', '==', user.uid));
       
       const unsubscribe = onSnapshot(q, (snapshot) => {
+        const receivedAt = Date.now();
         const data = snapshot.docs
           .map(d => ({ ...d.data(), id: d.id } as StudentSession))
           .filter(s => !s.hiddenFromMonitor);
+        data.forEach((s) => {
+          if (!s.id) return;
+          const ansCount = s.answers ? Object.keys(s.answers).length : 0;
+          const sig = `${s.status}|${s.lastActivity}|${s.remainingSeconds ?? ''}|${s.lastQuestionIndex ?? ''}|${ansCount}|${s.duration ?? ''}|${s.adjustedAt ?? ''}|${s.startTime}|${s.violationsCount}`;
+          const prev = sessionSyncRef.current[s.id];
+          if (!prev) {
+            sessionSyncRef.current[s.id] = { signature: sig, syncedAt: receivedAt, liveUpdated: false };
+          } else if (prev.signature !== sig) {
+            sessionSyncRef.current[s.id] = { signature: sig, syncedAt: receivedAt, liveUpdated: true };
+          }
+        });
         // Sort active first, then newest
         data.sort((a, b) => {
           if (a.status === 'Aktif' && b.status !== 'Aktif') return -1;
@@ -543,11 +563,8 @@ export default function ExamMonitor() {
           if (s.status === 'Selesai' || s.status === 'Didiskualifikasi') return false;
           if (filterClass && s.className !== filterClass) return false;
           if (filterExam && s.examId !== filterExam) return false;
-          const ex = exams[s.examId];
-          const dur = typeof s.duration === 'number' ? s.duration : (ex?.duration || 90);
-          const elapsedMin = (Date.now() - s.startTime) / 60000;
-          const remainingSecs = Math.max(0, Math.round(dur * 60 - elapsedMin * 60));
-          return remainingSecs <= 0 || (s.remainingSeconds !== undefined && s.remainingSeconds <= 0);
+          const { isTimeExpired } = getSessionTiming(s);
+          return isTimeExpired;
         });
 
         if (expiredSessions.length === 0) {
@@ -624,22 +641,74 @@ export default function ExamMonitor() {
     }
   };
 
+  const getSessionTiming = (s: StudentSession) => {
+    const durationMin = typeof s.duration === 'number' ? s.duration : (exams[s.examId]?.duration || 0);
+    const limitMs = durationMin * 60 * 1000;
+    const startBasedRemainingMs = limitMs > 0 && s.startTime ? (limitMs - (now - s.startTime)) : 0;
+    const sync = s.id ? sessionSyncRef.current[s.id] : undefined;
+    const hasRemainingSecs = typeof s.remainingSeconds === 'number';
+    const sinceSyncMs = sync ? Math.max(0, now - sync.syncedAt) : 0;
+
+    let remainingMs = startBasedRemainingMs;
+
+    if (s.status === 'Selesai' || s.status === 'Didiskualifikasi') {
+      remainingMs = 0;
+    } else if (sync?.liveUpdated) {
+      if (hasRemainingSecs) {
+        remainingMs = s.remainingSeconds! > 0
+          ? Math.max(0, s.remainingSeconds! * 1000 - sinceSyncMs)
+          : 0;
+      } else {
+        remainingMs = startBasedRemainingMs;
+      }
+    } else if (hasRemainingSecs) {
+      const inInitialGraceWindow = sync ? sinceSyncMs <= 65000 : true;
+      const recentlyActiveByTimestamp = s.lastActivity > 0 && (now - s.lastActivity) <= 180000;
+      if (s.remainingSeconds! > 0 && (inInitialGraceWindow || recentlyActiveByTimestamp)) {
+        remainingMs = Math.max(0, s.remainingSeconds! * 1000 - sinceSyncMs);
+      } else if (s.remainingSeconds! <= 0) {
+        remainingMs = 0;
+      } else {
+        remainingMs = startBasedRemainingMs;
+      }
+    }
+
+    let isOffline = false;
+    if (s.status === 'Aktif' && s.lastActivity > 0) {
+      if (sync?.liveUpdated) {
+        isOffline = sinceSyncMs > 180000;
+      } else {
+        const inInitialGraceWindow = sync ? sinceSyncMs <= 65000 : true;
+        isOffline = !inInitialGraceWindow && (now - s.lastActivity > 180000);
+      }
+    }
+
+    const isActivelySynced = !!sync?.liveUpdated && sinceSyncMs <= 180000;
+    const isTimeExpired = s.status !== 'Selesai' && s.status !== 'Didiskualifikasi' && (
+      hasRemainingSecs
+        ? remainingMs <= 0 && !(isActivelySynced && s.remainingSeconds! > 0)
+        : (limitMs > 0 && remainingMs <= 0 && !isActivelySynced)
+    );
+
+    return { durationMin, limitMs, remainingMs, hasRemainingSecs, isOffline, isTimeExpired };
+  };
+
   const getRemainingTimeDisplay = (s: StudentSession) => {
     if (s.status === 'Selesai' || s.status === 'Didiskualifikasi') {
       return <span className="text-slate-400 font-bold">-</span>;
     }
-    
-    // Total duration in minutes
-    const durationMin = typeof s.duration === 'number' ? s.duration : (exams[s.examId]?.duration || 0);
-    const limitMs = durationMin * 60 * 1000;
-    const elapsedMs = now - s.startTime;
-    const remainingMs = limitMs - elapsedMs;
-    
-    if (remainingMs <= 0) {
+
+    const { durationMin, limitMs, remainingMs, hasRemainingSecs, isTimeExpired } = getSessionTiming(s);
+
+    if (!hasRemainingSecs && limitMs <= 0) {
+      return <span className="text-slate-400 font-bold">-</span>;
+    }
+
+    if (isTimeExpired) {
       return <span className="text-red-600 font-black uppercase tracking-tight text-[10px] bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-100">Waktu Habis</span>;
     }
     
-    const secs = Math.floor(remainingMs / 1000);
+    const secs = Math.max(0, Math.floor(remainingMs / 1000));
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
     const sec = secs % 60;
@@ -666,9 +735,8 @@ export default function ExamMonitor() {
   };
 
   const openIndividualDurationModal = (s: StudentSession) => {
-    const currentDur = typeof s.duration === 'number' ? s.duration : (exams[s.examId]?.duration || 90);
-    const elapsedMin = (Date.now() - s.startTime) / 60000;
-    const remainingMin = Math.max(0, Math.ceil(currentDur - elapsedMin));
+    const { remainingMs } = getSessionTiming(s);
+    const remainingMin = Math.max(0, Math.ceil(remainingMs / 60000));
     setDurationModal({
       isOpen: true,
       mode: 'individual',
@@ -788,9 +856,8 @@ export default function ExamMonitor() {
                     let defaultDur = 90;
                     if (activeSessionsInClass.length > 0) {
                       const firstSession = activeSessionsInClass[0];
-                      const currentDur = typeof firstSession.duration === 'number' ? firstSession.duration : (exams[firstSession.examId]?.duration || 90);
-                      const elapsedMin = (Date.now() - firstSession.startTime) / 60000;
-                      defaultDur = Math.max(0, Math.ceil(currentDur - elapsedMin));
+                      const { remainingMs } = getSessionTiming(firstSession);
+                      defaultDur = Math.max(0, Math.ceil(remainingMs / 60000));
                     }
                     setDurationModal({
                       isOpen: true,
@@ -869,13 +936,8 @@ export default function ExamMonitor() {
                   ) : (
                     filteredSessions.map((s, idx) => {
                       const isWarning = s.violationsCount > 0 && s.status === 'Aktif';
-                      const isOffline = s.status === 'Aktif' && s.lastActivity > 0 && (now - s.lastActivity > 180000);
                       const isWaitingLogin = s.status === 'Aktif' && s.lastActivity === 0;
-
-                      const durationMin = typeof s.duration === 'number' ? s.duration : (exams[s.examId]?.duration || 0);
-                      const limitMs = durationMin * 60 * 1000;
-                      const elapsedMs = now - s.startTime;
-                      const isTimeExpired = limitMs > 0 && (limitMs - elapsedMs) <= 0;
+                      const { isOffline, isTimeExpired } = getSessionTiming(s);
                       
                       return (
                         <tr key={s.id} className={`group border-b border-slate-50 hover:bg-slate-50 transition-colors ${isWarning ? 'bg-orange-50/50' : ''} ${s.status === 'Melanggar' ? 'bg-red-50/30' : ''}`}>
@@ -1151,7 +1213,7 @@ export default function ExamMonitor() {
                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Aktivitas Terakhir</p>
                    <p className="text-sm font-medium text-slate-800">
                      {new Date(selectedSession.lastActivity).toLocaleTimeString()}
-                     {Date.now() - selectedSession.lastActivity > 60000 ? ' (Offline)' : ' (Online)'}
+                     {getSessionTiming(selectedSession).isOffline ? ' (Offline)' : ' (Online)'}
                    </p>
                 </div>
               </div>
