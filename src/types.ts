@@ -120,6 +120,7 @@ export interface StudentSession {
   essayScores?: Record<string, number>; // questionId -> custom grade
   adminWarningMessage?: string;
   adminWarningTime?: number;
+  acknowledgedWarningTime?: number;
   lastQuestionIndex?: number;
   wasDisqualified?: boolean;
   duration?: number;

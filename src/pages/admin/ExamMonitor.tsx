@@ -489,19 +489,40 @@ export default function ExamMonitor() {
       const defaultMsg = "Perhatian! Mohon tetap fokus dan mengerjakan ujian dengan jujur. Patuhi instruksi pengawas ujian.";
       const msg = customWarningText.trim() !== '' ? customWarningText.trim() : defaultMsg;
       try {
-        // Update student_session document with warning message without incrementing violationsCount or changing status
-        await withFirestoreTimeout(updateDoc(doc(db, 'student_sessions', session.id!), {
+        const warningTime = Math.max(Date.now(), (session.adminWarningTime || 0) + 1);
+        const warningPayload = {
           adminWarningMessage: msg,
-          adminWarningTime: Date.now(),
-          lastActivity: Date.now()
-        }));
+          adminWarningTime: warningTime
+        };
+
+        // Update primary student_session document with warning message without incrementing violationsCount or changing status
+        await withFirestoreTimeout(updateDoc(doc(db, 'student_sessions', session.id!), warningPayload));
+
+        // Also propagate to any duplicate active session documents belonging to the same student & exam
+        const targetName = (session.studentName || '').trim().toUpperCase();
+        const siblingDocs = sessions.filter(
+          other =>
+            other.id &&
+            other.id !== session.id &&
+            (other.studentName || '').trim().toUpperCase() === targetName &&
+            other.examId === session.examId &&
+            other.status !== 'Selesai' &&
+            other.status !== 'Didiskualifikasi'
+        );
+        if (siblingDocs.length > 0) {
+          await Promise.all(
+            siblingDocs.map(other =>
+              updateDoc(doc(db, 'student_sessions', other.id!), warningPayload).catch(() => {})
+            )
+          );
+        }
 
         showToast('Pemberitahuan peringatan berhasil dikirim ke siswa');
         if (selectedSession?.id === session.id) {
           openMonitor({
             ...session,
             adminWarningMessage: msg,
-            adminWarningTime: Date.now()
+            adminWarningTime: warningTime
           });
         }
       } catch (err: any) {

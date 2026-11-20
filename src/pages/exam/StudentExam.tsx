@@ -862,24 +862,41 @@ export default function StudentExam() {
     };
   }, [user]);
 
+  const getWarningAckStorageKey = (sess: StudentSession | null | undefined, uid?: string) => {
+    if (sess?.examId && sess?.studentName) {
+      return `cbt_ack_warning_${sess.examId}_${sess.studentName.trim().toUpperCase()}`;
+    }
+    return `cbt_ack_warning_${sess?.id || uid || 'default'}`;
+  };
+
+  const readStoredAckTime = (sess: StudentSession | null | undefined, uid?: string) => {
+    try {
+      const key = getWarningAckStorageKey(sess, uid);
+      const raw = localStorage.getItem(key) || (uid ? localStorage.getItem(`cbt_ack_warning_${uid}`) : null);
+      const parsed = raw ? parseInt(raw, 10) : 0;
+      return !isNaN(parsed) ? parsed : 0;
+    } catch {
+      return 0;
+    }
+  };
+
   // Listen to remote changes on session (for admin warnings/kicks/manual duration changes)
+  const activeSessionDocId = session?.id || user?.uid;
   useEffect(() => {
-    if (!user) return;
-    let initialized = false;
-    const unsub = onSnapshot(doc(db, 'student_sessions', user.uid), (docSnap) => {
+    if (!user || !activeSessionDocId) return;
+    const unsub = onSnapshot(doc(db, 'student_sessions', activeSessionDocId), (docSnap) => {
       if (docSnap.exists()) {
         const dat = { id: docSnap.id, ...docSnap.data() } as StudentSession;
         setSession(dat);
         if (dat.studentPhoto) {
           setStudentPhoto(dat.studentPhoto);
         }
-        
-        // Match user's warning timestamp upon first mount to prevent showing legacy warnings
-        if (!initialized) {
-          if (dat.adminWarningTime) {
-            setAcknowledgedWarningTime(dat.adminWarningTime);
-          }
-          initialized = true;
+
+        const storedAck = readStoredAckTime(dat, user.uid);
+        const serverAck = typeof dat.acknowledgedWarningTime === 'number' ? dat.acknowledgedWarningTime : 0;
+        const maxAck = Math.max(storedAck, serverAck);
+        if (maxAck > 0) {
+          setAcknowledgedWarningTime(prev => Math.max(prev, maxAck));
         }
 
         // Real-time manual duration adjustment from Admin
@@ -892,7 +909,7 @@ export default function StudentExam() {
             const targetDuration = dat.adjustedRemainingMinutes + elapsedMin;
             
             // Update Firestore with the resolved duration
-            updateDoc(doc(db, 'student_sessions', user.uid), {
+            updateDoc(doc(db, 'student_sessions', activeSessionDocId), {
               duration: targetDuration
             }).catch(e => console.error("Gagal update duration based on adjustment:", e));
           }
@@ -905,9 +922,11 @@ export default function StudentExam() {
           }
         }
       }
+    }, (error) => {
+      console.warn("Student session snapshot warning:", error);
     });
     return () => unsub();
-  }, [user]);
+  }, [user, activeSessionDocId]);
 
   // Listen to exam duration changes
   useEffect(() => {
@@ -1499,9 +1518,59 @@ export default function StudentExam() {
     );
   }
 
+  const effectiveAckWarningTime = Math.max(
+    acknowledgedWarningTime,
+    session.acknowledgedWarningTime || 0,
+    readStoredAckTime(session, user?.uid)
+  );
+
+  const adminWarningModal = session && session.adminWarningTime && session.adminWarningTime > effectiveAckWarningTime ? (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+      <div className="bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] max-w-md w-full border border-red-100 p-6 flex flex-col items-center text-center animate-in scale-in duration-200">
+        <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-4 shadow-sm animate-bounce">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h3 className="text-lg font-extrabold text-red-600 uppercase tracking-widest mb-1 font-sans">
+          Teguran Kedisiplinan
+        </h3>
+        <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-4">
+          Pesan Dari Pengawas Ujian
+        </p>
+        <div className="w-full bg-red-50/50 rounded-xl p-4 border border-red-100/50 mb-6 text-left">
+          <p className="text-xs text-red-700 leading-relaxed font-semibold">
+            {session.adminWarningMessage || "Mohon penuhi instruksi keselamatan ujian agar pengerjaan tetap aman!"}
+          </p>
+        </div>
+        <button 
+          onClick={() => {
+            const ackTime = session.adminWarningTime!;
+            setAcknowledgedWarningTime(ackTime);
+            try {
+              const key = getWarningAckStorageKey(session, user?.uid);
+              localStorage.setItem(key, String(ackTime));
+              if (user?.uid) {
+                localStorage.setItem(`cbt_ack_warning_${user.uid}`, String(ackTime));
+              }
+            } catch {}
+            const targetDocId = session.id || user?.uid;
+            if (targetDocId) {
+              updateDoc(doc(db, 'student_sessions', targetDocId), {
+                acknowledgedWarningTime: ackTime
+              }).catch(() => {});
+            }
+          }}
+          className="w-full py-3 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold text-sm tracking-wider uppercase rounded-xl transition-all shadow-md active:scale-95 cursor-pointer font-sans"
+        >
+          Oke, Saya Mengerti
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   if (!isFullscreen && session.status !== 'Selesai' && session.status !== 'Didiskualifikasi') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
+        {adminWarningModal}
         <Maximize className="w-16 h-16 text-blue-400 mb-6" />
         <h1 className="text-3xl font-bold mb-4">Mulai Ujian</h1>
         <p className="max-w-md text-slate-300 mb-8 leading-relaxed">
@@ -1522,34 +1591,7 @@ export default function StudentExam() {
     <div ref={containerRef} className="h-[100dvh] overflow-hidden bg-slate-50 flex flex-col select-none">
 
       {/* Admin Warning Modal Overlay */}
-      {session && session.adminWarningTime && session.adminWarningTime > acknowledgedWarningTime && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] max-w-md w-full border border-red-100 p-6 flex flex-col items-center text-center animate-in scale-in duration-200">
-            <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-4 shadow-sm animate-bounce">
-              <ShieldAlert className="w-8 h-8" />
-            </div>
-            <h3 className="text-lg font-extrabold text-red-600 uppercase tracking-widest mb-1 font-sans">
-              Teguran Kedisiplinan
-            </h3>
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-4">
-              Pesan Dari Pengawas Ujian
-            </p>
-            <div className="w-full bg-red-50/50 rounded-xl p-4 border border-red-100/50 mb-6 text-left">
-              <p className="text-xs text-red-700 leading-relaxed font-semibold">
-                {session.adminWarningMessage || "Mohon penuhi instruksi keselamatan ujian agar pengerjaan tetap aman!"}
-              </p>
-            </div>
-            <button 
-              onClick={() => {
-                setAcknowledgedWarningTime(session.adminWarningTime!);
-              }}
-              className="w-full py-3 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold text-sm tracking-wider uppercase rounded-xl transition-all shadow-md active:scale-95 cursor-pointer font-sans"
-            >
-              Oke, Saya Mengerti
-            </button>
-          </div>
-        </div>
-      )}
+      {adminWarningModal}
       
       {/* Alert Overlay */}
       <AnimatePresence>

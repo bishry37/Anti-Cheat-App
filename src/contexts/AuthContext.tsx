@@ -98,15 +98,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loginAsStudent = async (): Promise<string> => {
+    let timedOut = false;
     try {
       const signInPromise = (async () => {
         await setPersistence(auth, browserSessionPersistence).catch(() => {});
         const credential = await signInAnonymously(auth);
+        if (!timedOut) {
+          sessionStorage.removeItem('cbt_student_user');
+          setUser(credential.user);
+          setIsAdmin(false);
+        }
         return credential.user.uid;
       })();
 
       const timeoutPromise = new Promise<string>((_, reject) => {
-        setTimeout(() => reject(new Error('Firebase Auth timeout')), 3500);
+        setTimeout(() => {
+          timedOut = true;
+          reject(new Error('Firebase Auth timeout'));
+        }, 3500);
       });
 
       return await Promise.race([signInPromise, timeoutPromise]);
